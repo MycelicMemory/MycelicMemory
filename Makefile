@@ -5,6 +5,9 @@ BINARY_NAME=ultrathink
 VERSION?=dev
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
+# Build tags for FTS5 support
+BUILD_TAGS=-tags "fts5"
+CGO_ENABLED=CGO_ENABLED=1
 
 # Default target
 help:
@@ -25,39 +28,38 @@ help:
 	@echo "  make deps          - Download dependencies"
 	@echo "  make build-all     - Build for all platforms"
 
-# Build the binary
+# Build the binary (requires CGO for SQLite)
 build:
 	@echo "Building $(BINARY_NAME)..."
-	go build $(LDFLAGS) -o $(BINARY_NAME) cmd/ultrathink/main.go
+	$(CGO_ENABLED) go build $(BUILD_TAGS) $(LDFLAGS) -o $(BINARY_NAME) cmd/ultrathink/main.go
 	@echo "✅ Build complete: ./$(BINARY_NAME)"
 
-# Build for all platforms
+# Build for all platforms (requires cross-compilation CGO setup)
 build-all:
 	@echo "Building for all platforms..."
 	@mkdir -p dist
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 cmd/ultrathink/main.go
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 cmd/ultrathink/main.go
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 cmd/ultrathink/main.go
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe cmd/ultrathink/main.go
+	$(CGO_ENABLED) GOOS=darwin GOARCH=arm64 go build $(BUILD_TAGS) $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 cmd/ultrathink/main.go
+	$(CGO_ENABLED) GOOS=darwin GOARCH=amd64 go build $(BUILD_TAGS) $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 cmd/ultrathink/main.go
 	@echo "✅ Multi-platform build complete in dist/"
+	@echo "Note: Linux/Windows builds require cross-compilation CGO setup"
 	@ls -lh dist/
 
-# Run tests
+# Run tests (with FTS5 support)
 test:
 	@echo "Running tests..."
-	go test ./... -v
+	$(CGO_ENABLED) go test $(BUILD_TAGS) ./... -v
 
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	go test ./... -cover -coverprofile=coverage.out
+	$(CGO_ENABLED) go test $(BUILD_TAGS) ./... -cover -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "✅ Coverage report: coverage.html"
 
 # Run tests verbosely
 test-verbose:
 	@echo "Running tests (verbose)..."
-	go test ./... -v -race
+	$(CGO_ENABLED) go test $(BUILD_TAGS) ./... -v -race
 
 # Clean build artifacts
 clean:
@@ -71,14 +73,14 @@ clean:
 # Install binary
 install:
 	@echo "Installing $(BINARY_NAME)..."
-	go install $(LDFLAGS) cmd/ultrathink/main.go
+	$(CGO_ENABLED) go install $(BUILD_TAGS) $(LDFLAGS) cmd/ultrathink/main.go
 	@echo "✅ Installed to $(GOPATH)/bin/$(BINARY_NAME)"
 
 # Run linters
 lint:
 	@echo "Running linters..."
 	@which golangci-lint > /dev/null || (echo "❌ golangci-lint not installed. Run: brew install golangci-lint" && exit 1)
-	golangci-lint run ./...
+	$(CGO_ENABLED) golangci-lint run $(BUILD_TAGS) ./...
 
 # Format code
 fmt:
@@ -89,7 +91,7 @@ fmt:
 # Run go vet
 vet:
 	@echo "Running go vet..."
-	go vet ./...
+	$(CGO_ENABLED) go vet $(BUILD_TAGS) ./...
 	@echo "✅ Vet complete"
 
 # Run the binary
