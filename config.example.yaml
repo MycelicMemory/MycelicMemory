@@ -1,0 +1,117 @@
+# Ultrathink Configuration Example
+# Copy to ~/.ultrathink/config.yaml or ./config.yaml
+#
+# All settings shown with their default values.
+# Verified configuration structure from Local Memory v1.2.0 reverse-engineering.
+
+profile: default
+
+# Database Configuration
+database:
+  # Path to SQLite database file
+  path: ~/.ultrathink/memories.db
+
+  # Automatic backup interval (Go duration format: 24h, 12h, etc.)
+  backup_interval: 24h
+
+  # Maximum number of backup files to keep
+  max_backups: 7
+
+  # Automatically run database migrations on startup
+  auto_migrate: true
+
+# Setup Configuration
+setup:
+  # Set to false after first run
+  first_run: true
+
+  # Set to true after setup wizard completes
+  wizard_shown: false
+
+# License Configuration (Open source version)
+license:
+  # License requirement (false for open source)
+  required: false
+
+  # Check license on startup
+  check_on_startup: false
+
+  # Terms of service
+  terms:
+    required: false
+    source: embedded
+
+# REST API Configuration
+rest_api:
+  # Enable REST API server
+  enabled: true
+
+  # Automatically find available port if configured port is in use
+  auto_port: true
+
+  # Default port (3002 matches Local Memory)
+  port: 3002
+
+  # Host to bind to
+  host: localhost
+
+  # Enable CORS for browser access
+  cors: true
+
+# Session Management
+session:
+  # Automatically generate session IDs
+  auto_generate: true
+
+  # Session ID generation strategy
+  # Options: "git-directory" (hash of git repo dir) or "manual"
+  strategy: git-directory
+
+# Logging Configuration
+logging:
+  # Log level: debug, info, warn, error
+  level: info
+
+  # Log format: console, json
+  format: console
+
+# Ollama AI Service Configuration
+# Verified models from Local Memory v1.2.0
+ollama:
+  # Enable Ollama integration
+  enabled: true
+
+  # Automatically detect if Ollama is available
+  auto_detect: true
+
+  # Ollama API base URL
+  base_url: http://localhost:11434
+
+  # Embedding model (768 dimensions)
+  # Verified: nomic-embed-text produces 768-dim vectors
+  embedding_model: nomic-embed-text
+
+  # Chat/summarization model
+  # Verified: qwen2.5:3b for analysis tasks
+  chat_model: qwen2.5:3b
+
+# Qdrant Vector Database Configuration
+# Verified: HNSW with m=16, ef_construct=100, Cosine distance
+qdrant:
+  # Enable Qdrant integration
+  enabled: true
+
+  # Automatically detect if Qdrant is available
+  auto_detect: true
+
+  # Qdrant server URL
+  url: http://localhost:6333
+
+# Notes:
+# - All paths support ~ expansion for home directory
+# - Duration formats: 24h, 12h30m, 90m, etc.
+# - Ollama models must be pulled first:
+#   ollama pull nomic-embed-text
+#   ollama pull qwen2.5:3b
+# - Qdrant can run via Docker:
+#   docker run -p 6333:6333 qdrant/qdrant
