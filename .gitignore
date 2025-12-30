@@ -1,0 +1,75 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+
+# Build artifacts
+/dist/
+/build/
+/ultrathink
+ultrathink-*
+
+# Dependency directories
+vendor/
+node_modules/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Configuration files with secrets
+config.yaml
+*.key
+*.pem
+*.cert
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Log files
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# npm package binaries
+npm/bin/
+
+# OS specific
+Thumbs.db
+
+# Test coverage
+coverage.txt
+coverage.html
+
+# Backup files
+*.backup
+*~
+
+# Local development
+.env
+.env.local
+.env.*.local
+
+# Debug files
+debug
+__debug_bin
