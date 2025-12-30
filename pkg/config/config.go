@@ -62,10 +62,11 @@ type RestAPIConfig struct {
 }
 
 // SessionConfig holds session management configuration
-// Verified strategies: "git-directory" or "manual"
+// Verified strategies: "git-directory", "manual", or "hash"
 type SessionConfig struct {
 	AutoGenerate bool   `mapstructure:"auto_generate"`
-	Strategy     string `mapstructure:"strategy"` // "git-directory" or "manual"
+	Strategy     string `mapstructure:"strategy"`  // "git-directory", "manual", or "hash"
+	ManualID     string `mapstructure:"manual_id"` // Used when strategy is "manual"
 }
 
 // LoggingConfig holds logging configuration
