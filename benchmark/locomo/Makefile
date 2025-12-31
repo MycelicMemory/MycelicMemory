@@ -5,7 +5,6 @@
 
 # Configuration
 PYTHON ?= python3
-export DEEPSEEK_API_KEY ?= sk-265369bfd7534590a7e02be4f1026fe4
 ULTRATHINK_URL ?= http://localhost:3099/api/v1
 DATASET_PATH ?= data/locomo-mc10-full.jsonl
 RESULTS_DIR ?= results
@@ -15,7 +14,7 @@ help:
 	@echo ""
 	@echo "Prerequisites:"
 	@echo "  - ultrathink server running on port 3099"
-	@echo "  - DEEPSEEK_API_KEY set (or using default)"
+	@echo "  - DEEPSEEK_API_KEY set (copy .env.example to .env)"
 	@echo ""
 	@echo "Commands:"
 	@echo "  make setup      - Install Python dependencies"

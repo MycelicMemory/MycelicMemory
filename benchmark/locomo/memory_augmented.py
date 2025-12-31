@@ -28,11 +28,7 @@ from ultrathink_client import UltrathinkClient, RetrievalResult
 from metrics_tracker import MetricsTracker, TokenMetrics, QuestionResult
 from logging_system import BenchmarkLogger, CallType, init_logger, get_logger
 from llm_call_tracker import LLMCallTracker
-
-# DeepSeek API configuration
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-265369bfd7534590a7e02be4f1026fe4")
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_MODEL = "deepseek-chat"
+from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 
 
 @dataclass

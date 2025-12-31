@@ -6,17 +6,17 @@ Uses DeepSeek as the judge model.
 
 import argparse
 import json
-import os
 import re
+import sys
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 from openai import OpenAI
 
-# DeepSeek API configuration (OpenAI-compatible)
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-265369bfd7534590a7e02be4f1026fe4")
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_MODEL = "deepseek-chat"  # Best DeepSeek model
+# Add parent directory to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 
 client = OpenAI(
     api_key=DEEPSEEK_API_KEY,
