@@ -26,6 +26,8 @@ import requests
 
 from ultrathink_client import UltrathinkClient, RetrievalResult
 from metrics_tracker import MetricsTracker, TokenMetrics, QuestionResult
+from logging_system import BenchmarkLogger, CallType, init_logger, get_logger
+from llm_call_tracker import LLMCallTracker
 
 # DeepSeek API configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "REDACTED_API_KEY")
@@ -50,7 +52,9 @@ class MemoryAugmentedExperiment:
         self,
         dataset_path: str = "data/locomo10.json",
         max_questions: Optional[int] = None,
-        ultrathink_url: str = "http://localhost:3002/api/v1"
+        ultrathink_url: str = "http://localhost:3002/api/v1",
+        enable_logging: bool = True,
+        log_dir: str = "logs"
     ):
         """
         Initialize memory-augmented experiment.
@@ -59,15 +63,28 @@ class MemoryAugmentedExperiment:
             dataset_path: Path to LoCoMo-MC10 JSONL dataset
             max_questions: Max questions to process (None = all)
             ultrathink_url: Ultrathink server URL
+            enable_logging: Enable comprehensive logging
+            log_dir: Directory for log files
         """
         self.dataset_path = dataset_path
         self.max_questions = max_questions
         self.deepseek_api_key = DEEPSEEK_API_KEY
         self.ultrathink_url = ultrathink_url
 
+        # Initialize logging
+        self.enable_logging = enable_logging
+        if enable_logging:
+            self.logger = init_logger(
+                name="memory-augmented-benchmark",
+                log_dir=log_dir
+            )
+        else:
+            self.logger = None
+
         # Initialize clients
         self.memory_client = UltrathinkClient(base_url=ultrathink_url)
         self.llm_client = requests.Session()
+        self.llm_tracker = LLMCallTracker(logger=self.logger)
 
         # Initialize metrics
         self.metrics_tracker = MetricsTracker()
@@ -175,51 +192,43 @@ CHOICES:
 
 Return ONLY the choice index (0-9), nothing else."""
 
-        # Call DeepSeek API
-        start_time = time.time()
-
-        headers = {
-            "Authorization": f"Bearer {self.deepseek_api_key}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": "You are a helpful assistant. Answer questions based on provided context."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0,
-            "max_tokens": 20,  # Increased from 10 to allow for formatting
-            "top_p": 1
-        }
+        # Build messages for LLM
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Answer questions based on provided context."},
+            {"role": "user", "content": prompt}
+        ]
 
         try:
-            response = self.llm_client.post(
-                "https://api.deepseek.com/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=30
+            # Use LLMCallTracker for full transparency
+            response_text, metrics = self.llm_tracker.call_llm_api(
+                api_key=self.deepseek_api_key,
+                model="deepseek-chat",
+                messages=messages,
+                temperature=0,
+                max_tokens=20,
+                top_p=1
             )
-            response.raise_for_status()
-            data = response.json()
 
             # Extract choice index from response
-            response_text = data["choices"][0]["message"]["content"].strip()
             match = re.search(r'\b([0-9])\b', response_text)
             predicted_idx = int(match.group(1)) if match else None
 
-            # Calculate tokens
-            elapsed = time.time() - start_time
+            # Create token metrics
             token_metrics = TokenMetrics(
-                input_tokens=data["usage"]["prompt_tokens"],
-                output_tokens=data["usage"]["completion_tokens"],
-                total_tokens=data["usage"]["total_tokens"]
+                input_tokens=metrics.input_tokens,
+                output_tokens=metrics.output_tokens,
+                total_tokens=metrics.total_tokens
             )
 
-            return predicted_idx, (token_metrics, elapsed)
+            return predicted_idx, (token_metrics, metrics.total_time_ms / 1000)
 
         except Exception as e:
+            if self.logger:
+                self.logger.log_benchmark_event(
+                    CallType.BENCHMARK_END,
+                    f"LLM error occurred",
+                    {"error": str(e), "question": question[:100]}
+                )
             print(f"❌ LLM error: {e}")
             return None, (TokenMetrics(0, 0, 0), 0)
 
@@ -237,9 +246,28 @@ Return ONLY the choice index (0-9), nothing else."""
         print("MEMORY-AUGMENTED LoCoMo-MC10 BENCHMARK")
         print("="*70)
 
+        # Log benchmark start
+        if self.logger:
+            self.logger.log_benchmark_event(
+                CallType.BENCHMARK_START,
+                "Memory-augmented LoCoMo-MC10 benchmark started",
+                {
+                    "total_questions": len(self.questions),
+                    "max_questions": self.max_questions,
+                    "dataset": self.dataset_path,
+                    "ultrathink_url": self.ultrathink_url
+                }
+            )
+
         # Verify ultrathink is running
         if not self.memory_client.health_check():
             print("❌ Ultrathink server not running!")
+            if self.logger:
+                self.logger.log_benchmark_event(
+                    CallType.BENCHMARK_END,
+                    "Benchmark failed: Ultrathink server not available",
+                    {"error": "Health check failed"}
+                )
             sys.exit(1)
 
         results = {}
@@ -249,7 +277,19 @@ Return ONLY the choice index (0-9), nothing else."""
             q_id = question.get("question_id", f"q_{idx}")
             print(f"\n[{idx+1}/{len(self.questions)}] {q_id}: {question['question'][:50]}...")
 
-            # Step 1: Ingest conversation as memories
+            # Step 1: Log question start
+            if self.logger:
+                self.logger.log_benchmark_event(
+                    CallType.QUESTION_START,
+                    f"Processing question {idx+1}/{len(self.questions)}",
+                    {
+                        "question_id": q_id,
+                        "question_type": question.get("question_type", "unknown"),
+                        "question_preview": question["question"][:100]
+                    }
+                )
+
+            # Step 2: Ingest conversation as memories
             session_id = f"locomo-{q_id}"
             messages = self._flatten_haystack_sessions(question.get("haystack_sessions", []))
 
@@ -261,7 +301,22 @@ Return ONLY the choice index (0-9), nothing else."""
             )
             print(f"   • Ingested {len(memory_ids)} memories in {ingest_time:.3f}s")
 
-            # Step 2: Retrieve relevant memories
+            # Log memory ingest
+            if self.logger:
+                self.logger.log_memory_call(
+                    call_type=CallType.MEMORY_INGEST,
+                    operation="ingest_conversation",
+                    duration_ms=ingest_time * 1000,
+                    num_items=len(memory_ids),
+                    status="success",
+                    metadata={
+                        "question_id": q_id,
+                        "session_id": session_id,
+                        "num_messages": len(messages)
+                    }
+                )
+
+            # Step 3: Retrieve relevant memories
             retrieve_start = time.time()
             retrieved_results, retrieval_time = self.memory_client.retrieve_memories(
                 query=question["question"],
@@ -270,6 +325,22 @@ Return ONLY the choice index (0-9), nothing else."""
                 min_similarity=0.3
             )
             print(f"   • Retrieved {len(retrieved_results)} memories in {retrieval_time:.3f}s")
+
+            # Log memory retrieval
+            if self.logger:
+                self.logger.log_memory_call(
+                    call_type=CallType.MEMORY_RETRIEVE,
+                    operation="retrieve_memories",
+                    duration_ms=retrieval_time * 1000,
+                    num_items=len(retrieved_results),
+                    status="success",
+                    metadata={
+                        "question_id": q_id,
+                        "query_preview": question["question"][:100],
+                        "top_k": 10,
+                        "use_ai": True
+                    }
+                )
 
             # Step 3: Format retrieved context
             retrieved_context = self.memory_client.format_retrieved_as_context(retrieved_results)
@@ -339,6 +410,35 @@ Return ONLY the choice index (0-9), nothing else."""
             cleanup_elapsed = time.time() - cleanup_start
             # Note: deleted may be 0 if tag-based search doesn't work
 
+            # Log memory cleanup
+            if self.logger:
+                self.logger.log_memory_call(
+                    call_type=CallType.MEMORY_DELETE,
+                    operation="clear_session",
+                    duration_ms=cleanup_elapsed * 1000,
+                    num_items=deleted,
+                    status="success",
+                    metadata={
+                        "question_id": q_id,
+                        "session_id": session_id
+                    }
+                )
+
+            # Log question end
+            if self.logger:
+                self.logger.log_benchmark_event(
+                    CallType.QUESTION_END,
+                    f"Question {idx+1} completed",
+                    {
+                        "question_id": q_id,
+                        "is_correct": is_correct,
+                        "accuracy": 1.0 if is_correct else 0.0,
+                        "tokens_used": token_metrics.total_tokens,
+                        "token_reduction_pct": (baseline_tokens - retrieved_tokens) / baseline_tokens * 100,
+                        "total_latency": retrieval_time + llm_latency
+                    }
+                )
+
         # Generate summary
         total_time = time.time() - start_time
         summary = {
@@ -356,6 +456,24 @@ Return ONLY the choice index (0-9), nothing else."""
 
         print(f"\n✓ Saved results to {output_path}")
 
+        # Log benchmark end and generate report
+        if self.logger:
+            metrics = self.metrics_tracker.get_overall_metrics()
+            self.logger.log_benchmark_event(
+                CallType.BENCHMARK_END,
+                "Memory-augmented LoCoMo-MC10 benchmark completed",
+                {
+                    "total_questions": len(self.questions),
+                    "total_time_seconds": total_time,
+                    "overall_accuracy": metrics.get('overall_accuracy', 0),
+                    "total_cost": metrics.get('total_cost', 0),
+                    "results_file": output_path
+                }
+            )
+            # Save comprehensive report
+            report_path = self.logger.save_report()
+            print(f"\n✓ Detailed logs saved to {report_path}")
+
         # Print metrics
         self._print_summary()
 
@@ -369,30 +487,51 @@ Return ONLY the choice index (0-9), nothing else."""
 
         metrics = self.metrics_tracker.get_overall_metrics()
 
-        print(f"\nAccuracy: {metrics['overall_accuracy']:.1f}%")
-        print(f"  Correct: {metrics['num_correct']}/{metrics['total_questions']}")
+        # Overall Accuracy
+        overall = metrics.get('overall', {})
+        print(f"\nAccuracy: {overall.get('accuracy', 0):.1f}%")
+        print(f"  Correct: {overall.get('correct_predictions', 0)}/{overall.get('total_questions', 0)}")
 
-        if metrics.get('per_type_accuracy'):
-            print("\nPer-Type Accuracy:")
-            for q_type, acc_data in metrics['per_type_accuracy'].items():
-                pct = acc_data['correct'] / acc_data['total'] * 100 if acc_data['total'] > 0 else 0
-                print(f"  {q_type}: {pct:.1f}% ({acc_data['correct']}/{acc_data['total']})")
+        # Latency Metrics
+        latency = metrics.get('latency', {})
+        if latency:
+            print("\nLatency Metrics (seconds):")
+            print(f"  Mean: {latency.get('mean_latency_seconds', 0):.3f}s")
+            print(f"  Median: {latency.get('median_latency_seconds', 0):.3f}s")
+            print(f"  P95: {latency.get('p95_latency_seconds', 0):.3f}s")
+            print(f"  Min/Max: {latency.get('min_latency_seconds', 0):.3f}s / {latency.get('max_latency_seconds', 0):.3f}s")
 
-        print("\nLatency Metrics (seconds):")
-        print(f"  Mean: {metrics['latency_mean']:.3f}s")
-        print(f"  P95: {metrics['latency_p95']:.3f}s")
-        print(f"  Min/Max: {metrics['latency_min']:.3f}s / {metrics['latency_max']:.3f}s")
+        # LLM Latency
+        llm_latency = metrics.get('llm_latency', {})
+        if llm_latency:
+            print("\nLLM Response Latency:")
+            print(f"  Mean: {llm_latency.get('mean_llm_response_seconds', 0):.3f}s")
+            print(f"  Total: {llm_latency.get('total_llm_time_seconds', 0):.3f}s")
 
-        print("\nToken Usage:")
-        print(f"  Total Input: {metrics['total_input_tokens']}")
-        print(f"  Total Output: {metrics['total_output_tokens']}")
-        print(f"  Mean per Q: {metrics['mean_input_tokens_per_q']:.0f} in, {metrics['mean_output_tokens_per_q']:.1f} out")
+        # Context Building Latency
+        ctx_latency = metrics.get('context_latency', {})
+        if ctx_latency:
+            print("\nContext Building Latency:")
+            print(f"  Mean: {ctx_latency.get('mean_context_building_seconds', 0):.3f}s")
+            print(f"  Total: {ctx_latency.get('total_context_building_seconds', 0):.3f}s")
 
-        print("\nCost Estimation (DeepSeek pricing):")
-        print(f"  Input Cost: ${metrics['input_cost']:.6f}")
-        print(f"  Output Cost: ${metrics['output_cost']:.6f}")
-        print(f"  Total Cost: ${metrics['total_cost']:.6f}")
-        print(f"  Per Question: ${metrics['cost_per_question']:.6f}")
+        # Token Usage
+        tokens = metrics.get('tokens', {})
+        if tokens:
+            print("\nToken Usage:")
+            print(f"  Total Input: {tokens.get('total_input_tokens', 0):,}")
+            print(f"  Total Output: {tokens.get('total_output_tokens', 0):,}")
+            print(f"  Total: {tokens.get('total_tokens', 0):,}")
+            print(f"  Mean per Q: {tokens.get('mean_input_tokens', 0):.0f} in, {tokens.get('mean_output_tokens', 0):.1f} out")
+
+        # Cost Estimation
+        cost = metrics.get('cost_estimation', {})
+        if cost:
+            print("\nCost Estimation (DeepSeek pricing):")
+            print(f"  Input Cost: ${cost.get('input_cost_usd', 0):.6f}")
+            print(f"  Output Cost: ${cost.get('output_cost_usd', 0):.6f}")
+            print(f"  Total Cost: ${cost.get('total_cost_usd', 0):.6f}")
+            print(f"  Per Question: ${cost.get('cost_per_question_usd', 0):.6f}")
 
         print("\n" + "="*70)
 
@@ -428,6 +567,18 @@ def main():
         default="http://localhost:3002/api/v1",
         help="Ultrathink server URL"
     )
+    parser.add_argument(
+        "--enable-logging",
+        type=bool,
+        default=True,
+        help="Enable comprehensive logging (default: True)"
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=str,
+        default="logs",
+        help="Directory for log files (default: logs)"
+    )
 
     args = parser.parse_args()
 
@@ -435,7 +586,9 @@ def main():
     experiment = MemoryAugmentedExperiment(
         dataset_path=args.dataset,
         max_questions=args.max_questions,
-        ultrathink_url=args.ultrathink_url
+        ultrathink_url=args.ultrathink_url,
+        enable_logging=args.enable_logging,
+        log_dir=args.log_dir
     )
 
     experiment.run(output_path=args.output)
