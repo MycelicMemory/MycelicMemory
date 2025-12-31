@@ -67,6 +67,11 @@ class MemoryAugmentedExperiment:
         self.deepseek_api_key = DEEPSEEK_API_KEY
         self.ultrathink_url = ultrathink_url
 
+        # Debug: verify API key is loaded correctly
+        key_len = len(self.deepseek_api_key) if self.deepseek_api_key else 0
+        key_prefix = self.deepseek_api_key[:3] if key_len >= 3 else "N/A"
+        print(f"[DEBUG] API key loaded: {key_len} chars, prefix: {key_prefix}...")
+
         # Initialize logging
         self.enable_logging = enable_logging
         if enable_logging:
