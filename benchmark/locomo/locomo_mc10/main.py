@@ -54,7 +54,9 @@ class MemoryAugmentedExperiment:
         max_questions: Optional[int] = None,
         ultrathink_url: str = "http://localhost:3099/api/v1",
         enable_logging: bool = True,
-        log_dir: str = "logs"
+        log_dir: str = "logs",
+        random_sample: bool = False,
+        seed: Optional[int] = None
     ):
         """
         Initialize memory-augmented experiment.
@@ -65,9 +67,13 @@ class MemoryAugmentedExperiment:
             ultrathink_url: Ultrathink server URL
             enable_logging: Enable comprehensive logging
             log_dir: Directory for log files
+            random_sample: If True, randomly sample questions instead of taking first N
+            seed: Random seed for reproducible sampling (None = random)
         """
         self.dataset_path = dataset_path
         self.max_questions = max_questions
+        self.random_sample = random_sample
+        self.seed = seed
         self.deepseek_api_key = DEEPSEEK_API_KEY
         self.ultrathink_url = ultrathink_url
 
@@ -110,22 +116,28 @@ class MemoryAugmentedExperiment:
                 data = json.loads(content)
                 if isinstance(data, list):
                     questions = data
-                    if self.max_questions:
-                        questions = questions[:self.max_questions]
             except json.JSONDecodeError:
                 pass
 
         # If not loaded as array, try JSONL format
         if not questions:
             with open(self.dataset_path, "r") as f:
-                for i, line in enumerate(f):
-                    if self.max_questions and i >= self.max_questions:
-                        break
+                for line in f:
                     try:
                         q = json.loads(line.strip())
                         questions.append(q)
                     except json.JSONDecodeError:
                         continue
+
+        # Apply max_questions limit with optional random sampling
+        if self.max_questions:
+            if self.random_sample:
+                import random
+                rng = random.Random(self.seed) if self.seed is not None else random.Random()
+                sample_size = min(self.max_questions, len(questions))
+                questions = rng.sample(questions, sample_size)
+            else:
+                questions = questions[:self.max_questions]
 
         print(f"✓ Loaded {len(questions)} questions")
         return questions
@@ -611,6 +623,17 @@ def main():
         default="logs",
         help="Directory for log files (default: logs)"
     )
+    parser.add_argument(
+        "--random-sample",
+        action="store_true",
+        help="Randomly sample questions instead of taking first N"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible sampling"
+    )
 
     args = parser.parse_args()
 
@@ -620,7 +643,9 @@ def main():
         max_questions=args.max_questions,
         ultrathink_url=args.ultrathink_url,
         enable_logging=args.enable_logging,
-        log_dir=args.log_dir
+        log_dir=args.log_dir,
+        random_sample=args.random_sample,
+        seed=args.seed
     )
 
     experiment.run(output_path=args.output)

@@ -3,35 +3,16 @@ Metrics tracking for LoCoMo Free-Response benchmark.
 Tracks F1 scores, latency, token usage, and cost metrics.
 """
 
-import time
-from typing import Dict, List, Optional
-from dataclasses import dataclass, asdict
+from typing import Dict, List
+from dataclasses import dataclass
 from collections import defaultdict
 import statistics
 
+from shared.metrics_base import TokenMetrics, LatencyMetrics, MetricsBase
 from .f1_evaluator import CATEGORY_NAMES, CATEGORY_DISPLAY
 
-
-@dataclass
-class TokenMetrics:
-    """Token usage metrics."""
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-
-    def to_dict(self) -> Dict:
-        return asdict(self)
-
-
-@dataclass
-class LatencyMetrics:
-    """Latency metrics in seconds."""
-    total_latency: float = 0.0
-    context_building_time: float = 0.0
-    llm_response_time: float = 0.0
-
-    def to_dict(self) -> Dict:
-        return asdict(self)
+# Re-export for backwards compatibility
+__all__ = ["TokenMetrics", "LatencyMetrics", "FRQuestionResult", "FRMetricsTracker"]
 
 
 @dataclass
@@ -51,12 +32,12 @@ class FRQuestionResult:
     context_building_time: float = 0.0
 
 
-class FRMetricsTracker:
+class FRMetricsTracker(MetricsBase):
     """Metrics tracker for free-response benchmark runs."""
 
     def __init__(self):
+        super().__init__()
         self.results: List[FRQuestionResult] = []
-        self.start_time = time.time()
 
     def add_result(
         self,
@@ -103,10 +84,10 @@ class FRMetricsTracker:
         llm_times = [r.llm_response_time for r in self.results if r.llm_response_time > 0]
         context_times = [r.context_building_time for r in self.results if r.context_building_time > 0]
 
-        # Token metrics
-        total_input_tokens = sum(r.tokens.input_tokens for r in self.results)
-        total_output_tokens = sum(r.tokens.output_tokens for r in self.results)
-        total_tokens = sum(r.tokens.total_tokens for r in self.results)
+        # Token metrics using shared utility
+        token_stats = self.get_token_stats(self.results, total_questions)
+        total_input_tokens = token_stats["total_input_tokens"]
+        total_output_tokens = token_stats["total_output_tokens"]
 
         return {
             "overall": {
@@ -117,16 +98,7 @@ class FRMetricsTracker:
                 "max_f1": max(f1_scores) if f1_scores else 0.0,
                 "stdev_f1": statistics.stdev(f1_scores) if len(f1_scores) > 1 else 0.0,
             },
-            "latency": {
-                "total_latency_seconds": sum(latencies),
-                "mean_latency_seconds": statistics.mean(latencies) if latencies else 0.0,
-                "median_latency_seconds": statistics.median(latencies) if latencies else 0.0,
-                "p95_latency_seconds": self._percentile(latencies, 95),
-                "p99_latency_seconds": self._percentile(latencies, 99),
-                "min_latency_seconds": min(latencies) if latencies else 0.0,
-                "max_latency_seconds": max(latencies) if latencies else 0.0,
-                "stdev_latency_seconds": statistics.stdev(latencies) if len(latencies) > 1 else 0.0,
-            },
+            "latency": self.get_latency_stats(latencies),
             "llm_latency": {
                 "mean_llm_response_seconds": statistics.mean(llm_times) if llm_times else 0.0,
                 "median_llm_response_seconds": statistics.median(llm_times) if llm_times else 0.0,
@@ -136,15 +108,8 @@ class FRMetricsTracker:
                 "mean_context_building_seconds": statistics.mean(context_times) if context_times else 0.0,
                 "total_context_building_seconds": sum(context_times),
             } if context_times else {},
-            "tokens": {
-                "total_input_tokens": total_input_tokens,
-                "total_output_tokens": total_output_tokens,
-                "total_tokens": total_tokens,
-                "mean_input_tokens": total_input_tokens / total_questions if total_questions > 0 else 0,
-                "mean_output_tokens": total_output_tokens / total_questions if total_questions > 0 else 0,
-                "mean_total_tokens": total_tokens / total_questions if total_questions > 0 else 0,
-            },
-            "cost_estimation": self._estimate_cost(total_input_tokens, total_output_tokens, len(self.results)),
+            "tokens": token_stats,
+            "cost_estimation": self.estimate_cost(total_input_tokens, total_output_tokens, len(self.results)),
         }
 
     def get_per_category_metrics(self) -> Dict:
@@ -187,7 +152,7 @@ class FRMetricsTracker:
                 "latency": {
                     "mean_seconds": statistics.mean(latencies) if latencies else 0.0,
                     "median_seconds": statistics.median(latencies) if latencies else 0.0,
-                    "p95_seconds": self._percentile(latencies, 95),
+                    "p95_seconds": self.percentile(latencies, 95),
                     "min_seconds": min(latencies) if latencies else 0.0,
                     "max_seconds": max(latencies) if latencies else 0.0,
                 },
@@ -228,33 +193,4 @@ class FRMetricsTracker:
             "low_scores_by_category": dict(low_scores_by_category),
         }
 
-    @staticmethod
-    def _percentile(data: List[float], percentile: int) -> float:
-        """Calculate percentile of data."""
-        if not data:
-            return 0.0
-        sorted_data = sorted(data)
-        index = int(len(sorted_data) * percentile / 100)
-        return sorted_data[min(index, len(sorted_data) - 1)]
-
-    @staticmethod
-    def _estimate_cost(input_tokens: int, output_tokens: int, num_questions: int) -> Dict:
-        """
-        Estimate API cost based on DeepSeek pricing.
-        Pricing (as of 2024):
-        - Input: $0.014 / 1M tokens
-        - Output: $0.056 / 1M tokens
-        """
-        input_price_per_mtok = 0.014
-        output_price_per_mtok = 0.056
-
-        input_cost = (input_tokens / 1_000_000) * input_price_per_mtok
-        output_cost = (output_tokens / 1_000_000) * output_price_per_mtok
-        total_cost = input_cost + output_cost
-
-        return {
-            "input_cost_usd": round(input_cost, 6),
-            "output_cost_usd": round(output_cost, 6),
-            "total_cost_usd": round(total_cost, 6),
-            "cost_per_question_usd": round(total_cost / num_questions, 6) if num_questions > 0 else 0.0,
-        }
+    # Note: percentile() and estimate_cost() inherited from MetricsBase

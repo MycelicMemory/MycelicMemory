@@ -1126,6 +1126,9 @@ type BenchmarkRunParams struct {
 	Categories        []string `json:"categories"`
 	ChangeDescription string   `json:"change_description"`
 	Async             bool     `json:"async"`
+	BenchmarkType     string   `json:"benchmark_type"`
+	RandomSample      bool     `json:"random_sample"`
+	Seed              *int     `json:"seed,omitempty"`
 }
 
 // BenchmarkStatusParams holds parameters for benchmark_status tool
@@ -1168,13 +1171,21 @@ func (s *Server) handleBenchmarkRun(ctx context.Context, argsJSON []byte) (inter
 		params.MaxQuestions = 20 // Quick test by default
 	}
 
+	// Default benchmark type
+	benchmarkType := params.BenchmarkType
+	if benchmarkType == "" {
+		benchmarkType = "locomo10"
+	}
+
 	// Build config
 	config := &benchmark.RunConfig{
-		BenchmarkType: "locomo",
+		BenchmarkType: benchmarkType,
 		MaxQuestions:  params.MaxQuestions,
 		QuestionTypes: params.Categories,
 		ChangeDesc:    params.ChangeDescription,
 		Async:         params.Async,
+		RandomSample:  params.RandomSample,
+		Seed:          params.Seed,
 	}
 
 	// Run benchmark
