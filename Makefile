@@ -31,6 +31,12 @@ help:
 	@echo "  make vet           - Run go vet"
 	@echo "  make dev           - Run with live reload (requires air)"
 	@echo ""
+	@echo "Benchmarks:"
+	@echo "  make benchmark-setup    - Install benchmark dependencies"
+	@echo "  make benchmark-quick    - Run quick benchmark (10 questions)"
+	@echo "  make benchmark          - Run full LoCoMo-MC10 benchmark"
+	@echo "  make benchmark-evaluate - Evaluate benchmark results"
+	@echo ""
 	@echo "Utilities:"
 	@echo "  make deps          - Download dependencies"
 	@echo "  make clean         - Clean build artifacts"
@@ -150,3 +156,31 @@ verify:
 	@sqlite3 --version || (echo "❌ SQLite not installed" && exit 1)
 	@node --version || (echo "⚠️  Node.js not installed (needed for npm wrapper)")
 	@echo "✅ Environment verified"
+
+# =============================================================================
+# Benchmark Targets
+# =============================================================================
+
+.PHONY: benchmark-setup benchmark-quick benchmark benchmark-evaluate
+
+# Setup benchmark dependencies
+benchmark-setup:
+	@echo "Setting up benchmark environment..."
+	cd benchmark/locomo && $(MAKE) setup
+
+# Run quick benchmark (10 questions) - requires ultrathink server running
+benchmark-quick: build
+	@echo "Running quick benchmark (10 questions)..."
+	@echo "Make sure ultrathink server is running on port 3099"
+	cd benchmark/locomo && $(MAKE) run-quick
+
+# Run full benchmark - requires ultrathink server running
+benchmark: build
+	@echo "Running full LoCoMo-MC10 benchmark..."
+	@echo "Make sure ultrathink server is running on port 3099"
+	cd benchmark/locomo && $(MAKE) run
+
+# Evaluate benchmark results
+benchmark-evaluate:
+	@echo "Evaluating benchmark results..."
+	cd benchmark/locomo && $(MAKE) evaluate
