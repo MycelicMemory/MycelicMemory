@@ -31,11 +31,13 @@ help:
 	@echo "  make vet           - Run go vet"
 	@echo "  make dev           - Run with live reload (requires air)"
 	@echo ""
-	@echo "Benchmarks:"
+	@echo "Benchmarks (LoCoMo):"
 	@echo "  make benchmark-setup    - Install benchmark dependencies"
-	@echo "  make benchmark-quick    - Run quick benchmark (10 questions)"
-	@echo "  make benchmark          - Run full LoCoMo-MC10 benchmark"
-	@echo "  make benchmark-evaluate - Evaluate benchmark results"
+	@echo "  make benchmark-fr-quick - Run quick FR benchmark (20 questions)"
+	@echo "  make benchmark-fr       - Run full FR benchmark (1986 questions)"
+	@echo "  make benchmark-mc-quick - Run quick MC benchmark (10 questions)"
+	@echo "  make benchmark-mc       - Run full MC benchmark"
+	@echo "  make benchmark-evaluate - Evaluate MC benchmark results"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make deps          - Download dependencies"
@@ -161,26 +163,36 @@ verify:
 # Benchmark Targets
 # =============================================================================
 
-.PHONY: benchmark-setup benchmark-quick benchmark benchmark-evaluate
+.PHONY: benchmark-setup benchmark-fr-quick benchmark-fr benchmark-mc-quick benchmark-mc benchmark-evaluate
 
 # Setup benchmark dependencies
 benchmark-setup:
 	@echo "Setting up benchmark environment..."
 	cd benchmark/locomo && $(MAKE) setup
 
-# Run quick benchmark (10 questions) - requires ultrathink server running
-benchmark-quick: build
-	@echo "Running quick benchmark (10 questions)..."
+# Free Response (locomo10) benchmarks
+benchmark-fr-quick: build
+	@echo "Running quick FR benchmark (20 questions)..."
 	@echo "Make sure ultrathink server is running on port 3099"
-	cd benchmark/locomo && $(MAKE) run-quick
+	cd benchmark/locomo && $(MAKE) run-fr-quick
 
-# Run full benchmark - requires ultrathink server running
-benchmark: build
-	@echo "Running full LoCoMo-MC10 benchmark..."
+benchmark-fr: build
+	@echo "Running full FR benchmark (1986 questions)..."
 	@echo "Make sure ultrathink server is running on port 3099"
-	cd benchmark/locomo && $(MAKE) run
+	cd benchmark/locomo && $(MAKE) run-fr
 
-# Evaluate benchmark results
+# Multiple Choice (locomo_mc10) benchmarks
+benchmark-mc-quick: build
+	@echo "Running quick MC benchmark (10 questions)..."
+	@echo "Make sure ultrathink server is running on port 3099"
+	cd benchmark/locomo && $(MAKE) run-mc-quick
+
+benchmark-mc: build
+	@echo "Running full MC benchmark..."
+	@echo "Make sure ultrathink server is running on port 3099"
+	cd benchmark/locomo && $(MAKE) run-mc
+
+# Evaluate MC benchmark results
 benchmark-evaluate:
-	@echo "Evaluating benchmark results..."
-	cd benchmark/locomo && $(MAKE) evaluate
+	@echo "Evaluating MC benchmark results..."
+	cd benchmark/locomo && $(MAKE) evaluate-mc
