@@ -240,14 +240,16 @@ class UltrathinkClient:
         start_time = time.time()
 
         try:
-            # Get all memories for this session via tag search
+            # Use tag search endpoint - session IDs are stored in tags, not content
+            # The tag format is "session-{session_id}" as set in ingest_conversation()
             payload = {
-                "query": f"session-{session_id}",
+                "tags": [f"session-{session_id}"],
+                "tag_operator": "OR",
                 "limit": 1000
             }
 
             response = self.session.post(
-                f"{self.base_url}/memories/search",
+                f"{self.base_url}/search/tags",
                 headers=self.headers,
                 json=payload,
                 timeout=self.timeout
@@ -257,11 +259,13 @@ class UltrathinkClient:
                 return 0, time.time() - start_time
 
             data = response.json()
+            # Tag search returns memories in data array with standard response format
             memories = data.get("data", [])
             num_deleted = 0
 
             # Delete each memory
             for item in memories:
+                # Tag search returns wrapped format: {"memory": {"id": ...}, "relevance_score": ...}
                 mem_id = item.get("memory", {}).get("id")
                 if mem_id:
                     try:
