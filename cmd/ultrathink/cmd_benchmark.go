@@ -1,379 +1,432 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/benchmark/locomo"
-	"github.com/MycelicMemory/ultrathink/internal/ai"
+	"github.com/MycelicMemory/ultrathink/internal/benchmark"
 	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/internal/search"
 	"github.com/MycelicMemory/ultrathink/pkg/config"
 )
 
 var (
-	benchmarkQuestionType   string
-	benchmarkTopK           int
-	benchmarkVerbose        bool
-	benchmarkQuick          int
-	benchmarkUseSummaries   bool
+	benchmarkQuestionType string
+	benchmarkVerbose      bool
+	benchmarkQuick        int
+	benchmarkChangeDesc   string
 )
 
 // benchmarkCmd represents the benchmark command
 var benchmarkCmd = &cobra.Command{
 	Use:   "benchmark",
-	Short: "Run benchmarks to evaluate memory capabilities",
+	Short: "Run and manage LoCoMo benchmark evaluations",
 	Long: `Run benchmarks to evaluate Ultrathink's memory retrieval and QA capabilities.
 
-Currently supported benchmarks:
-  - locomo: LoCoMo-MC10 long-term conversational memory benchmark
+The benchmark uses the LoCoMo-MC10 dataset with ~2000 questions across categories:
+  - Single-Hop:   Direct fact retrieval
+  - Multi-Hop:    Connecting multiple pieces of information
+  - Temporal:     Time-based reasoning
+  - Open-Domain:  External knowledge requirements
 
-The benchmark evaluates 5 types of questions:
-  - single_hop:    Direct fact retrieval
-  - multi_hop:     Connecting multiple pieces of information
-  - temporal:      Time-based reasoning
-  - open_domain:   External knowledge requirements
-  - adversarial:   Challenging/tricky questions
+IMPORTANT: The Python bridge server must be running for benchmarks.
+Start it with: make server  (in benchmark/locomo/ directory)
 
 Examples:
-  ultrathink benchmark run locomo              # Run full evaluation
-  ultrathink benchmark run locomo --quick 20   # Quick test with 20 questions
-  ultrathink benchmark run locomo --type single_hop  # Test single-hop only
-  ultrathink benchmark results locomo          # View results
-  ultrathink benchmark status locomo           # Check status`,
+  ultrathink benchmark run --quick 20       # Quick test with 20 questions
+  ultrathink benchmark run                  # Full benchmark (all questions)
+  ultrathink benchmark status               # Check recent runs and status
+  ultrathink benchmark results              # View historical results
+  ultrathink benchmark compare <id1> <id2>  # Compare two runs`,
 }
 
 // benchmarkRunCmd represents the benchmark run command
 var benchmarkRunCmd = &cobra.Command{
-	Use:   "run [benchmark]",
-	Short: "Run benchmark evaluation",
-	Long: `Run benchmark evaluation to test memory retrieval and QA capabilities.
+	Use:   "run",
+	Short: "Execute a benchmark evaluation",
+	Long: `Run a LoCoMo benchmark evaluation.
 
-Question Types:
-  - single_hop:    Direct fact retrieval from conversations
-  - multi_hop:     Connecting multiple pieces of information
-  - temporal:      Understanding time-based relationships
-  - open_domain:   External knowledge requirements
-  - adversarial:   Challenging/tricky questions`,
-	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		benchmarkName := args[0]
-		switch benchmarkName {
-		case "locomo":
-			runLocomoEval()
-		default:
-			fmt.Printf("Unknown benchmark: %s\n", benchmarkName)
-			fmt.Println("Supported benchmarks: locomo")
-			os.Exit(1)
-		}
-	},
-}
+The benchmark connects to the Python bridge server (port 9876) which handles:
+- Loading questions from HuggingFace
+- Generating answers using DeepSeek
+- Evaluating with LLM judge, F1, and BLEU-1 metrics
 
-// benchmarkResultsCmd represents the benchmark results command
-var benchmarkResultsCmd = &cobra.Command{
-	Use:   "results [benchmark]",
-	Short: "View benchmark results",
-	Long:  `View saved benchmark results and generate reports.`,
-	Args:  cobra.ExactArgs(1),
+Results are stored in the database and cataloged to ~/.ultrathink/benchmark_results/`,
 	Run: func(cmd *cobra.Command, args []string) {
-		benchmarkName := args[0]
-		switch benchmarkName {
-		case "locomo":
-			runLocomoResults()
-		default:
-			fmt.Printf("Unknown benchmark: %s\n", benchmarkName)
-			os.Exit(1)
-		}
+		runBenchmark()
 	},
 }
 
 // benchmarkStatusCmd represents the benchmark status command
 var benchmarkStatusCmd = &cobra.Command{
-	Use:   "status [benchmark]",
-	Short: "Check benchmark status",
-	Long:  `Check the status of benchmark data and previous runs.`,
-	Args:  cobra.ExactArgs(1),
+	Use:   "status",
+	Short: "Check benchmark status and recent runs",
 	Run: func(cmd *cobra.Command, args []string) {
-		benchmarkName := args[0]
-		switch benchmarkName {
-		case "locomo":
-			runLocomoStatus()
-		default:
-			fmt.Printf("Unknown benchmark: %s\n", benchmarkName)
-			os.Exit(1)
-		}
+		showBenchmarkStatus()
 	},
 }
 
-// benchmarkClearCmd represents the benchmark clear command
-var benchmarkClearCmd = &cobra.Command{
-	Use:   "clear [benchmark]",
-	Short: "Clear benchmark data",
-	Long:  `Remove all ingested benchmark data from the memory system.`,
-	Args:  cobra.ExactArgs(1),
+// benchmarkResultsCmd represents the benchmark results command
+var benchmarkResultsCmd = &cobra.Command{
+	Use:   "results",
+	Short: "View historical benchmark results",
 	Run: func(cmd *cobra.Command, args []string) {
-		benchmarkName := args[0]
-		switch benchmarkName {
-		case "locomo":
-			runLocomoClear()
-		default:
-			fmt.Printf("Unknown benchmark: %s\n", benchmarkName)
-			os.Exit(1)
-		}
+		showBenchmarkResults()
+	},
+}
+
+// benchmarkCompareCmd represents the benchmark compare command
+var benchmarkCompareCmd = &cobra.Command{
+	Use:   "compare <run_id_a> <run_id_b>",
+	Short: "Compare two benchmark runs",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		compareBenchmarkRuns(args[0], args[1])
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(benchmarkCmd)
 	benchmarkCmd.AddCommand(benchmarkRunCmd)
-	benchmarkCmd.AddCommand(benchmarkResultsCmd)
 	benchmarkCmd.AddCommand(benchmarkStatusCmd)
-	benchmarkCmd.AddCommand(benchmarkClearCmd)
+	benchmarkCmd.AddCommand(benchmarkResultsCmd)
+	benchmarkCmd.AddCommand(benchmarkCompareCmd)
 
 	// Run flags
-	benchmarkRunCmd.Flags().StringVar(&benchmarkQuestionType, "type", "", "Filter to specific question type (single_hop, multi_hop, temporal, open_domain, adversarial)")
-	benchmarkRunCmd.Flags().IntVar(&benchmarkTopK, "top-k", 10, "Number of memories to retrieve for context")
+	benchmarkRunCmd.Flags().IntVar(&benchmarkQuick, "quick", 20, "Number of questions to evaluate (0 = all)")
 	benchmarkRunCmd.Flags().BoolVarP(&benchmarkVerbose, "verbose", "v", false, "Enable verbose output")
-	benchmarkRunCmd.Flags().IntVar(&benchmarkQuick, "quick", 0, "Quick evaluation with limited questions (0 = full)")
-	benchmarkRunCmd.Flags().BoolVar(&benchmarkUseSummaries, "summaries", false, "Use session summaries instead of full dialogues")
+	benchmarkRunCmd.Flags().StringVar(&benchmarkChangeDesc, "desc", "", "Description of changes being tested")
 }
 
-func getLocomoComponents() (*database.Database, *search.Engine, *ai.Manager, *locomo.Ingester, error) {
+func getBenchmarkService() (*benchmark.Service, *database.Database, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	db, err := database.Open(cfg.Database.Path)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Initialize schema if needed
 	if err := db.InitSchema(); err != nil {
 		db.Close()
-		return nil, nil, nil, nil, fmt.Errorf("failed to init schema: %w", err)
+		return nil, nil, fmt.Errorf("failed to init schema: %w", err)
 	}
 
-	// Create search engine
-	searchEngine := search.NewEngine(db, cfg)
+	// Get repo path from environment or default
+	repoPath := os.Getenv("ULTRATHINK_REPO_PATH")
 
-	// Create AI manager if enabled
-	var aiManager *ai.Manager
-	if cfg.Ollama.Enabled {
-		aiManager = ai.NewManager(db, cfg)
-		searchEngine.SetAIManager(aiManager)
-	}
-
-	// Create ingester
-	ingester := locomo.NewIngester(db)
-
-	return db, searchEngine, aiManager, ingester, nil
+	svc := benchmark.NewService(db, repoPath)
+	return svc, db, nil
 }
 
-func runLocomoEval() {
-	fmt.Println("LoCoMo-MC10 Benchmark - Evaluation")
-	fmt.Println("===================================")
+func runBenchmark() {
+	fmt.Println("LoCoMo-MC10 Benchmark")
+	fmt.Println("=====================")
 	fmt.Println()
 
-	db, searchEngine, aiManager, ingester, err := getLocomoComponents()
+	svc, db, err := getBenchmarkService()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer db.Close()
 
-	if aiManager == nil {
-		fmt.Println("Error: AI/Ollama must be enabled for benchmark evaluation")
-		fmt.Println("Configure Ollama in your config file")
+	// Check if bridge is available
+	if err := svc.CheckBridge(); err != nil {
+		fmt.Println("Error: Python benchmark bridge is not running!")
+		fmt.Println()
+		fmt.Println("To start the bridge server:")
+		fmt.Println("  cd benchmark/locomo/")
+		fmt.Println("  make server")
+		fmt.Println()
+		fmt.Println("Then re-run this command.")
 		os.Exit(1)
 	}
 
-	// Parse question type filter
-	var qType locomo.QuestionType
-	if benchmarkQuestionType != "" {
-		switch benchmarkQuestionType {
-		case "single_hop", "sh":
-			qType = locomo.TypeSingleHop
-		case "multi_hop", "mh":
-			qType = locomo.TypeMultiHop
-		case "temporal", "tr":
-			qType = locomo.TypeTemporal
-		case "open_domain", "od":
-			qType = locomo.TypeOpenDomain
-		case "adversarial", "adv":
-			qType = locomo.TypeAdversarial
-		default:
-			fmt.Printf("Unknown question type: %s\n", benchmarkQuestionType)
-			fmt.Println("Valid types: single_hop, multi_hop, temporal, open_domain, adversarial")
-			os.Exit(1)
+	// Build config
+	runConfig := &benchmark.RunConfig{
+		BenchmarkType: "locomo",
+		MaxQuestions:  benchmarkQuick,
+		Verbose:       benchmarkVerbose,
+		ChangeDesc:    benchmarkChangeDesc,
+	}
+
+	if benchmarkQuick == 0 {
+		fmt.Println("Running full benchmark (all questions)...")
+	} else {
+		fmt.Printf("Running quick benchmark (%d questions)...\n", benchmarkQuick)
+	}
+
+	if benchmarkChangeDesc != "" {
+		fmt.Printf("Change: %s\n", benchmarkChangeDesc)
+	}
+	fmt.Println()
+
+	// Run benchmark
+	ctx := context.Background()
+	startTime := time.Now()
+
+	results, err := svc.Run(ctx, runConfig)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	elapsed := time.Since(startTime)
+
+	// Display results
+	fmt.Println()
+	fmt.Println("Results")
+	fmt.Println("-------")
+	fmt.Printf("Run ID: %s\n", results.RunID[:8])
+	fmt.Printf("Git: %s (%s)%s\n", results.Git.ShortHash, results.Git.Branch, dirtyIndicator(results.Git.Dirty))
+	fmt.Printf("Duration: %s\n", elapsed.Round(time.Second))
+	fmt.Println()
+
+	fmt.Println("Overall Scores:")
+	fmt.Printf("  LLM Judge Accuracy: %.1f%%\n", results.Overall.LLMJudgeAccuracy)
+	fmt.Printf("  F1 Score: %.4f\n", results.Overall.F1Score)
+	fmt.Printf("  BLEU-1 Score: %.4f\n", results.Overall.BLEU1Score)
+	fmt.Printf("  Questions: %d\n", results.Overall.TotalQuestions)
+	fmt.Println()
+
+	if len(results.ByCategory) > 0 {
+		fmt.Println("By Category:")
+		for cat, scores := range results.ByCategory {
+			fmt.Printf("  %s: %.1f%% (%d questions)\n", cat, scores.LLMJudgeAccuracy, scores.TotalQuestions)
 		}
 	}
 
-	// Create evaluator config
-	evalConfig := &locomo.EvaluationConfig{
-		QuestionType:        qType,
-		TopK:                benchmarkTopK,
-		Verbose:             benchmarkVerbose,
-		UseSessionSummaries: benchmarkUseSummaries,
-	}
-
-	fmt.Printf("Top-K: %d\n", benchmarkTopK)
-	fmt.Printf("Use Summaries: %t\n", benchmarkUseSummaries)
-	if qType != "" {
-		fmt.Printf("Question Type: %s\n", qType)
-	}
 	fmt.Println()
-
-	// Load dataset
-	maxQuestions := 0 // Load all
-	if benchmarkQuick > 0 {
-		maxQuestions = benchmarkQuick
-		fmt.Printf("Loading %d questions (quick mode)...\n", maxQuestions)
-	} else {
-		fmt.Println("Loading full dataset from HuggingFace...")
-	}
-
-	dataset, err := locomo.LoadDataset(maxQuestions)
-	if err != nil {
-		fmt.Printf("Error loading dataset: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Loaded %d questions\n\n", len(dataset.Questions))
-
-	// Create evaluator
-	evaluator, err := locomo.NewMCEvaluator(db, searchEngine, aiManager, ingester, evalConfig)
-	if err != nil {
-		fmt.Printf("Error creating evaluator: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Run evaluation
-	fmt.Println("Running evaluation...")
-	fmt.Println()
-
-	results, err := evaluator.Evaluate(dataset)
-	if err != nil {
-		fmt.Printf("Error during evaluation: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Print results
-	locomo.PrintResults(results)
-
-	// Save results
-	cfg, _ := config.Load()
-	resultsDir := filepath.Join(filepath.Dir(cfg.Database.Path), "benchmark_results")
-	store := locomo.NewResultsStore(resultsDir)
-	path, err := store.Save(results)
-	if err != nil {
-		fmt.Printf("Warning: Failed to save results: %v\n", err)
-	} else {
-		fmt.Printf("\nResults saved to: %s\n", path)
-	}
+	fmt.Printf("Results saved to database and cataloged.\n")
 }
 
-func runLocomoResults() {
-	cfg, err := config.Load()
+func showBenchmarkStatus() {
+	svc, db, err := getBenchmarkService()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
+	defer db.Close()
 
-	resultsDir := filepath.Join(filepath.Dir(cfg.Database.Path), "benchmark_results")
-	store := locomo.NewResultsStore(resultsDir)
+	fmt.Println("Benchmark Status")
+	fmt.Println("================")
+	fmt.Println()
 
-	summaries, err := store.List()
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+	// Check bridge
+	if err := svc.CheckBridge(); err != nil {
+		fmt.Println("Bridge: Not running")
+	} else {
+		fmt.Println("Bridge: Running (localhost:9876)")
+	}
+	fmt.Println()
+
+	// Check for active run
+	if svc.IsRunning() {
+		ctx := context.Background()
+		progress, err := svc.GetProgress(ctx)
+		if err == nil {
+			fmt.Println("Active Run:")
+			fmt.Printf("  ID: %s\n", progress.RunID[:8])
+			fmt.Printf("  Progress: %d/%d (%.1f%%)\n", progress.CompletedCount, progress.TotalQuestions, progress.PercentComplete)
+			fmt.Printf("  Elapsed: %.0fs\n", progress.ElapsedSecs)
+		}
+		fmt.Println()
 	}
 
-	if len(summaries) == 0 {
-		fmt.Println("No benchmark results found")
-		fmt.Println("Run 'ultrathink benchmark run locomo' to generate results")
+	// Show recent runs
+	runs, err := svc.ListRuns(&database.BenchmarkRunFilters{Limit: 5})
+	if err != nil {
+		fmt.Printf("Error listing runs: %v\n", err)
 		return
 	}
 
-	fmt.Println("LoCoMo-MC10 Benchmark Results")
-	fmt.Println("=============================")
-	fmt.Println()
-	fmt.Println("Date                Model                Accuracy  Questions  Duration")
-	fmt.Println("----                -----                --------  ---------  --------")
+	if len(runs) == 0 {
+		fmt.Println("No benchmark runs found.")
+		fmt.Println("Run 'ultrathink benchmark run --quick 20' to start.")
+		return
+	}
 
-	for _, s := range summaries {
-		model := s.Model
-		if len(model) > 20 {
-			model = model[:17] + "..."
+	fmt.Println("Recent Runs:")
+	fmt.Println("  ID        Date                 Accuracy  Questions  Status")
+	fmt.Println("  --        ----                 --------  ---------  ------")
+
+	for _, run := range runs {
+		accuracy := "-"
+		if run.OverallScore != nil {
+			accuracy = fmt.Sprintf("%.1f%%", *run.OverallScore)
 		}
-		fmt.Printf("%-19s %-20s %6.1f%%   %4d/%4d  %s\n",
-			s.Timestamp.Format("2006-01-02 15:04"),
-			model,
-			s.Accuracy,
-			s.Correct,
-			s.Total,
-			s.Duration.Round(1e9))
-	}
-
-	// Show latest result details
-	fmt.Println()
-	latest, err := store.GetLatest()
-	if err == nil {
-		gen := locomo.NewReportGenerator()
-		fmt.Println("Latest Result Summary")
-		fmt.Println("---------------------")
-		fmt.Println(gen.GenerateSummary(latest))
+		questions := "-"
+		if run.TotalQuestions != nil {
+			questions = fmt.Sprintf("%d", *run.TotalQuestions)
+		}
+		best := ""
+		if run.IsBestRun {
+			best = " (best)"
+		}
+		fmt.Printf("  %s  %s  %8s  %9s  %s%s\n",
+			run.ID[:8],
+			run.StartedAt.Format("2006-01-02 15:04"),
+			accuracy,
+			questions,
+			run.Status,
+			best)
 	}
 }
 
-func runLocomoStatus() {
-	db, _, _, ingester, err := getLocomoComponents()
+func showBenchmarkResults() {
+	svc, db, err := getBenchmarkService()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer db.Close()
 
-	status, err := ingester.GetStatus()
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("LoCoMo-MC10 Benchmark Status")
-	fmt.Println("============================")
+	fmt.Println("Benchmark Results")
+	fmt.Println("=================")
 	fmt.Println()
 
-	if status.Ingested {
-		fmt.Println("Status: Data Ingested")
-		fmt.Printf("Questions: %d\n", status.QuestionCount)
-		fmt.Printf("Memories: %d\n", status.MemoryCount)
-	} else {
-		fmt.Println("Status: No ingested data")
+	// Show best run
+	best, err := svc.GetBestRun("locomo")
+	if err == nil && best != nil {
+		fmt.Println("Best Run:")
+		fmt.Printf("  ID: %s\n", best.ID[:8])
+		fmt.Printf("  Date: %s\n", best.StartedAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("  Git: %s (%s)\n", best.GitCommitHash[:7], best.GitBranch)
+		if best.OverallScore != nil {
+			fmt.Printf("  Accuracy: %.1f%%\n", *best.OverallScore)
+		}
+		if best.TotalQuestions != nil && best.TotalCorrect != nil {
+			fmt.Printf("  Questions: %d/%d correct\n", *best.TotalCorrect, *best.TotalQuestions)
+		}
 		fmt.Println()
-		fmt.Println("Note: The LoCoMo-MC10 benchmark loads data directly from HuggingFace")
-		fmt.Println("Run 'ultrathink benchmark run locomo' to start evaluation")
 	}
+
+	// Show all runs
+	runs, err := svc.ListRuns(&database.BenchmarkRunFilters{Limit: 20})
+	if err != nil {
+		fmt.Printf("Error listing runs: %v\n", err)
+		return
+	}
+
+	if len(runs) == 0 {
+		fmt.Println("No benchmark runs found.")
+		return
+	}
+
+	fmt.Println("All Runs:")
+	fmt.Println("  ID        Git      Date                 Accuracy  F1       Duration")
+	fmt.Println("  --        ---      ----                 --------  --       --------")
+
+	for _, run := range runs {
+		accuracy := "-"
+		if run.OverallScore != nil {
+			accuracy = fmt.Sprintf("%.1f%%", *run.OverallScore)
+		}
+		f1 := "-"
+		if run.OverallF1 != nil {
+			f1 = fmt.Sprintf("%.4f", *run.OverallF1)
+		}
+		duration := "-"
+		if run.DurationSeconds != nil {
+			duration = fmt.Sprintf("%.0fs", *run.DurationSeconds)
+		}
+		best := ""
+		if run.IsBestRun {
+			best = " *"
+		}
+		fmt.Printf("  %s  %s  %s  %8s  %6s  %8s%s\n",
+			run.ID[:8],
+			run.GitCommitHash[:7],
+			run.StartedAt.Format("2006-01-02 15:04"),
+			accuracy,
+			f1,
+			duration,
+			best)
+	}
+	fmt.Println()
+	fmt.Println("  * = best run")
 }
 
-func runLocomoClear() {
-	db, _, _, ingester, err := getLocomoComponents()
+func compareBenchmarkRuns(runIDA, runIDB string) {
+	svc, db, err := getBenchmarkService()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer db.Close()
 
-	fmt.Println("Clearing LoCoMo-MC10 benchmark data...")
-
-	if err := ingester.ClearBenchmarkData(); err != nil {
+	comparison, err := svc.Compare(runIDA, runIDB)
+	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("Benchmark data cleared successfully")
+	fmt.Println("Benchmark Comparison")
+	fmt.Println("====================")
+	fmt.Println()
+
+	fmt.Printf("Run A (baseline): %s\n", runIDA[:8])
+	fmt.Printf("Run B (comparison): %s\n", runIDB[:8])
+	fmt.Println()
+
+	// Overall
+	fmt.Println("Overall:")
+	symbol := "→"
+	if comparison.OverallDiff.Improved {
+		symbol = "↑"
+	} else if comparison.OverallDiff.Diff < 0 {
+		symbol = "↓"
+	}
+	fmt.Printf("  Accuracy: %.1f%% %s %.1f%% (%+.1f%%)\n",
+		comparison.OverallDiff.Before,
+		symbol,
+		comparison.OverallDiff.After,
+		comparison.OverallDiff.Diff)
+	fmt.Println()
+
+	// Improvements
+	if len(comparison.Improvements) > 0 {
+		fmt.Println("Improvements:")
+		for _, imp := range comparison.Improvements {
+			fmt.Printf("  ✓ %s\n", imp)
+		}
+		fmt.Println()
+	}
+
+	// Regressions
+	if len(comparison.Regressions) > 0 {
+		fmt.Println("Regressions:")
+		for _, reg := range comparison.Regressions {
+			fmt.Printf("  ✗ %s\n", reg)
+		}
+		fmt.Println()
+	}
+
+	// Category breakdown
+	if len(comparison.CategoryDiffs) > 0 {
+		fmt.Println("By Category:")
+		for cat, diff := range comparison.CategoryDiffs {
+			symbol := "→"
+			if diff.Improved {
+				symbol = "↑"
+			} else if diff.Diff < 0 {
+				symbol = "↓"
+			}
+			fmt.Printf("  %s: %.1f%% %s %.1f%% (%+.1f%%)\n",
+				cat, diff.Before, symbol, diff.After, diff.Diff)
+		}
+	}
+}
+
+func dirtyIndicator(dirty bool) string {
+	if dirty {
+		return " [dirty]"
+	}
+	return ""
 }

@@ -183,6 +183,160 @@ CREATE TABLE IF NOT EXISTS migration_log (
 	success BOOLEAN DEFAULT 0,
 	error_message TEXT
 );
+
+-- =============================================================================
+-- BENCHMARK RUNS TABLE
+-- Captures each benchmark execution with git context and results
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS benchmark_runs (
+	id TEXT PRIMARY KEY,
+	started_at DATETIME NOT NULL,
+	completed_at DATETIME,
+	status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+
+	-- Git context for reproducibility
+	git_commit_hash TEXT NOT NULL,
+	git_branch TEXT,
+	git_dirty BOOLEAN DEFAULT 0,
+
+	-- Configuration snapshot (JSON)
+	config_snapshot TEXT NOT NULL,
+	benchmark_type TEXT NOT NULL DEFAULT 'locomo',
+
+	-- Results
+	overall_score REAL,
+	overall_f1 REAL,
+	overall_bleu1 REAL,
+	total_questions INTEGER,
+	total_correct INTEGER,
+
+	-- Timing
+	duration_seconds REAL,
+
+	-- Error tracking
+	error_message TEXT,
+
+	-- Comparison
+	baseline_run_id TEXT REFERENCES benchmark_runs(id),
+	improvement_from_baseline REAL,
+	is_best_run BOOLEAN DEFAULT 0,
+
+	-- Autonomous loop context
+	autonomous_loop_id TEXT,
+	iteration_number INTEGER DEFAULT 0,
+	change_description TEXT,
+
+	-- Metadata
+	created_by TEXT DEFAULT 'manual',
+	notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_benchmark_runs_started ON benchmark_runs(started_at);
+CREATE INDEX IF NOT EXISTS idx_benchmark_runs_status ON benchmark_runs(status);
+CREATE INDEX IF NOT EXISTS idx_benchmark_runs_commit ON benchmark_runs(git_commit_hash);
+CREATE INDEX IF NOT EXISTS idx_benchmark_runs_loop ON benchmark_runs(autonomous_loop_id);
+CREATE INDEX IF NOT EXISTS idx_benchmark_runs_best ON benchmark_runs(is_best_run);
+
+-- =============================================================================
+-- BENCHMARK RESULTS BY CATEGORY TABLE
+-- Per-category breakdown of scores
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS benchmark_results_by_category (
+	id TEXT PRIMARY KEY,
+	run_id TEXT NOT NULL REFERENCES benchmark_runs(id) ON DELETE CASCADE,
+	category TEXT NOT NULL,
+
+	-- Scores
+	llm_judge_accuracy REAL,
+	f1_score REAL,
+	bleu1_score REAL,
+
+	-- Counts
+	total_questions INTEGER,
+	correct_count INTEGER,
+
+	-- Comparison to previous best
+	previous_best_accuracy REAL,
+	improvement REAL,
+
+	UNIQUE(run_id, category)
+);
+
+CREATE INDEX IF NOT EXISTS idx_category_results_run ON benchmark_results_by_category(run_id);
+CREATE INDEX IF NOT EXISTS idx_category_results_category ON benchmark_results_by_category(category);
+
+-- =============================================================================
+-- BENCHMARK QUESTION RESULTS TABLE
+-- Individual question-level results for drill-down analysis
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS benchmark_question_results (
+	id TEXT PRIMARY KEY,
+	run_id TEXT NOT NULL REFERENCES benchmark_runs(id) ON DELETE CASCADE,
+
+	-- Question identification
+	question_id TEXT NOT NULL,
+	category TEXT NOT NULL,
+	question_text TEXT NOT NULL,
+
+	-- Answers
+	gold_answer TEXT NOT NULL,
+	generated_answer TEXT,
+
+	-- Scores
+	llm_judge_label INTEGER,
+	f1_score REAL,
+	bleu1_score REAL,
+
+	-- Context used
+	context_length INTEGER,
+	memories_used INTEGER,
+	retrieval_time_ms INTEGER,
+	generation_time_ms INTEGER,
+
+	-- Comparison
+	changed_from_previous BOOLEAN DEFAULT 0,
+	previous_was_correct BOOLEAN,
+
+	UNIQUE(run_id, question_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_question_results_run ON benchmark_question_results(run_id);
+CREATE INDEX IF NOT EXISTS idx_question_results_question ON benchmark_question_results(question_id);
+CREATE INDEX IF NOT EXISTS idx_question_results_category ON benchmark_question_results(category);
+
+-- =============================================================================
+-- AUTONOMOUS LOOPS TABLE
+-- Tracks autonomous improvement sessions
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS autonomous_loops (
+	id TEXT PRIMARY KEY,
+	started_at DATETIME NOT NULL,
+	completed_at DATETIME,
+	status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'stopped', 'failed')),
+
+	-- Configuration
+	max_iterations INTEGER DEFAULT 10,
+	min_improvement_threshold REAL DEFAULT 0.01,
+	convergence_threshold REAL DEFAULT 0.005,
+
+	-- Results
+	total_iterations INTEGER DEFAULT 0,
+	baseline_score REAL,
+	final_score REAL,
+	best_score REAL,
+	best_run_id TEXT REFERENCES benchmark_runs(id),
+
+	-- Stop reason
+	stop_reason TEXT,
+
+	-- Change tracking (JSON arrays)
+	changes_attempted TEXT,
+	changes_accepted TEXT,
+	changes_rejected TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_loops_status ON autonomous_loops(status);
+CREATE INDEX IF NOT EXISTS idx_loops_started ON autonomous_loops(started_at);
 `
 
 // FTS5Schema contains the full-text search configuration

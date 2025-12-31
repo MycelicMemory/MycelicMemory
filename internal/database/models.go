@@ -210,3 +210,141 @@ type RelationshipFilters struct {
 	MinStrength float64
 	Limit       int
 }
+
+// =============================================================================
+// BENCHMARK MODELS
+// =============================================================================
+
+// BenchmarkRun represents a single benchmark execution
+type BenchmarkRun struct {
+	ID            string     `json:"id"`
+	StartedAt     time.Time  `json:"started_at"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty"`
+	Status        string     `json:"status"` // pending, running, completed, failed, cancelled
+
+	// Git context
+	GitCommitHash string `json:"git_commit_hash"`
+	GitBranch     string `json:"git_branch,omitempty"`
+	GitDirty      bool   `json:"git_dirty"`
+
+	// Configuration
+	ConfigSnapshot string `json:"config_snapshot"` // JSON
+	BenchmarkType  string `json:"benchmark_type"`  // locomo, etc.
+
+	// Results
+	OverallScore   *float64 `json:"overall_score,omitempty"`
+	OverallF1      *float64 `json:"overall_f1,omitempty"`
+	OverallBleu1   *float64 `json:"overall_bleu1,omitempty"`
+	TotalQuestions *int     `json:"total_questions,omitempty"`
+	TotalCorrect   *int     `json:"total_correct,omitempty"`
+
+	// Timing
+	DurationSeconds *float64 `json:"duration_seconds,omitempty"`
+
+	// Error
+	ErrorMessage string `json:"error_message,omitempty"`
+
+	// Comparison
+	BaselineRunID           string   `json:"baseline_run_id,omitempty"`
+	ImprovementFromBaseline *float64 `json:"improvement_from_baseline,omitempty"`
+	IsBestRun               bool     `json:"is_best_run"`
+
+	// Autonomous loop
+	AutonomousLoopID  string `json:"autonomous_loop_id,omitempty"`
+	IterationNumber   int    `json:"iteration_number"`
+	ChangeDescription string `json:"change_description,omitempty"`
+
+	// Metadata
+	CreatedBy string `json:"created_by"` // manual, mcp, autonomous
+	Notes     string `json:"notes,omitempty"`
+}
+
+// BenchmarkCategoryResult represents per-category results
+type BenchmarkCategoryResult struct {
+	ID       string `json:"id"`
+	RunID    string `json:"run_id"`
+	Category string `json:"category"` // single_hop, multi_hop, temporal, open_domain, adversarial
+
+	// Scores
+	LLMJudgeAccuracy *float64 `json:"llm_judge_accuracy,omitempty"`
+	F1Score          *float64 `json:"f1_score,omitempty"`
+	Bleu1Score       *float64 `json:"bleu1_score,omitempty"`
+
+	// Counts
+	TotalQuestions *int `json:"total_questions,omitempty"`
+	CorrectCount   *int `json:"correct_count,omitempty"`
+
+	// Comparison
+	PreviousBestAccuracy *float64 `json:"previous_best_accuracy,omitempty"`
+	Improvement          *float64 `json:"improvement,omitempty"`
+}
+
+// BenchmarkQuestionResult represents individual question results
+type BenchmarkQuestionResult struct {
+	ID    string `json:"id"`
+	RunID string `json:"run_id"`
+
+	// Question identification
+	QuestionID   string `json:"question_id"`
+	Category     string `json:"category"`
+	QuestionText string `json:"question_text"`
+
+	// Answers
+	GoldAnswer      string `json:"gold_answer"`
+	GeneratedAnswer string `json:"generated_answer,omitempty"`
+
+	// Scores
+	LLMJudgeLabel *int     `json:"llm_judge_label,omitempty"` // 0 or 1
+	F1Score       *float64 `json:"f1_score,omitempty"`
+	Bleu1Score    *float64 `json:"bleu1_score,omitempty"`
+
+	// Context metrics
+	ContextLength    *int `json:"context_length,omitempty"`
+	MemoriesUsed     *int `json:"memories_used,omitempty"`
+	RetrievalTimeMs  *int `json:"retrieval_time_ms,omitempty"`
+	GenerationTimeMs *int `json:"generation_time_ms,omitempty"`
+
+	// Comparison
+	ChangedFromPrevious *bool `json:"changed_from_previous,omitempty"`
+	PreviousWasCorrect  *bool `json:"previous_was_correct,omitempty"`
+}
+
+// AutonomousLoop represents an autonomous improvement session
+type AutonomousLoop struct {
+	ID          string     `json:"id"`
+	StartedAt   time.Time  `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	Status      string     `json:"status"` // running, completed, stopped, failed
+
+	// Configuration
+	MaxIterations           int     `json:"max_iterations"`
+	MinImprovementThreshold float64 `json:"min_improvement_threshold"`
+	ConvergenceThreshold    float64 `json:"convergence_threshold"`
+
+	// Results
+	TotalIterations int      `json:"total_iterations"`
+	BaselineScore   *float64 `json:"baseline_score,omitempty"`
+	FinalScore      *float64 `json:"final_score,omitempty"`
+	BestScore       *float64 `json:"best_score,omitempty"`
+	BestRunID       string   `json:"best_run_id,omitempty"`
+
+	// Stop reason
+	StopReason string `json:"stop_reason,omitempty"`
+
+	// Change tracking (JSON arrays)
+	ChangesAttempted string `json:"changes_attempted,omitempty"`
+	ChangesAccepted  string `json:"changes_accepted,omitempty"`
+	ChangesRejected  string `json:"changes_rejected,omitempty"`
+}
+
+// BenchmarkRunFilters for querying benchmark runs
+type BenchmarkRunFilters struct {
+	Status        string
+	BenchmarkType string
+	GitCommit     string
+	LoopID        string
+	Since         *time.Time
+	Until         *time.Time
+	Limit         int
+	Offset        int
+}
