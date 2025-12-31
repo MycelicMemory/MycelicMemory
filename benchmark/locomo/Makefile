@@ -1,80 +1,56 @@
-# LoCoMo Benchmark Makefile
-# Adapted from mem0ai/mem0 evaluation
+# LoCoMo-MC10 Memory-Augmented Benchmark
+# Tests ultrathink's memory retrieval against the LoCoMo-MC10 dataset
 
-.PHONY: setup download run-quick run-full evaluate scores clean help server
+.PHONY: help setup download run run-quick evaluate clean
 
-# Default DeepSeek API key (override with: make run DEEPSEEK_API_KEY=your_key)
-export DEEPSEEK_API_KEY ?= sk-265369bfd7534590a7e02be4f1026fe4
+# Configuration
+PYTHON ?= python3
+ULTRATHINK_URL ?= http://localhost:3099/api/v1
+DATASET_PATH ?= data/locomo-mc10-full.jsonl
+RESULTS_DIR ?= results
 
 help:
-	@echo "LoCoMo Benchmark Commands:"
+	@echo "LoCoMo-MC10 Memory-Augmented Benchmark"
 	@echo ""
-	@echo "  make setup        - Install dependencies"
-	@echo "  make download     - Download the LoCoMo-MC10 dataset"
-	@echo "  make run-quick    - Run quick test (20 questions)"
-	@echo "  make run-full     - Run full benchmark (all questions)"
-	@echo "  make evaluate     - Evaluate results with LLM judge"
-	@echo "  make scores       - Generate score summary"
-	@echo "  make all          - Run full pipeline (download -> run -> evaluate -> scores)"
-	@echo "  make server       - Start MCP bridge HTTP server (port 9876)"
-	@echo "  make clean        - Remove results and cache"
+	@echo "Prerequisites:"
+	@echo "  - ultrathink server running on port 3099"
+	@echo "  - DEEPSEEK_API_KEY set (copy .env.example to .env)"
+	@echo ""
+	@echo "Commands:"
+	@echo "  make setup      - Install Python dependencies"
+	@echo "  make download   - Download LoCoMo-MC10 dataset"
+	@echo "  make run-quick  - Run benchmark (10 questions)"
+	@echo "  make run        - Run full benchmark (all questions)"
+	@echo "  make evaluate   - Generate evaluation metrics"
+	@echo "  make clean      - Remove results and logs"
 	@echo ""
 
 setup:
-	pip install -r requirements.txt
-	python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('wordnet')"
+	pip3 install -r requirements.txt
+	$(PYTHON) -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('wordnet')"
 
 download:
-	python run_experiments.py --download --max_questions 1
+	$(PYTHON) download_dataset.py
 
 run-quick:
-	python run_experiments.py \
-		--dataset_path dataset/locomo10.json \
-		--output_path results/ultrathink_results_quick.json \
-		--max_questions 20 \
-		--download
+	$(PYTHON) memory_augmented.py \
+		--dataset $(DATASET_PATH) \
+		--output $(RESULTS_DIR)/memory_augmented_results.json \
+		--max-questions 10 \
+		--ultrathink-url $(ULTRATHINK_URL)
 
-run-full:
-	python run_experiments.py \
-		--dataset_path dataset/locomo10.json \
-		--output_path results/ultrathink_results.json \
-		--download
-
-run-summaries:
-	python run_experiments.py \
-		--dataset_path dataset/locomo10.json \
-		--output_path results/ultrathink_results_summaries.json \
-		--use_summaries \
-		--download
+run:
+	$(PYTHON) memory_augmented.py \
+		--dataset $(DATASET_PATH) \
+		--output $(RESULTS_DIR)/memory_augmented_results.json \
+		--ultrathink-url $(ULTRATHINK_URL)
 
 evaluate:
-	python evals.py \
-		--input_file results/ultrathink_results.json \
-		--output_file results/evaluation_metrics.json
-
-evaluate-quick:
-	python evals.py \
-		--input_file results/ultrathink_results_quick.json \
-		--output_file results/evaluation_metrics_quick.json
-
-scores:
-	python generate_scores.py \
-		--input_file results/evaluation_metrics.json \
-		--output_file results/scores_summary.json
-
-scores-quick:
-	python generate_scores.py \
-		--input_file results/evaluation_metrics_quick.json \
-		--output_file results/scores_summary_quick.json
-
-all: download run-full evaluate scores
-
-quick: run-quick evaluate-quick scores-quick
-
-# MCP Bridge Server (for Go integration)
-server:
-	python -m mcp_bridge.server --host localhost --port 9876
+	$(PYTHON) comprehensive_evals.py \
+		--input_file $(RESULTS_DIR)/memory_augmented_results.json \
+		--output_file $(RESULTS_DIR)/evaluation_metrics.json
 
 clean:
-	rm -rf results/*.json
+	rm -rf $(RESULTS_DIR)/*.json
+	rm -rf logs/*.log logs/*.jsonl logs/*.json
 	rm -rf __pycache__ metrics/__pycache__

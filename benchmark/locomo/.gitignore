@@ -1,6 +1,10 @@
+# Secrets
+.env
+
 # Generated data
 dataset/
 results/
+logs/
 
 # Python cache
 __pycache__/
