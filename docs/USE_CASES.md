@@ -469,4 +469,4 @@ You: "Map how my Kubernetes knowledge connects to Docker"
 
 - [Set up auto-capture hooks](HOOKS.md)
 - [Quick Start Guide](QUICKSTART.md)
-- [API Reference](API.md)
+- [REST API Reference](../README.md#rest-api)

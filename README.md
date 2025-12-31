@@ -20,17 +20,31 @@ Ultrathink gives Claude persistent memory across conversations. Store knowledge,
 
 ---
 
+## Prerequisites
+
+| Requirement | For npm Install | For Source Build |
+|-------------|-----------------|------------------|
+| Node.js 16+ | Required | Optional |
+| Go 1.23+ | Not needed | Required |
+| C compiler | Not needed | Required (CGO) |
+| Git | Optional | Required |
+
+**Why CGO?** Ultrathink uses SQLite with FTS5 full-text search, which requires C bindings.
+
+---
+
 ## Quick Start
 
 ### 1. Install
 
 ```bash
-# Via npm (easiest)
+# Via npm (easiest - pre-built binaries)
 npm install -g ultrathink
 
-# Or build from source
+# Or build from source (requires Go 1.23+ and C compiler)
 git clone https://github.com/MycelicMemory/ultrathink.git
-cd ultrathink && make dev-install
+cd ultrathink
+make deps && make build && make dev-install
 ```
 
 ### 2. Connect to Claude Code
@@ -342,10 +356,10 @@ ultrathink/
 
 ## Documentation
 
-- [Quick Start Guide](docs/QUICKSTART.md) - Get up and running in 5 minutes
+- [Quick Start Guide](docs/QUICKSTART.md) - Complete installation from scratch
 - [Use Cases](docs/USE_CASES.md) - 15 detailed examples with code
 - [Hooks Setup](docs/HOOKS.md) - Automatic memory capture
-- [API Reference](docs/API.md) - Full REST API documentation
+- [Benchmarks](benchmark/locomo/README.md) - LoCoMo memory retrieval benchmarks
 - [Contributing](CONTRIBUTING.md) - Development guide
 
 ---

@@ -134,7 +134,7 @@ ultrathink doctor
 ## Links
 
 - **Repository:** [github.com/MycelicMemory/ultrathink](https://github.com/MycelicMemory/ultrathink)
-- **Documentation:** [SETUP.md](https://github.com/MycelicMemory/ultrathink/blob/main/SETUP.md)
+- **Quick Start Guide:** [docs/QUICKSTART.md](https://github.com/MycelicMemory/ultrathink/blob/main/docs/QUICKSTART.md)
 - **Issues:** [GitHub Issues](https://github.com/MycelicMemory/ultrathink/issues)
 
 ## License
