@@ -128,12 +128,13 @@ class MemoryAugmentedExperiment:
 
     def _download_dataset(self) -> None:
         """Download LoCoMo-MC10 dataset from HuggingFace."""
-        url = "https://huggingface.co/datasets/Percena/locomo-mc10/resolve/main/raw/locomo10.json"
+        # This is the correct MC10 format (flattened with question/choices/haystack_sessions)
+        url = "https://huggingface.co/datasets/Percena/locomo-mc10/resolve/main/data/locomo_mc10.json"
         os.makedirs("data", exist_ok=True)
 
         try:
             print(f"   Downloading from {url}...")
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=120)
             response.raise_for_status()
 
             with open(self.dataset_path, "w") as f:
