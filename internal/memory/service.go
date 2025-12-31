@@ -116,6 +116,11 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 		}
 	}
 
+	// Ensure session is tracked
+	if err := s.db.EnsureSession(sessionID, agentType); err != nil {
+		// Log warning but don't fail - session tracking is optional
+	}
+
 	// Create memory
 	memory := &database.Memory{
 		Content:      strings.TrimSpace(opts.Content),

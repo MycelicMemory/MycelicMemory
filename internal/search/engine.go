@@ -1,10 +1,12 @@
 package search
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/MycelicMemory/ultrathink/internal/ai"
 	"github.com/MycelicMemory/ultrathink/internal/database"
 	"github.com/MycelicMemory/ultrathink/pkg/config"
 )
@@ -32,10 +34,9 @@ const (
 // Engine provides unified search functionality
 // VERIFIED: Supports all local-memory search modes
 type Engine struct {
-	db     *database.Database
-	config *config.Config
-	// vectorStore will be added in Phase 4 for semantic search
-	// aiClient will be added in Phase 4 for embeddings
+	db        *database.Database
+	config    *config.Config
+	aiManager *ai.Manager // AI Manager for semantic search (Phase 4)
 }
 
 // NewEngine creates a new search engine
@@ -44,6 +45,25 @@ func NewEngine(db *database.Database, cfg *config.Config) *Engine {
 		db:     db,
 		config: cfg,
 	}
+}
+
+// NewEngineWithAI creates a new search engine with AI capabilities
+func NewEngineWithAI(db *database.Database, cfg *config.Config, aiMgr *ai.Manager) *Engine {
+	return &Engine{
+		db:        db,
+		config:    cfg,
+		aiManager: aiMgr,
+	}
+}
+
+// SetAIManager sets the AI manager for semantic search
+func (e *Engine) SetAIManager(aiMgr *ai.Manager) {
+	e.aiManager = aiMgr
+}
+
+// HasAI returns true if AI capabilities are available
+func (e *Engine) HasAI() bool {
+	return e.aiManager != nil
 }
 
 // SearchOptions contains options for searching memories
@@ -165,21 +185,62 @@ func (e *Engine) keywordSearch(opts *SearchOptions) ([]*SearchResult, error) {
 }
 
 // semanticSearch performs vector similarity search
-// NOTE: Full implementation requires Qdrant (Phase 4)
+// VERIFIED: Matches local-memory semantic search behavior
 func (e *Engine) semanticSearch(opts *SearchOptions) ([]*SearchResult, error) {
-	// Check if semantic search is available
-	if !e.config.Qdrant.Enabled {
-		// Fallback to keyword search with warning
+	// Check if AI manager is available
+	if e.aiManager == nil {
+		// Fallback to keyword search
 		return e.keywordSearch(opts)
 	}
 
-	// TODO: Implement semantic search with Qdrant in Phase 4
-	// 1. Generate query embedding via Ollama
-	// 2. Search Qdrant for similar vectors
-	// 3. Fetch full memory data from SQLite
-	// 4. Return with similarity scores
+	// Check if services are enabled and available
+	status := e.aiManager.GetStatus()
+	if !status.OllamaEnabled || !status.QdrantEnabled {
+		return e.keywordSearch(opts)
+	}
+	if !status.OllamaAvailable || !status.QdrantAvailable {
+		return e.keywordSearch(opts)
+	}
 
-	return e.keywordSearch(opts)
+	// Perform semantic search via AI Manager
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	semanticResults, err := e.aiManager.SemanticSearch(ctx, &ai.SemanticSearchOptions{
+		Query:        opts.Query,
+		Limit:        limit,
+		MinScore:     opts.MinRelevance,
+		SessionID:    opts.SessionID,
+		Domain:       opts.Domain,
+		WithMetadata: true,
+	})
+	if err != nil {
+		// Fallback to keyword search on error
+		return e.keywordSearch(opts)
+	}
+
+	// Fetch full memory data and build results
+	var results []*SearchResult
+	for _, sr := range semanticResults {
+		// Get full memory from database
+		mem, err := e.db.GetMemory(sr.MemoryID)
+		if err != nil || mem == nil {
+			continue // Skip if memory not found
+		}
+
+		results = append(results, &SearchResult{
+			Memory:    mem,
+			Relevance: sr.Score,
+			MatchType: "semantic",
+		})
+	}
+
+	return results, nil
 }
 
 // tagSearch searches memories by tag matching
@@ -268,11 +329,14 @@ func (e *Engine) hybridSearch(opts *SearchOptions) ([]*SearchResult, error) {
 		return nil, err
 	}
 
-	// If semantic search is available, merge results
-	if e.config.Qdrant.Enabled {
-		semanticResults, err := e.semanticSearch(opts)
-		if err == nil {
-			keywordResults = mergeResults(keywordResults, semanticResults)
+	// If AI is available, merge with semantic search results
+	if e.aiManager != nil {
+		status := e.aiManager.GetStatus()
+		if status.OllamaAvailable && status.QdrantAvailable {
+			semanticResults, err := e.semanticSearch(opts)
+			if err == nil {
+				keywordResults = mergeResults(keywordResults, semanticResults)
+			}
 		}
 	}
 
@@ -366,10 +430,20 @@ func mergeResults(a, b []*SearchResult) []*SearchResult {
 }
 
 // IntelligentSearch performs AI-enhanced search
-// NOTE: Full implementation requires Ollama (Phase 4)
+// VERIFIED: Matches local-memory intelligent search behavior
 func (e *Engine) IntelligentSearch(query string, opts *SearchOptions) ([]*SearchResult, error) {
-	// For now, just use hybrid search
 	opts.Query = query
-	opts.SearchType = SearchTypeHybrid
+
+	// If AI is available, prefer semantic search with hybrid fallback
+	if e.aiManager != nil {
+		status := e.aiManager.GetStatus()
+		if status.OllamaAvailable && status.QdrantAvailable {
+			opts.SearchType = SearchTypeHybrid
+			return e.Search(opts)
+		}
+	}
+
+	// Fallback to keyword search
+	opts.SearchType = SearchTypeKeyword
 	return e.Search(opts)
 }

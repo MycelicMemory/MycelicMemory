@@ -1,0 +1,52 @@
+{
+  "name": "ultrathink",
+  "version": "1.2.0",
+  "description": "AI-powered persistent memory system - Open source replica of local-memory",
+  "keywords": [
+    "mcp",
+    "ai",
+    "memory",
+    "vector-search",
+    "llm",
+    "claude",
+    "ollama",
+    "semantic-search",
+    "knowledge-base"
+  ],
+  "author": "Mycelic Memory",
+  "license": "MIT",
+  "homepage": "https://github.com/MycelicMemory/ultrathink",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MycelicMemory/ultrathink.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MycelicMemory/ultrathink/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "main": "index.js",
+  "bin": {
+    "ultrathink": "bin/ultrathink"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "index.js",
+    "bin/",
+    "scripts/",
+    "README.md"
+  ],
+  "preferGlobal": true
+}

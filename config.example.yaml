@@ -50,7 +50,7 @@ rest_api:
   auto_port: true
 
   # Default port (3002 matches Local Memory)
-  port: 3002
+  port: 3099
 
   # Host to bind to
   host: localhost
