@@ -15,6 +15,7 @@ from openai import OpenAI
 from tqdm import tqdm
 
 from prompts import ANSWER_PROMPT_ULTRATHINK, ANSWER_PROMPT_SUMMARY
+from metrics_tracker import MetricsTracker, TokenMetrics
 
 # DeepSeek API configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-265369bfd7534590a7e02be4f1026fe4")
@@ -148,8 +149,13 @@ class UltrathinkExperiment:
         # Load dataset
         self.questions = load_dataset(dataset_path, max_questions)
 
-    def generate_answer(self, question: str, context: str, choices: List[str]) -> Optional[int]:
-        """Generate answer choice using DeepSeek with the provided context."""
+    def generate_answer(
+        self, question: str, context: str, choices: List[str]
+    ) -> tuple[Optional[int], TokenMetrics]:
+        """
+        Generate answer choice using DeepSeek with the provided context.
+        Returns: (choice_index, token_metrics)
+        """
         choices_str = format_choices(choices)
 
         if self.use_summaries:
@@ -165,6 +171,8 @@ class UltrathinkExperiment:
                 choices=choices_str
             )
 
+        token_metrics = TokenMetrics()
+
         try:
             response = self.client.chat.completions.create(
                 model=DEEPSEEK_MODEL,
@@ -174,17 +182,24 @@ class UltrathinkExperiment:
             )
             response_text = response.choices[0].message.content.strip()
             choice_index = extract_choice_index(response_text)
-            return choice_index
+
+            # Extract token usage from response
+            if hasattr(response, 'usage') and response.usage:
+                token_metrics.input_tokens = response.usage.prompt_tokens
+                token_metrics.output_tokens = response.usage.completion_tokens
+                token_metrics.total_tokens = response.usage.total_tokens
+
+            return choice_index, token_metrics
         except Exception as e:
             print(f"Error generating answer: {e}")
-            return None
+            return None, token_metrics
 
     def run(self, output_path: str = "results/ultrathink_results.json"):
-        """Run the benchmark experiment."""
+        """Run the benchmark experiment with comprehensive metrics tracking."""
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         results = defaultdict(list)
-        total_time = 0
+        metrics_tracker = MetricsTracker()
 
         for q in tqdm(self.questions, desc="Processing questions"):
             question_id = q.get("question_id", "unknown")
@@ -197,16 +212,18 @@ class UltrathinkExperiment:
             choices = q.get("choices", [])
             correct_choice_index = q.get("correct_choice_index", -1)
 
-            # Build context from session data
+            # Build context from session data and track timing
+            context_start = time.time()
             context = build_context_from_sessions(q, self.use_summaries)
+            context_building_time = time.time() - context_start
 
-            # Generate answer (returns choice index 0-9)
+            # Generate answer (returns choice index 0-9 and token metrics)
             start_time = time.time()
-            predicted_choice_index = self.generate_answer(question_text, context, choices)
-            elapsed = time.time() - start_time
-            total_time += elapsed
+            predicted_choice_index, token_metrics = self.generate_answer(question_text, context, choices)
+            llm_response_time = time.time() - start_time
+            total_latency = context_building_time + llm_response_time
 
-            # Store result with both predicted and correct indices
+            # Store result with metrics
             results[question_id].append({
                 "question": question_text,
                 "gold_answer": gold_answer,
@@ -215,19 +232,42 @@ class UltrathinkExperiment:
                 "predicted_choice_index": predicted_choice_index,
                 "category": category,
                 "question_type": question_type,
-                "latency": elapsed,
+                "latency_total": total_latency,
+                "latency_context_building": context_building_time,
+                "latency_llm_response": llm_response_time,
+                "tokens": token_metrics.to_dict(),
             })
 
-        # Save results
+            # Track metrics
+            metrics_tracker.add_result(
+                question_id=question_id,
+                question_text=question_text,
+                question_type=question_type,
+                correct_choice_index=correct_choice_index,
+                predicted_choice_index=predicted_choice_index,
+                latency=total_latency,
+                tokens=token_metrics,
+                llm_response_time=llm_response_time,
+                context_building_time=context_building_time,
+            )
+
+        # Save detailed results
         with open(output_path, "w") as f:
             json.dump(results, f, indent=2)
 
         print(f"\nResults saved to {output_path}")
         print(f"Total questions: {len(self.questions)}")
-        print(f"Total time: {total_time:.2f}s")
-        print(f"Average latency: {total_time / len(self.questions):.2f}s per question")
 
-        return results
+        # Print summary statistics
+        overall_metrics = metrics_tracker.get_overall_metrics()
+        if overall_metrics:
+            print(f"\nOverall Accuracy: {overall_metrics['overall']['accuracy']:.2f}%")
+            print(f"Mean Latency: {overall_metrics['latency']['mean_latency_seconds']:.3f}s")
+            print(f"P95 Latency: {overall_metrics['latency']['p95_latency_seconds']:.3f}s")
+            print(f"Total Tokens: {overall_metrics['tokens']['total_tokens']}")
+            print(f"Estimated Cost: ${overall_metrics['cost_estimation']['total_cost_usd']:.4f}")
+
+        return results, metrics_tracker
 
 
 def main():
