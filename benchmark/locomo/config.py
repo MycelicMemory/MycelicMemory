@@ -25,6 +25,8 @@ def get_required_env(key: str) -> str:
         print(f"   Set it via: export {key}=your_value")
         print(f"   Or create a .env file (see .env.example)")
         sys.exit(1)
+    # Debug: show key info without revealing full value
+    print(f"[CONFIG] {key}: {len(value)} chars, prefix: {value[:3] if len(value) >= 3 else 'N/A'}...")
     return value
 
 
