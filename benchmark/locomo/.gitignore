@@ -6,3 +6,4 @@ results/
 __pycache__/
 *.pyc
 *.pyo
+data/*.jsonl
