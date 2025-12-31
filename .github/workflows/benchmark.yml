@@ -46,6 +46,19 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
+          # Validate API key format (should start with sk- and be 32+ chars)
+          if [ -z "$DEEPSEEK_API_KEY" ]; then
+            echo "ERROR: DEEPSEEK_API_KEY is empty"
+            exit 1
+          fi
+          KEY_LEN=${#DEEPSEEK_API_KEY}
+          echo "API key length: $KEY_LEN chars"
+          if [ $KEY_LEN -lt 30 ]; then
+            echo "ERROR: DEEPSEEK_API_KEY too short (got $KEY_LEN, need 30+)"
+            exit 1
+          fi
+          echo "API key prefix: ${DEEPSEEK_API_KEY:0:3}..."
+
           ./ultrathink start --port 3099 --background
           sleep 3
           curl -sf http://localhost:3099/api/v1/health || (echo "Server failed to start" && exit 1)
