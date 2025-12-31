@@ -214,17 +214,14 @@ Return ONLY the choice index (0-9), nothing else."""
             token_metrics = TokenMetrics(
                 input_tokens=data["usage"]["prompt_tokens"],
                 output_tokens=data["usage"]["completion_tokens"],
-                total_tokens=data["usage"]["total_tokens"],
-                latency_total=elapsed,
-                latency_llm_response=elapsed,
-                latency_context_building=0
+                total_tokens=data["usage"]["total_tokens"]
             )
 
-            return predicted_idx, token_metrics
+            return predicted_idx, (token_metrics, elapsed)
 
         except Exception as e:
             print(f"❌ LLM error: {e}")
-            return None, TokenMetrics(0, 0, 0, 0, 0, 0)
+            return None, (TokenMetrics(0, 0, 0), 0)
 
     def run(self, output_path: str = "results/memory_augmented_results.json") -> Dict:
         """
@@ -279,7 +276,7 @@ Return ONLY the choice index (0-9), nothing else."""
             retrieved_tokens = len(retrieved_context.split())  # Approximate token count
 
             # Step 4: Generate answer with retrieved context
-            predicted_idx, token_metrics = self._generate_answer(
+            predicted_idx, (token_metrics, llm_latency) = self._generate_answer(
                 question=question["question"],
                 context=retrieved_context,
                 choices=question["choices"]
@@ -302,10 +299,10 @@ Return ONLY the choice index (0-9), nothing else."""
                 question_type=question.get("question_type", "unknown"),
                 correct_choice_index=correct_idx,
                 predicted_choice_index=predicted_idx,
-                latency=token_metrics.latency_total,
+                latency=llm_latency,
                 tokens=token_metrics,
-                llm_response_time=token_metrics.latency_llm_response,
-                context_building_time=token_metrics.latency_context_building
+                llm_response_time=llm_latency,
+                context_building_time=retrieval_time
             )
 
             # Also store raw result with retrieval metadata
@@ -316,9 +313,9 @@ Return ONLY the choice index (0-9), nothing else."""
                 "correct_choice_index": correct_idx,
                 "is_correct": is_correct,
                 "question_type": question.get("question_type", "unknown"),
-                "latency_total": token_metrics.latency_total,
-                "latency_context_building": token_metrics.latency_context_building,
-                "latency_llm_response": token_metrics.latency_llm_response,
+                "latency_total": retrieval_time + llm_latency,
+                "latency_context_building": retrieval_time,
+                "latency_llm_response": llm_latency,
                 "tokens": {
                     "input_tokens": token_metrics.input_tokens,
                     "output_tokens": token_metrics.output_tokens,
