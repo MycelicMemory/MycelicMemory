@@ -73,3 +73,15 @@ coverage.html
 # Debug files
 debug
 __debug_bin
+
+# Benchmark runtime artifacts
+benchmark/locomo/logs/
+benchmark/locomo/results/*.json
+benchmark/locomo/data/locomo*.json
+benchmark/locomo/data/locomo*.jsonl
+
+# Claude Code local configuration
+CLAUDE.md
+
+# Accidental tilde directories
+"~"/
