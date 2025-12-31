@@ -42,6 +42,11 @@ jobs:
           wait
           python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
 
+      - name: Download dataset
+        run: |
+          cd benchmark/locomo
+          make download-fr
+
       - name: Start server and run benchmark
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -51,9 +56,9 @@ jobs:
           curl -sf http://localhost:3099/api/v1/health || (echo "Server failed to start" && exit 1)
 
           cd benchmark/locomo
-          python3 memory_augmented.py \
-            --dataset data/locomo-mc10-full.jsonl \
-            --output results/benchmark_results.json \
+          python3 -m locomo10.main \
+            --dataset data/locomo10.json \
+            --output results/locomo10_results.json \
             --max-questions ${{ github.event.inputs.questions || '20' }} \
             --ultrathink-url http://localhost:3099/api/v1
 
@@ -67,17 +72,32 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
-          if [ -f benchmark/locomo/results/benchmark_results.json ]; then
+          echo "## LoCoMo Free-Response Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f benchmark/locomo/results/locomo10_results.json ]; then
             python3 -c "
           import json
-          with open('benchmark/locomo/results/benchmark_results.json') as f:
+          with open('benchmark/locomo/results/locomo10_results.json') as f:
               data = json.load(f)
           results = data.get('results', {})
-          correct = sum(1 for r in results.values() if r.get('is_correct'))
           total = len(results)
-          accuracy = (correct / total * 100) if total > 0 else 0
-          print(f'- **Accuracy**: {accuracy:.1f}% ({correct}/{total})')
+          if total > 0:
+              f1_scores = [r.get('f1_score', 0) for r in results.values()]
+              mean_f1 = sum(f1_scores) / len(f1_scores)
+              print(f'- **Mean F1 Score**: {mean_f1:.3f}')
+              print(f'- **Questions Evaluated**: {total}')
+              # Per-category breakdown
+              by_cat = {}
+              for r in results.values():
+                  cat = r.get('category_name', 'unknown')
+                  if cat not in by_cat:
+                      by_cat[cat] = []
+                  by_cat[cat].append(r.get('f1_score', 0))
+              print('- **By Category**:')
+              for cat, scores in sorted(by_cat.items()):
+                  cat_f1 = sum(scores) / len(scores)
+                  print(f'  - {cat}: {cat_f1:.3f} ({len(scores)} questions)')
+          else:
+              print('No results found')
           " >> $GITHUB_STEP_SUMMARY
           else
             echo "No results file found" >> $GITHUB_STEP_SUMMARY

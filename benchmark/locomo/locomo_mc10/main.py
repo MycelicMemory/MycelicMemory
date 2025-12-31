@@ -24,12 +24,15 @@ from dataclasses import dataclass
 from datetime import datetime
 import requests
 
-from ultrathink_client import UltrathinkClient, RetrievalResult
-from metrics_tracker import MetricsTracker, TokenMetrics, QuestionResult
-from logging_system import BenchmarkLogger, CallType, init_logger, get_logger
-from llm_call_tracker import LLMCallTracker
-from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
-from progress_display import ProgressDisplay
+# Add parent directory to path for shared imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.ultrathink_client import UltrathinkClient, RetrievalResult
+from shared.logging_system import BenchmarkLogger, CallType, init_logger, get_logger
+from shared.llm_call_tracker import LLMCallTracker
+from shared.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from locomo_mc10.metrics_tracker import MetricsTracker, TokenMetrics, QuestionResult
+from locomo_mc10.progress_display import ProgressDisplay
 
 
 @dataclass
