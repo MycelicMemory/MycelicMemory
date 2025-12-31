@@ -1,7 +1,7 @@
 # LoCoMo Benchmark Makefile
 # Adapted from mem0ai/mem0 evaluation
 
-.PHONY: setup download run-quick run-full evaluate scores clean help
+.PHONY: setup download run-quick run-full evaluate scores clean help server
 
 # Default DeepSeek API key (override with: make run DEEPSEEK_API_KEY=your_key)
 export DEEPSEEK_API_KEY ?= REDACTED_API_KEY
@@ -16,6 +16,7 @@ help:
 	@echo "  make evaluate     - Evaluate results with LLM judge"
 	@echo "  make scores       - Generate score summary"
 	@echo "  make all          - Run full pipeline (download -> run -> evaluate -> scores)"
+	@echo "  make server       - Start MCP bridge HTTP server (port 9876)"
 	@echo "  make clean        - Remove results and cache"
 	@echo ""
 
@@ -69,6 +70,10 @@ scores-quick:
 all: download run-full evaluate scores
 
 quick: run-quick evaluate-quick scores-quick
+
+# MCP Bridge Server (for Go integration)
+server:
+	python -m mcp_bridge.server --host localhost --port 9876
 
 clean:
 	rm -rf results/*.json
