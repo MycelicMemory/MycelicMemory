@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.ultrathink_client import UltrathinkClient, RetrievalResult
 from shared.logging_system import BenchmarkLogger, CallType, init_logger, get_logger
 from shared.llm_call_tracker import LLMCallTracker
-from shared.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from shared.config import get_deepseek_api_key, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 from locomo_mc10.metrics_tracker import MetricsTracker, TokenMetrics, QuestionResult
 from locomo_mc10.progress_display import ProgressDisplay
 
@@ -74,7 +74,7 @@ class MemoryAugmentedExperiment:
         self.max_questions = max_questions
         self.random_sample = random_sample
         self.seed = seed
-        self.deepseek_api_key = DEEPSEEK_API_KEY
+        self.deepseek_api_key = get_deepseek_api_key()
         self.ultrathink_url = ultrathink_url
 
         # Initialize logging
