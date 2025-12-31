@@ -368,4 +368,4 @@ rm ~/.claude/hooks/ultrathink-*.py
 
 - [Quick Start Guide](QUICKSTART.md)
 - [Use Cases](USE_CASES.md)
-- [API Reference](API.md)
+- [REST API Reference](../README.md#rest-api)
