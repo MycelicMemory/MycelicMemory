@@ -30,10 +30,40 @@ class RetrievalResult:
     similarity_score: Optional[float] = None
 
 
+# Stop words to remove from search queries for FTS5
+STOP_WORDS = {
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'must', 'shall', 'can', 'of', 'at', 'by',
+    'for', 'with', 'about', 'against', 'between', 'into', 'through',
+    'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up',
+    'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further',
+    'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all',
+    'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
+    'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't',
+    'just', 'don', 'now', 'what', 'who', 'which', 'it', 'its', 'this',
+    'that', 'these', 'those', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
+    'he', 'she', 'him', 'her', 'his', 'they', 'them', 'their', 'and', 'or',
+    'but', 'if', 'because', 'as', 'until', 'while', 'go', 'went', 'going'
+}
+
+
+def extract_keywords(query: str, max_keywords: int = 5) -> str:
+    """Extract meaningful keywords from a natural language query for FTS5 search."""
+    import re
+    # Remove punctuation and split
+    words = re.findall(r'\b\w+\b', query.lower())
+    # Filter out stop words and short words
+    keywords = [w for w in words if w not in STOP_WORDS and len(w) > 2]
+    # Take top keywords (prioritize longer words as likely more meaningful)
+    keywords = sorted(keywords, key=len, reverse=True)[:max_keywords]
+    return ' '.join(keywords)
+
+
 class UltrathinkClient:
     """REST API client for ultrathink memory system."""
 
-    def __init__(self, base_url: str = "http://localhost:3002/api/v1", timeout: int = 30):
+    def __init__(self, base_url: str = "http://localhost:3099/api/v1", timeout: int = 30):
         """
         Initialize ultrathink client.
 
@@ -110,7 +140,7 @@ class UltrathinkClient:
                     timeout=self.timeout
                 )
 
-                if response.status_code == 200:
+                if response.status_code in (200, 201):
                     data = response.json()
                     if data.get("success"):
                         memory_id = data.get("data", {}).get("id")
@@ -129,7 +159,7 @@ class UltrathinkClient:
         query: str,
         top_k: int = 10,
         use_ai: bool = True,
-        min_similarity: float = 0.3
+        min_similarity: float = 0.0
     ) -> Tuple[List[RetrievalResult], float]:
         """
         Semantically retrieve relevant memories for a query.
@@ -146,8 +176,11 @@ class UltrathinkClient:
         start_time = time.time()
 
         try:
+            # Extract keywords for better search results (works for both semantic and FTS5)
+            search_query = extract_keywords(query, max_keywords=6)
+
             payload = {
-                "query": query,
+                "query": search_query,
                 "limit": top_k,
                 "use_ai": use_ai,
                 "response_format": "concise",  # Token optimization
