@@ -1,313 +1,139 @@
-# LoCoMo Benchmark Implementation
+# LoCoMo-MC10 Benchmark
 
-This directory contains the implementation of the [LoCoMo benchmark](https://github.com/snap-research/locomo) for evaluating ultrathink's long-term conversational memory capabilities.
+This directory contains the LoCoMo-MC10 benchmark implementation for evaluating ultrathink's long-term conversational memory capabilities.
+
+Based on the [mem0ai/mem0 evaluation framework](https://github.com/mem0ai/mem0/tree/main/evaluation).
 
 ## Overview
 
-LoCoMo (Long-term Conversational Memory) is an ACL 2024 benchmark that evaluates LLM agents on their ability to:
-- Answer questions requiring long-term memory recall
-- Summarize events across extended conversation histories
-- Handle multiple conversation sessions spanning weeks/months
+LoCoMo-MC10 is a 1,986-item multiple-choice benchmark derived from LoCoMo that tests LLM agents on 5 conversation memory abilities:
 
-### Dataset Statistics
-- **10 conversations** with human-verified annotations
-- **~300 turns** per conversation average
-- **~9K tokens** per conversation average
-- **Up to 35 sessions** per conversation
-- **5 question categories**: Single-hop, Multi-hop, Temporal, Commonsense, Adversarial
+| Category | Description | Count |
+|----------|-------------|-------|
+| 1. Single-Hop | Direct fact retrieval | ~400 |
+| 2. Multi-Hop | Combining multiple facts | ~400 |
+| 3. Temporal | Time-based reasoning | ~400 |
+| 4. Open-Domain | General knowledge | ~400 |
+| 5. Adversarial | Robustness testing | ~400 |
 
----
+**Dataset**: [HuggingFace - Percena/locomo-mc10](https://huggingface.co/datasets/Percena/locomo-mc10)
 
-## Architecture
+## Evaluation Metrics
 
-### How Ultrathink Maps to LoCoMo
+Following mem0's evaluation approach:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         LoCoMo Dataset                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
-│  │ Conversation│  │ Conversation│  │     ...     │  (10 total)      │
-│  │     #1      │  │     #2      │  │             │                  │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                  │
-└─────────┼────────────────┼────────────────┼─────────────────────────┘
-          │                │                │
-          ▼                ▼                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      Ultrathink Ingestion                            │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  Each dialogue turn → Memory                                 │    │
-│  │  - content: dialogue text                                    │    │
-│  │  - tags: [locomo, conv_N, session_M, speaker_X]             │    │
-│  │  - domain: locomo-benchmark                                  │    │
-│  │  - importance: based on content significance                 │    │
-│  │  - timestamp: session datetime                               │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  Persona data → High-importance memories                     │    │
-│  │  - importance: 10                                            │    │
-│  │  - tags: [locomo, persona, speaker_X]                       │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      Ultrathink Storage                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
-│  │   SQLite    │  │   Qdrant    │  │   Ollama    │                  │
-│  │  (memories) │  │  (vectors)  │  │    (AI)     │                  │
-│  └─────────────┘  └─────────────┘  └─────────────┘                  │
-└─────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      Evaluation Tasks                                │
-│  ┌───────────────────┐  ┌───────────────────┐                       │
-│  │   QA Evaluation   │  │ Event Summarization│                       │
-│  │                   │  │                   │                       │
-│  │ For each question:│  │ For each conv:    │                       │
-│  │ 1. Search memories│  │ 1. Retrieve all   │                       │
-│  │ 2. AI analysis    │  │ 2. Summarize      │                       │
-│  │ 3. Compare answer │  │ 3. Compare events │                       │
-│  │ 4. Calculate F1   │  │ 4. Score          │                       │
-│  └───────────────────┘  └───────────────────┘                       │
-└─────────────────────────────────────────────────────────────────────┘
+1. **LLM Judge Accuracy** - DeepSeek evaluates if the generated answer is semantically correct compared to gold answer
+2. **F1 Score** - Token-level overlap between prediction and reference
+3. **BLEU-1 Score** - N-gram precision with smoothing
+
+## Quick Start
+
+```bash
+# Install dependencies
+make setup
+
+# Run quick test (20 questions)
+make quick
+
+# Run full benchmark
+make all
 ```
 
----
+## Usage
 
-## Implementation Plan
+### 1. Setup
 
-### Phase 1: Data Ingestion
-
-**File: `ingest.go`**
-
-```go
-// LoCoMo data structures
-type LoCoMoDataset struct {
-    Conversations []Conversation `json:"conversations"`
-}
-
-type Conversation struct {
-    ID        string              `json:"id"`
-    SpeakerA  string              `json:"speaker_a"`
-    SpeakerB  string              `json:"speaker_b"`
-    Personas  map[string][]string `json:"personas"`
-    Sessions  map[string][]Turn   `json:"sessions"`
-    Dates     map[string]string   `json:"dates"`
-    QA        []QAAnnotation      `json:"qa"`
-    Events    []EventAnnotation   `json:"events"`
-}
-
-type Turn struct {
-    DiaID   string `json:"dia_id"`
-    Speaker string `json:"speaker"`
-    Content string `json:"content"`
-}
+```bash
+pip install -r requirements.txt
 ```
 
-**Ingestion Process:**
-1. Download `locomo10.json` from GitHub
-2. Parse JSON into Go structures
-3. For each conversation:
-   - Store personas as high-importance memories
-   - For each session:
-     - Store each turn as a memory with metadata
-     - Preserve dialogue IDs for evidence matching
-4. Create index for efficient QA evaluation
+### 2. Run Experiments
 
-### Phase 2: QA Evaluation
+```bash
+# Quick test with 20 questions
+python run_experiments.py --max_questions 20 --download
 
-**File: `qa_eval.go`**
+# Full benchmark
+python run_experiments.py --download
 
-**Question Categories:**
-| Category | Description | Retrieval Strategy |
-|----------|-------------|-------------------|
-| Single-hop | Direct retrieval | Semantic search |
-| Multi-hop | Combine multiple memories | Multi-query search |
-| Temporal | Time-based reasoning | Date-filtered search |
-| Commonsense | External knowledge | AI reasoning |
-| Adversarial | Robustness testing | All strategies |
-
-**Evaluation Loop:**
-```go
-func EvaluateQA(conv Conversation, strategy RetrievalStrategy) Results {
-    results := Results{}
-
-    for _, qa := range conv.QA {
-        // 1. Retrieve relevant memories
-        memories := strategy.Retrieve(qa.Question)
-
-        // 2. Generate answer using AI
-        answer := aiManager.AnswerQuestion(qa.Question, memories)
-
-        // 3. Calculate F1 score
-        f1 := calculateF1(answer, qa.Answer)
-
-        results.Add(qa.Category, f1)
-    }
-
-    return results
-}
+# With session summaries instead of full dialogues
+python run_experiments.py --use_summaries --download
 ```
 
-### Phase 3: Retrieval Strategies
+### 3. Evaluate Results
 
-**File: `retrieval.go`**
+```bash
+# Run LLM judge evaluation
+python evals.py --input_file results/ultrathink_results.json
 
-1. **Direct Context**
-   - Pass all memories as context
-   - Limited by context window
-
-2. **Dialog RAG**
-   ```go
-   func (d *DialogRAG) Retrieve(question string) []Memory {
-       return searchEngine.Search(&SearchOptions{
-           Query:  question,
-           Limit:  10,
-           UseAI:  true,
-           Domain: "locomo-benchmark",
-       })
-   }
-   ```
-
-3. **Observation RAG**
-   - Pre-generate observations per speaker
-   - Store as separate memories
-   - Retrieve observations instead of raw dialogue
-
-4. **Summary RAG**
-   - Generate session summaries
-   - Use summaries for retrieval
-
-### Phase 4: Results & Reporting
-
-**File: `results.go`**
-
-```go
-type BenchmarkResults struct {
-    Benchmark  string    `json:"benchmark"`
-    Timestamp  time.Time `json:"timestamp"`
-    Model      string    `json:"model"`
-    Strategy   string    `json:"retrieval_strategy"`
-
-    Overall    Metrics           `json:"overall"`
-    Categories map[string]Metrics `json:"categories"`
-    Questions  []QuestionResult  `json:"per_question"`
-}
-
-type Metrics struct {
-    F1        float64 `json:"f1"`
-    Precision float64 `json:"precision"`
-    Recall    float64 `json:"recall"`
-    Count     int     `json:"count"`
-}
+# Generate score summary
+python generate_scores.py
 ```
 
----
+## Configuration
+
+Set your DeepSeek API key:
+
+```bash
+export DEEPSEEK_API_KEY=your_api_key_here
+```
+
+Or edit the default in `metrics/llm_judge.py`.
 
 ## File Structure
 
 ```
 benchmark/locomo/
-├── README.md           # This file
-├── types.go            # LoCoMo data structures
-├── ingest.go           # Data ingestion pipeline
-├── qa_eval.go          # QA evaluation logic
-├── event_eval.go       # Event summarization evaluation
-├── retrieval.go        # Retrieval strategies
-├── metrics.go          # F1 score calculation
-├── results.go          # Results storage
-├── report.go           # Report generation
-└── compare.go          # Baseline comparison
+├── README.md                 # This file
+├── Makefile                  # Convenience commands
+├── requirements.txt          # Python dependencies
+├── prompts.py               # Answer generation prompts
+├── run_experiments.py       # Main experiment runner
+├── evals.py                 # Evaluation with LLM judge
+├── generate_scores.py       # Score aggregation
+├── metrics/
+│   ├── __init__.py
+│   ├── llm_judge.py         # DeepSeek LLM judge
+│   └── utils.py             # BLEU, F1 metrics
+├── dataset/                 # Downloaded dataset
+└── results/                 # Evaluation results
 ```
 
----
+## LLM Judge Prompt
 
-## CLI Commands
+The LLM judge uses this prompt to evaluate answers:
 
-### Ingestion
-```bash
-# Download and ingest LoCoMo dataset
-ultrathink benchmark ingest locomo
-
-# Ingest with custom data path
-ultrathink benchmark ingest locomo --data-path ./locomo10.json
-
-# Verify ingestion
-ultrathink benchmark status locomo
 ```
+Your task is to label an answer to a question as 'CORRECT' or 'WRONG'.
+You will be given:
+  (1) a question (posed by one user to another user),
+  (2) a 'gold' (ground truth) answer,
+  (3) a generated answer
 
-### Evaluation
-```bash
-# Run full QA evaluation
-ultrathink benchmark run locomo --task qa
+The gold answer will usually be concise. The generated answer might be longer,
+but you should be generous - as long as it touches on the same topic as the
+gold answer, it should be CORRECT.
 
-# Run with specific retrieval strategy
-ultrathink benchmark run locomo --task qa --retrieval dialog-rag --top-k 10
-
-# Run specific category
-ultrathink benchmark run locomo --task qa --category temporal
-
-# Run event summarization
-ultrathink benchmark run locomo --task events
+For time-related questions, if the generated answer refers to the same date
+or time period as the gold answer, it should be CORRECT.
 ```
-
-### Results
-```bash
-# View results
-ultrathink benchmark results locomo
-
-# Export as JSON
-ultrathink benchmark results locomo --format json > results.json
-
-# Compare with baselines
-ultrathink benchmark compare locomo --baseline gpt4
-```
-
----
 
 ## Expected Results
 
-### Published Baselines (LoCoMo Paper)
+### Baseline Comparisons (from mem0 research)
 
-| Model | Overall F1 | Single-hop | Multi-hop | Temporal | Commonsense | Adversarial |
-|-------|------------|------------|-----------|----------|-------------|-------------|
-| Human | 87.9 | - | - | - | - | - |
-| GPT-4 | 32.1 | - | - | - | - | - |
-| GPT-3.5 | 24.2 | - | - | - | - | - |
-| Llama-2-70B | 16.9 | - | - | - | - | - |
-
-### Ultrathink Target
-
-With proper retrieval and memory management, we aim to achieve:
-- **Dialog RAG**: Competitive with GPT-4 (~30+ F1)
-- **Observation RAG**: Improved temporal reasoning
-- **Advantage**: Persistent storage enables iterative improvement
-
----
-
-## Requirements
-
-- Ollama running with embedding model (`nomic-embed-text`)
-- Ollama running with chat model (`qwen2.5:3b` or better)
-- Qdrant (optional, for vector search)
-- ~500MB disk space for dataset and memories
-
----
-
-## Related Issues
-
-- #22 - Data Ingestion Pipeline
-- #23 - QA Evaluation Runner
-- #24 - Event Summarization Evaluation
-- #25 - RAG Retrieval Strategies
-- #26 - Results Dashboard & Comparison
-- #27 - Tracking Issue
-
----
+| Method | LLM Judge Accuracy |
+|--------|-------------------|
+| Human | ~95% |
+| Mem0 | 66.9% |
+| OpenAI Memory | 52.9% |
+| Full Context | ~50% |
+| RAG | ~40% |
+| Random (10-choice) | 10% |
 
 ## References
 
-- [LoCoMo Paper (ACL 2024)](https://aclanthology.org/2024.acl-long.747/)
-- [LoCoMo GitHub](https://github.com/snap-research/locomo)
-- [arXiv](https://arxiv.org/abs/2402.17753)
+- [LoCoMo-MC10 Dataset](https://huggingface.co/datasets/Percena/locomo-mc10)
+- [mem0ai/mem0 Evaluation](https://github.com/mem0ai/mem0/tree/main/evaluation)
+- [Mem0 Research Paper](https://arxiv.org/abs/2504.19413)
+- [Original LoCoMo Paper (ACL 2024)](https://aclanthology.org/2024.acl-long.747/)

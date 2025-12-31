@@ -22,6 +22,20 @@ type Memory struct {
 	AgentContext string    `json:"agent_context,omitempty"`
 	AccessScope  string    `json:"access_scope"`
 	Slug         string    `json:"slug,omitempty"`
+	// Hierarchical chunking fields (Phase 1 benchmark improvement)
+	ParentMemoryID string `json:"parent_memory_id,omitempty"` // ID of parent memory (null for root)
+	ChunkLevel     int    `json:"chunk_level"`                // 0=full/root, 1=paragraph, 2=atomic
+	ChunkIndex     int    `json:"chunk_index"`                // Position within parent's chunks
+}
+
+// IsChunk returns true if this memory is a chunk (not a root memory)
+func (m *Memory) IsChunk() bool {
+	return m.ParentMemoryID != ""
+}
+
+// IsRoot returns true if this memory is a root memory (not a chunk)
+func (m *Memory) IsRoot() bool {
+	return m.ParentMemoryID == ""
 }
 
 // TagsJSON returns tags as JSON string for database storage
