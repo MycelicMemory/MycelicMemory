@@ -8,8 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MycelicMemory/ultrathink/internal/logging"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+var log = logging.GetLogger("database")
 
 // Database represents a connection to the SQLite database
 type Database struct {
@@ -20,9 +23,12 @@ type Database struct {
 
 // Open opens a database connection and initializes the schema if needed
 func Open(path string) (*Database, error) {
+	log.Info("opening database", "path", path)
+
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Error("failed to create database directory", "error", err, "dir", dir)
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
@@ -31,6 +37,7 @@ func Open(path string) (*Database, error) {
 	dsn := fmt.Sprintf("%s?_foreign_keys=on&_journal_mode=WAL", path)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
+		log.Error("failed to open database", "error", err)
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
@@ -42,6 +49,7 @@ func Open(path string) (*Database, error) {
 	// Verify connection
 	if err := db.Ping(); err != nil {
 		db.Close()
+		log.Error("failed to ping database", "error", err)
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -50,29 +58,37 @@ func Open(path string) (*Database, error) {
 		path: path,
 	}
 
+	log.Info("database connection established", "path", path)
 	return database, nil
 }
 
 // InitSchema initializes the database schema
 // This creates all tables, indexes, triggers, and FTS5 configuration
 func (d *Database) InitSchema() error {
+	log.Info("initializing database schema", "version", SchemaVersion)
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	// Begin transaction for schema initialization
 	tx, err := d.db.Begin()
 	if err != nil {
+		log.Error("failed to begin transaction", "error", err)
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	// Execute core schema (tables, indexes, constraints)
+	log.Debug("creating core schema")
 	if _, err := tx.Exec(CoreSchema); err != nil {
+		log.Error("failed to create core schema", "error", err)
 		return fmt.Errorf("failed to create core schema: %w", err)
 	}
 
 	// Execute FTS5 schema (virtual table, triggers)
+	log.Debug("creating FTS5 schema")
 	if _, err := tx.Exec(FTS5Schema); err != nil {
+		log.Error("failed to create FTS5 schema", "error", err)
 		return fmt.Errorf("failed to create FTS5 schema: %w", err)
 	}
 
@@ -82,24 +98,32 @@ func (d *Database) InitSchema() error {
 		VALUES (?, CURRENT_TIMESTAMP)
 	`, SchemaVersion)
 	if err != nil {
+		log.Error("failed to record schema version", "error", err)
 		return fmt.Errorf("failed to record schema version: %w", err)
 	}
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
+		log.Error("failed to commit schema", "error", err)
 		return fmt.Errorf("failed to commit schema: %w", err)
 	}
 
+	log.Info("database schema initialized successfully", "version", SchemaVersion)
 	return nil
 }
 
 // Close closes the database connection
 func (d *Database) Close() error {
+	log.Info("closing database connection")
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if d.db != nil {
-		return d.db.Close()
+		if err := d.db.Close(); err != nil {
+			log.Error("failed to close database", "error", err)
+			return err
+		}
+		log.Debug("database connection closed")
 	}
 	return nil
 }

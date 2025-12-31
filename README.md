@@ -1,6 +1,18 @@
 # Ultrathink
 
-**AI-powered persistent memory system for Claude and other AI agents**
+<p align="center">
+  <strong>AI-powered persistent memory system for Claude and other AI agents</strong>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="#use-cases">Use Cases</a> •
+  <a href="#hooks">Auto-Memory Hooks</a> •
+  <a href="docs/QUICKSTART.md">Full Setup Guide</a>
+</p>
+
+---
 
 Ultrathink gives Claude persistent memory across conversations. Store knowledge, search semantically, build knowledge graphs, and get AI-powered insights from your memories.
 
@@ -8,13 +20,10 @@ Ultrathink gives Claude persistent memory across conversations. Store knowledge,
 
 ---
 
-## Quick Start: Add Memory to Claude
+## Quick Start
 
-### Option 1: Claude Code (Recommended)
+### 1. Install
 
-Add ultrathink to your Claude Code MCP configuration:
-
-**Step 1: Install ultrathink**
 ```bash
 # Via npm (easiest)
 npm install -g ultrathink
@@ -24,9 +33,10 @@ git clone https://github.com/MycelicMemory/ultrathink.git
 cd ultrathink && make dev-install
 ```
 
-**Step 2: Add to Claude Code MCP config**
+### 2. Connect to Claude Code
 
 Edit `~/.claude/mcp.json`:
+
 ```json
 {
   "mcpServers": {
@@ -38,209 +48,181 @@ Edit `~/.claude/mcp.json`:
 }
 ```
 
-**Step 3: Restart Claude Code**
+### 3. Restart Claude Code
+
 ```bash
-# Exit current session and start fresh
 claude
 ```
 
-You'll now have access to memory tools like `store_memory`, `search`, `analysis`, and more.
+### 4. Start Using Memory
 
-### Option 2: Claude Desktop
+Ask Claude:
+- "Remember that Go channels are typed conduits for goroutine communication"
+- "What do I know about concurrency?"
+- "Summarize what I learned this week"
 
-Add to your Claude Desktop config:
+---
 
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-**Linux:** `~/.config/Claude/claude_desktop_config.json`
+## Features
+
+### Core Memory Operations
+
+| Tool | Description |
+|------|-------------|
+| `store_memory` | Save memories with importance (1-10), tags, and domain |
+| `search` | Semantic, keyword, tag, or hybrid search |
+| `get_memory_by_id` | Retrieve specific memory by UUID |
+| `update_memory` | Modify content, importance, or tags |
+| `delete_memory` | Remove a memory permanently |
+
+### AI-Powered Analysis
+
+| Tool | Description |
+|------|-------------|
+| `analysis(question)` | Ask natural language questions about your memories |
+| `analysis(summarize)` | Generate summaries across timeframes |
+| `analysis(analyze)` | Detect patterns and themes |
+| `analysis(temporal_patterns)` | Track learning progression over time |
+
+### Knowledge Organization
+
+| Tool | Description |
+|------|-------------|
+| `relationships` | Create/discover connections between memories |
+| `categories` | Organize memories hierarchically |
+| `domains` | Group by knowledge domain (programming, devops, etc.) |
+| `sessions` | Track memories by session/project |
+| `stats` | View memory statistics and metrics |
+
+---
+
+## Use Cases
+
+### For Developers
+
+1. **Code Decision Journal** - Record architectural decisions with rationale
+2. **Debugging Knowledge Base** - Store gotchas, bugs, and their solutions
+3. **API Reference Cache** - Remember API patterns you frequently use
+4. **Configuration Vault** - Track environment-specific settings
+5. **Learning Log** - Document new concepts as you learn them
+
+### For Teams
+
+6. **Project Context** - Share project-specific knowledge across sessions
+7. **Onboarding Assistant** - Build searchable codebase knowledge
+8. **Best Practices Library** - Curate team coding standards
+9. **Incident Postmortems** - Store and search past incidents
+
+### For Research
+
+10. **Literature Notes** - Store paper summaries with tags
+11. **Concept Relationships** - Map how ideas connect
+12. **Progress Tracking** - Monitor learning over time
+13. **Citation Manager** - Track sources and references
+
+### For Personal Knowledge
+
+14. **Second Brain** - Build a searchable knowledge base
+15. **Daily Learnings** - Capture TILs with automatic tagging
+
+See [docs/USE_CASES.md](docs/USE_CASES.md) for detailed examples of each use case.
+
+---
+
+## Auto-Memory Hooks
+
+Ultrathink can automatically capture knowledge from your Claude Code sessions using hooks.
+
+### What Gets Captured
+
+- **Code Decisions** - "Because...", "Decided to...", "Instead of..."
+- **Bug Fixes** - "The bug was...", "Fixed by..."
+- **Best Practices** - "Should always/never...", "Gotcha..."
+- **Config Changes** - Edits to `.env`, `config.*`, `docker-compose.yml`, etc.
+
+### Quick Hook Setup
+
+```bash
+# Create hooks directory
+mkdir -p ~/.claude/hooks
+
+# Download hook scripts
+curl -o ~/.claude/hooks/ultrathink-memory-capture.py \
+  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-memory-capture.py
+curl -o ~/.claude/hooks/ultrathink-context-loader.py \
+  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-context-loader.py
+
+# Make executable
+chmod +x ~/.claude/hooks/*.py
+```
+
+Add to `~/.claude/settings.json`:
 
 ```json
 {
-  "mcpServers": {
-    "ultrathink": {
-      "command": "ultrathink",
-      "args": ["--mcp"]
-    }
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py"}]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py"}]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-context-loader.py"}]
+      }
+    ]
   }
 }
 ```
 
-Restart Claude Desktop to enable the memory tools.
-
----
-
-## What Can Claude Do With Memory?
-
-Once connected, Claude can:
-
-**Store memories:**
-> "Remember that Go channels are typed conduits for communication between goroutines"
-
-**Search memories:**
-> "What do I know about concurrency patterns?"
-
-**Analyze and summarize:**
-> "Summarize what I've learned this week about Rust"
-
-**Build knowledge graphs:**
-> "How does this concept relate to what I learned yesterday?"
-
----
-
-## Available MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `store_memory` | Save new memories with tags, importance, and domain |
-| `search` | Semantic, keyword, tag, or hybrid search |
-| `analysis` | AI-powered Q&A, summarization, and pattern detection |
-| `relationships` | Create and explore memory connections |
-| `categories` | Organize memories into categories |
-| `domains` | Group memories by knowledge domain |
-| `sessions` | Track memory sessions |
-| `stats` | View memory statistics |
-| `get_memory_by_id` | Retrieve specific memory |
-| `update_memory` | Modify existing memory |
-| `delete_memory` | Remove a memory |
-
----
-
-## Installation Options
-
-### npm (Recommended for most users)
-
-```bash
-npm install -g ultrathink
-ultrathink --version
-```
-
-### Build from Source
-
-```bash
-# Clone repository
-git clone https://github.com/MycelicMemory/ultrathink.git
-cd ultrathink
-
-# Install dependencies and build
-make deps
-make dev-install
-
-# Verify
-ultrathink --version
-```
-
-### Alternative Install Methods
-
-```bash
-# Symlink (auto-updates on rebuild)
-make link
-
-# Install to GOPATH/bin
-make install
-
-# Build only (run as ./ultrathink)
-make build
-```
-
----
-
-## Prerequisites
-
-| Requirement | Purpose | Required? |
-|-------------|---------|-----------|
-| **Node.js 16+** | npm installation | For npm install |
-| **Go 1.21+** | Build from source | For source build |
-| **SQLite 3** | Database | Pre-installed on macOS/Linux |
-| **Ollama** | AI embeddings & analysis | Optional but recommended |
-| **Qdrant** | Vector semantic search | Optional |
-
-### Setting Up Ollama (Recommended)
-
-Ollama enables AI-powered semantic search and analysis:
-
-```bash
-# Install Ollama
-brew install ollama  # macOS
-# or download from https://ollama.ai
-
-# Start Ollama service
-ollama serve
-
-# Pull required models
-ollama pull nomic-embed-text   # For embeddings (768-dim)
-ollama pull qwen2.5:3b         # For analysis/chat
-```
-
-### Setting Up Qdrant (Optional)
-
-Qdrant provides high-performance vector search:
-
-```bash
-# Run with Docker
-docker run -p 6333:6333 qdrant/qdrant
-```
+See [docs/HOOKS.md](docs/HOOKS.md) for full hook documentation.
 
 ---
 
 ## CLI Usage
 
-Ultrathink also works as a standalone CLI tool:
-
-### Store Memories
+Ultrathink also works as a standalone CLI:
 
 ```bash
-ultrathink remember "Go channels are like pipes between goroutines"
-ultrathink remember "Important concept" --importance 9 --tags learning,go
-ultrathink remember "API design tip" --domain programming
-```
+# Store memories
+ultrathink remember "Go interfaces are satisfied implicitly"
+ultrathink remember "Important insight" --importance 9 --tags learning,go
 
-### Search Memories
+# Search
+ultrathink search "concurrency patterns"
+ultrathink search "golang" --domain programming
 
-```bash
-ultrathink search "concurrency"
-ultrathink search "golang" --limit 20
-ultrathink search "api" --domain programming
-```
-
-### AI Analysis
-
-```bash
-# Ask questions
-ultrathink analyze "What have I learned about Go?"
-
-# Summarize memories
+# Analyze
+ultrathink analyze "What have I learned about testing?"
 ultrathink analyze --type summarize --timeframe week
 
-# Find patterns
-ultrathink analyze --type patterns --domain programming
-```
-
-### Manage Relationships
-
-```bash
+# Relationships
 ultrathink relate <id1> <id2> --type similar
 ultrathink find_related <id>
-ultrathink map_graph <id> --depth 3
-```
 
-### Service Management
-
-```bash
-ultrathink start           # Start REST API daemon
-ultrathink stop            # Stop daemon
-ultrathink status          # Check status
-ultrathink doctor          # System health check
+# Service management
+ultrathink start    # Start REST API daemon
+ultrathink stop     # Stop daemon
+ultrathink doctor   # Health check
 ```
 
 ---
 
 ## REST API
 
-Start the daemon to enable the REST API:
+Start the daemon for REST API access:
 
 ```bash
 ultrathink start
-# API available at http://localhost:3099
+# API at http://localhost:3099
 ```
 
 ### Key Endpoints
@@ -251,47 +233,38 @@ GET    /api/v1/memories              # List memories
 GET    /api/v1/memories/:id          # Get memory
 PUT    /api/v1/memories/:id          # Update memory
 DELETE /api/v1/memories/:id          # Delete memory
-GET    /api/v1/memories/search       # Search memories
+POST   /api/v1/memories/search       # Search memories
 POST   /api/v1/analyze               # AI analysis
 POST   /api/v1/relationships         # Create relationship
-GET    /api/v1/memories/:id/graph    # Get relationship graph
+GET    /api/v1/memories/:id/graph    # Relationship graph
 GET    /api/v1/health                # Health check
 ```
-
-See [API Documentation](#rest-api-reference) below for full details.
 
 ---
 
 ## Configuration
 
-Configuration file: `~/.ultrathink/config.yaml`
+Config file: `~/.ultrathink/config.yaml`
 
 ```yaml
-# Database
 database:
   path: ~/.ultrathink/memories.db
   backup_interval: 24h
-  max_backups: 7
 
-# REST API
 rest_api:
-  enabled: true
   port: 3099
   host: localhost
 
-# Session management
 session:
   auto_generate: true
-  strategy: git-directory  # Auto-detect project from git
+  strategy: git-directory
 
-# Ollama AI
 ollama:
   enabled: true
   base_url: http://localhost:11434
   embedding_model: nomic-embed-text
   chat_model: qwen2.5:3b
 
-# Qdrant vector search
 qdrant:
   enabled: true
   url: http://localhost:6333
@@ -299,121 +272,50 @@ qdrant:
 
 ---
 
-## Troubleshooting
+## Optional Dependencies
 
-### MCP Server Not Showing in Claude
+| Component | Purpose | Installation |
+|-----------|---------|--------------|
+| **Ollama** | AI embeddings & analysis | `brew install ollama && ollama serve` |
+| **Qdrant** | Vector semantic search | `docker run -p 6333:6333 qdrant/qdrant` |
 
-1. **Verify installation:**
-   ```bash
-   which ultrathink
-   ultrathink --version
-   ```
-
-2. **Check MCP config syntax:**
-   ```bash
-   # For Claude Code
-   cat ~/.claude/mcp.json | python3 -m json.tool
-   ```
-
-3. **Restart Claude Code/Desktop** after config changes
-
-4. **Test MCP mode manually:**
-   ```bash
-   echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
-   ```
-
-### "Ollama is not available"
+### Setup Ollama
 
 ```bash
-# Start Ollama service
 ollama serve
-
-# Verify it's running
-curl http://localhost:11434/api/tags
-
-# Pull required models
-ollama pull nomic-embed-text
-ollama pull qwen2.5:3b
-```
-
-### "Database locked"
-
-```bash
-ultrathink ps        # Check for running processes
-ultrathink kill_all  # Kill all processes
-```
-
-### "Port already in use"
-
-```bash
-ultrathink start --port 3100  # Use different port
-```
-
-### System Health Check
-
-```bash
-ultrathink doctor
+ollama pull nomic-embed-text   # Embeddings
+ollama pull qwen2.5:3b         # Analysis
 ```
 
 ---
 
-## REST API Reference
+## Troubleshooting
 
-### Memory Endpoints
+### MCP Not Available
 
-#### Create Memory
-```http
-POST /api/v1/memories
-Content-Type: application/json
+```bash
+# Verify installation
+which ultrathink && ultrathink --version
 
-{
-  "content": "Go channels are typed conduits",
-  "importance": 8,
-  "tags": ["go", "concurrency"],
-  "domain": "programming"
-}
+# Test MCP mode
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
+
+# Validate config
+cat ~/.claude/mcp.json | python3 -m json.tool
 ```
 
-#### Search Memories
-```http
-POST /api/v1/memories/search
-Content-Type: application/json
+### Ollama Issues
 
-{
-  "query": "concurrency patterns",
-  "limit": 10,
-  "domain": "programming"
-}
+```bash
+ollama serve              # Start service
+curl localhost:11434/api/tags  # Verify
+ollama pull nomic-embed-text   # Get models
 ```
 
-#### AI Analysis
-```http
-POST /api/v1/analyze
-Content-Type: application/json
+### Full Health Check
 
-{
-  "type": "question",
-  "question": "What have I learned about Go?",
-  "limit": 10
-}
-```
-
-#### Create Relationship
-```http
-POST /api/v1/relationships
-Content-Type: application/json
-
-{
-  "source_id": "uuid-1",
-  "target_id": "uuid-2",
-  "type": "similar",
-  "strength": 0.8
-}
-```
-
-#### Get Relationship Graph
-```http
-GET /api/v1/memories/:id/graph?depth=2
+```bash
+ultrathink doctor
 ```
 
 ---
@@ -424,38 +326,27 @@ GET /api/v1/memories/:id/graph?depth=2
 ultrathink/
 ├── cmd/ultrathink/          # CLI entry point
 ├── internal/
-│   ├── api/                 # REST API (Gin)
 │   ├── mcp/                 # MCP server (JSON-RPC 2.0)
+│   ├── api/                 # REST API (Gin)
 │   ├── memory/              # Core memory service
 │   ├── database/            # SQLite + FTS5
 │   ├── ai/                  # Ollama integration
 │   ├── relationships/       # Graph algorithms
 │   └── vector/              # Qdrant client
 ├── pkg/config/              # Configuration
+├── hooks/                   # Claude Code hooks
 └── npm/                     # npm distribution
 ```
 
 ---
 
-## Development
+## Documentation
 
-```bash
-# Clone
-git clone https://github.com/MycelicMemory/ultrathink.git
-cd ultrathink
-
-# Install dependencies
-make deps
-
-# Build
-make build
-
-# Run tests
-make test
-
-# Install for development (symlink)
-make link
-```
+- [Quick Start Guide](docs/QUICKSTART.md) - Get up and running in 5 minutes
+- [Use Cases](docs/USE_CASES.md) - 15 detailed examples with code
+- [Hooks Setup](docs/HOOKS.md) - Automatic memory capture
+- [API Reference](docs/API.md) - Full REST API documentation
+- [Contributing](CONTRIBUTING.md) - Development guide
 
 ---
 
@@ -469,3 +360,4 @@ MIT License - Free and open source.
 
 - **Repository**: [github.com/MycelicMemory/ultrathink](https://github.com/MycelicMemory/ultrathink)
 - **Issues**: [GitHub Issues](https://github.com/MycelicMemory/ultrathink/issues)
+- **npm**: [npmjs.com/package/ultrathink](https://npmjs.com/package/ultrathink)

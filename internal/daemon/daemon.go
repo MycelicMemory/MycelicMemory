@@ -9,7 +9,11 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/MycelicMemory/ultrathink/internal/logging"
 )
+
+var log = logging.GetLogger("daemon")
 
 const (
 	PIDFileName   = "ultrathink.pid"
@@ -167,12 +171,16 @@ func (d *Daemon) Status() *Status {
 
 // Start starts the daemon (saves state, writes PID)
 func (d *Daemon) Start(restEnabled bool, restHost string, restPort int, mcpEnabled bool) error {
+	log.Info("starting daemon", "rest_enabled", restEnabled, "mcp_enabled", mcpEnabled)
+
 	if d.IsRunning() {
+		log.Warn("daemon is already running")
 		return fmt.Errorf("daemon is already running")
 	}
 
 	// Write PID file
 	if err := d.WritePID(); err != nil {
+		log.Error("failed to write PID file", "error", err)
 		return fmt.Errorf("failed to write PID file: %w", err)
 	}
 
@@ -189,21 +197,26 @@ func (d *Daemon) Start(restEnabled bool, restHost string, restPort int, mcpEnabl
 
 	if err := d.WriteState(state); err != nil {
 		d.RemovePID()
+		log.Error("failed to write state file", "error", err)
 		return fmt.Errorf("failed to write state file: %w", err)
 	}
 
+	log.Info("daemon started", "pid", state.PID, "version", d.version)
 	return nil
 }
 
 // Stop stops the daemon by sending SIGTERM
 func (d *Daemon) Stop() error {
+	log.Info("stopping daemon")
+
 	pid, err := d.ReadPID()
 	if err != nil {
+		log.Debug("no PID file found")
 		return fmt.Errorf("daemon is not running (no PID file)")
 	}
 
 	if !d.isProcessRunning(pid) {
-		// Clean up stale files
+		log.Debug("stale PID file, cleaning up", "pid", pid)
 		d.RemovePID()
 		d.RemoveState()
 		return fmt.Errorf("daemon is not running (stale PID file)")
@@ -211,11 +224,14 @@ func (d *Daemon) Stop() error {
 
 	process, err := os.FindProcess(pid)
 	if err != nil {
+		log.Error("failed to find process", "error", err, "pid", pid)
 		return fmt.Errorf("failed to find process: %w", err)
 	}
 
 	// Send SIGTERM for graceful shutdown
+	log.Debug("sending SIGTERM", "pid", pid)
 	if err := process.Signal(syscall.SIGTERM); err != nil {
+		log.Error("failed to send SIGTERM", "error", err)
 		return fmt.Errorf("failed to send SIGTERM: %w", err)
 	}
 
@@ -224,18 +240,22 @@ func (d *Daemon) Stop() error {
 		if !d.isProcessRunning(pid) {
 			d.RemovePID()
 			d.RemoveState()
+			log.Info("daemon stopped gracefully", "pid", pid)
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Force kill if still running
+	log.Warn("daemon did not stop gracefully, sending SIGKILL", "pid", pid)
 	if err := process.Signal(syscall.SIGKILL); err != nil {
+		log.Error("failed to send SIGKILL", "error", err)
 		return fmt.Errorf("failed to send SIGKILL: %w", err)
 	}
 
 	d.RemovePID()
 	d.RemoveState()
+	log.Info("daemon killed", "pid", pid)
 	return nil
 }
 

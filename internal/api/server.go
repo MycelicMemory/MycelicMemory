@@ -12,6 +12,7 @@ import (
 
 	"github.com/MycelicMemory/ultrathink/internal/ai"
 	"github.com/MycelicMemory/ultrathink/internal/database"
+	"github.com/MycelicMemory/ultrathink/internal/logging"
 	"github.com/MycelicMemory/ultrathink/internal/memory"
 	"github.com/MycelicMemory/ultrathink/internal/relationships"
 	"github.com/MycelicMemory/ultrathink/internal/search"
@@ -20,19 +21,23 @@ import (
 
 // Server represents the REST API server
 type Server struct {
-	router       *gin.Engine
-	db           *database.Database
-	config       *config.Config
+	router        *gin.Engine
+	db            *database.Database
+	config        *config.Config
 	memoryService *memory.Service
-	searchEngine *search.Engine
-	relService   *relationships.Service
-	aiManager    *ai.Manager
-	httpServer   *http.Server
-	sessionID    string
+	searchEngine  *search.Engine
+	relService    *relationships.Service
+	aiManager     *ai.Manager
+	httpServer    *http.Server
+	sessionID     string
+	log           *logging.Logger
 }
 
 // NewServer creates a new REST API server
 func NewServer(db *database.Database, cfg *config.Config) *Server {
+	log := logging.GetLogger("api")
+	log.Info("initializing REST API server")
+
 	// Set Gin mode based on config
 	if cfg.Logging.Level != "debug" {
 		gin.SetMode(gin.ReleaseMode)
@@ -43,6 +48,7 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 
 	// Configure CORS
 	if cfg.RestAPI.CORS {
+		log.Debug("enabling CORS")
 		router.Use(cors.New(cors.Config{
 			AllowOrigins:     []string{"*"},
 			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -70,6 +76,8 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	sessionDetector := memory.NewSessionDetector(strategy)
 	sessionID := sessionDetector.DetectSessionID()
 
+	log.Debug("session detected", "session_id", sessionID, "strategy", cfg.Session.Strategy)
+
 	server := &Server{
 		router:        router,
 		db:            db,
@@ -79,6 +87,7 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		relService:    relService,
 		aiManager:     aiManager,
 		sessionID:     sessionID,
+		log:           log,
 	}
 
 	// Set up routes
@@ -144,8 +153,7 @@ func (s *Server) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := s.aiManager.Initialize(ctx); err != nil {
-		// Log warning but continue
-		fmt.Printf("Warning: AI initialization failed: %v\n", err)
+		s.log.Warn("AI initialization failed", "error", err)
 	}
 
 	// Determine port
@@ -153,9 +161,11 @@ func (s *Server) Start() error {
 	if s.config.RestAPI.AutoPort {
 		availablePort, err := findAvailablePort(port)
 		if err != nil {
+			s.log.Error("failed to find available port", "error", err, "start_port", port)
 			return fmt.Errorf("failed to find available port: %w", err)
 		}
 		port = availablePort
+		s.log.Debug("found available port", "port", port)
 	}
 
 	addr := fmt.Sprintf("%s:%d", s.config.RestAPI.Host, port)
@@ -165,14 +175,19 @@ func (s *Server) Start() error {
 		Handler: s.router,
 	}
 
-	fmt.Printf("Starting REST API server on %s\n", addr)
+	s.log.Info("starting REST API server", "address", addr)
 	return s.httpServer.ListenAndServe()
 }
 
 // Stop gracefully stops the server
 func (s *Server) Stop(ctx context.Context) error {
+	s.log.Info("stopping REST API server")
 	if s.httpServer != nil {
-		return s.httpServer.Shutdown(ctx)
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			s.log.Error("server shutdown error", "error", err)
+			return err
+		}
+		s.log.Info("REST API server stopped")
 	}
 	return nil
 }

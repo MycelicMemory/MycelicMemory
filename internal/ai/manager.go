@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/MycelicMemory/ultrathink/internal/database"
+	"github.com/MycelicMemory/ultrathink/internal/logging"
 	"github.com/MycelicMemory/ultrathink/internal/vector"
 	"github.com/MycelicMemory/ultrathink/pkg/config"
 )
+
+var log = logging.GetLogger("ai")
 
 // Manager coordinates all AI operations
 // This is the central hub for AI capabilities used by REST API in Phase 5
@@ -35,22 +38,35 @@ func NewManager(db *database.Database, cfg *config.Config) *Manager {
 
 // Initialize initializes AI services
 func (m *Manager) Initialize(ctx context.Context) error {
+	log.Info("initializing AI services")
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.initialized {
+		log.Debug("AI services already initialized")
 		return nil
 	}
 
 	// Initialize Qdrant collection if enabled
 	if m.qdrant.IsEnabled() && m.qdrant.IsAvailable() {
+		log.Debug("initializing Qdrant collection")
 		if err := m.qdrant.InitCollection(ctx); err != nil {
-			// Log warning but don't fail - can work without vector search
-			fmt.Printf("Warning: Failed to initialize Qdrant collection: %v\n", err)
+			log.Warn("failed to initialize Qdrant collection", "error", err)
+		}
+	}
+
+	// Check Ollama availability
+	if m.ollama.IsEnabled() {
+		if m.ollama.IsAvailable() {
+			log.Info("Ollama available", "model", m.ollama.ChatModel())
+		} else {
+			log.Warn("Ollama enabled but not available")
 		}
 	}
 
 	m.initialized = true
+	log.Info("AI services initialized")
 	return nil
 }
 

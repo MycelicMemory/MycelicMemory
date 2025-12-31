@@ -299,10 +299,12 @@ type MemoryInfo struct {
 func (s *Server) handleStoreMemory(ctx context.Context, argsJSON []byte) (interface{}, error) {
 	var params StoreMemoryParams
 	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		s.log.Error("failed to parse store_memory params", "error", err)
 		return nil, fmt.Errorf("invalid parameters: %w", err)
 	}
 
 	if params.Content == "" {
+		s.log.Warn("store_memory called with empty content")
 		return nil, fmt.Errorf("content is required")
 	}
 
@@ -310,6 +312,8 @@ func (s *Server) handleStoreMemory(ctx context.Context, argsJSON []byte) (interf
 	if importance == 0 {
 		importance = 5
 	}
+
+	s.log.Debug("storing memory", "importance", importance, "tags", params.Tags, "domain", params.Domain)
 
 	result, err := s.memSvc.Store(&memory.StoreOptions{
 		Content:    params.Content,
@@ -319,8 +323,11 @@ func (s *Server) handleStoreMemory(ctx context.Context, argsJSON []byte) (interf
 		Source:     params.Source,
 	})
 	if err != nil {
+		s.log.Error("failed to store memory", "error", err)
 		return nil, fmt.Errorf("failed to store memory: %w", err)
 	}
+
+	s.log.LogOperation("store_memory", "memory_id", result.Memory.ID, "content_length", len(params.Content))
 
 	return &StoreMemoryResponse{
 		Success:   true,
@@ -334,6 +341,7 @@ func (s *Server) handleStoreMemory(ctx context.Context, argsJSON []byte) (interf
 func (s *Server) handleSearch(ctx context.Context, argsJSON []byte) (interface{}, error) {
 	var params SearchParams
 	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		s.log.Error("failed to parse search params", "error", err)
 		return nil, fmt.Errorf("invalid parameters: %w", err)
 	}
 
@@ -352,6 +360,8 @@ func (s *Server) handleSearch(ctx context.Context, argsJSON []byte) (interface{}
 		responseFormat = "detailed"
 	}
 
+	s.log.Debug("searching memories", "query", params.Query, "type", searchType, "limit", limit)
+
 	results, err := s.searchEng.Search(&search.SearchOptions{
 		Query:  params.Query,
 		Limit:  limit,
@@ -359,8 +369,11 @@ func (s *Server) handleSearch(ctx context.Context, argsJSON []byte) (interface{}
 		Tags:   params.Tags,
 	})
 	if err != nil {
+		s.log.Error("search failed", "error", err, "query", params.Query)
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
+
+	s.log.LogOperation("search", "query", params.Query, "results", len(results))
 
 	// Build response matching local-memory format
 	searchResults := make([]SearchResultLM, len(results))
@@ -419,6 +432,7 @@ func (s *Server) handleSearch(ctx context.Context, argsJSON []byte) (interface{}
 func (s *Server) handleAnalysis(ctx context.Context, argsJSON []byte) (interface{}, error) {
 	var params AnalysisParams
 	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		s.log.Error("failed to parse analysis params", "error", err)
 		return nil, fmt.Errorf("invalid parameters: %w", err)
 	}
 
@@ -437,9 +451,12 @@ func (s *Server) handleAnalysis(ctx context.Context, argsJSON []byte) (interface
 		timeframe = "all"
 	}
 
+	s.log.Debug("running analysis", "type", analysisType, "timeframe", timeframe, "limit", limit)
+
 	// Check AI availability
 	status := s.aiManager.GetStatus()
 	if !status.OllamaAvailable {
+		s.log.Warn("AI analysis requested but Ollama unavailable")
 		return nil, fmt.Errorf("AI analysis requires Ollama to be running")
 	}
 
@@ -453,8 +470,11 @@ func (s *Server) handleAnalysis(ctx context.Context, argsJSON []byte) (interface
 
 	result, err := s.aiManager.Analyze(ctx, opts)
 	if err != nil {
+		s.log.Error("analysis failed", "error", err, "type", analysisType)
 		return nil, fmt.Errorf("analysis failed: %w", err)
 	}
+
+	s.log.LogOperation("analysis", "type", analysisType, "sources", len(result.SourceMemories))
 
 	// Convert sources to MemoryFull objects (matching local-memory format)
 	sources := make([]*MemoryFull, 0, len(result.SourceMemories))

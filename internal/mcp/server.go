@@ -8,9 +8,11 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/MycelicMemory/ultrathink/internal/ai"
 	"github.com/MycelicMemory/ultrathink/internal/database"
+	"github.com/MycelicMemory/ultrathink/internal/logging"
 	"github.com/MycelicMemory/ultrathink/internal/memory"
 	"github.com/MycelicMemory/ultrathink/internal/relationships"
 	"github.com/MycelicMemory/ultrathink/internal/search"
@@ -31,6 +33,8 @@ type Server struct {
 	memSvc    *memory.Service
 	searchEng *search.Engine
 	relSvc    *relationships.Service
+	formatter *Formatter
+	log       *logging.Logger
 
 	stdin  io.Reader
 	stdout io.Writer
@@ -42,6 +46,9 @@ type Server struct {
 
 // NewServer creates a new MCP server instance
 func NewServer(db *database.Database, cfg *config.Config) *Server {
+	log := logging.GetLogger("mcp")
+	log.Info("initializing MCP server", "version", ServerVersion, "protocol", ProtocolVersion)
+
 	return &Server{
 		db:        db,
 		cfg:       cfg,
@@ -49,6 +56,8 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		memSvc:    memory.NewService(db, cfg),
 		searchEng: search.NewEngine(db, cfg),
 		relSvc:    relationships.NewService(db, cfg),
+		formatter: NewFormatter(),
+		log:       log,
 		stdin:     os.Stdin,
 		stdout:    os.Stdout,
 		stderr:    os.Stderr,
@@ -57,6 +66,7 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 
 // Run starts the MCP server main loop
 func (s *Server) Run(ctx context.Context) error {
+	s.log.Info("starting MCP server main loop")
 	scanner := bufio.NewScanner(s.stdin)
 	// Increase buffer size for large requests
 	scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024)
@@ -64,6 +74,7 @@ func (s *Server) Run(ctx context.Context) error {
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
+			s.log.Info("context cancelled, shutting down")
 			return ctx.Err()
 		default:
 		}
@@ -80,9 +91,11 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 
 	if err := scanner.Err(); err != nil {
+		s.log.Error("scanner error", "error", err)
 		return fmt.Errorf("scanner error: %w", err)
 	}
 
+	s.log.Info("MCP server shutdown complete")
 	return nil
 }
 
@@ -90,6 +103,7 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) handleRequest(ctx context.Context, line string) *Response {
 	var req Request
 	if err := json.Unmarshal([]byte(line), &req); err != nil {
+		s.log.Error("failed to parse request", "error", err)
 		return &Response{
 			JSONRPC: "2.0",
 			Error: &RPCError{
@@ -100,7 +114,10 @@ func (s *Server) handleRequest(ctx context.Context, line string) *Response {
 		}
 	}
 
+	s.log.Debug("received request", "method", req.Method, "id", req.ID)
+
 	if req.JSONRPC != "2.0" {
+		s.log.Warn("invalid jsonrpc version", "version", req.JSONRPC)
 		return &Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
@@ -115,25 +132,32 @@ func (s *Server) handleRequest(ctx context.Context, line string) *Response {
 	// Handle different methods
 	switch req.Method {
 	case "initialize":
+		s.log.Info("handling initialize request")
 		return s.handleInitialize(req)
 	case "initialized":
+		s.log.Debug("received initialized notification")
 		// Notification, no response needed
 		return nil
 	case "tools/list":
+		s.log.Debug("handling tools/list request")
 		return s.handleToolsList(req)
 	case "tools/call":
 		return s.handleToolsCall(ctx, req)
 	case "prompts/list":
+		s.log.Debug("handling prompts/list request")
 		return s.handlePromptsList(req)
 	case "prompts/get":
+		s.log.Debug("handling prompts/get request")
 		return s.handlePromptsGet(req)
 	case "ping":
+		s.log.Debug("handling ping request")
 		return &Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result:  map[string]interface{}{},
 		}
 	default:
+		s.log.Warn("method not found", "method", req.Method)
 		return &Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
@@ -293,6 +317,7 @@ func (s *Server) handleToolsList(req Request) *Response {
 func (s *Server) handleToolsCall(ctx context.Context, req Request) *Response {
 	var params CallToolParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		s.log.Error("failed to parse tool params", "error", err)
 		return &Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
@@ -304,29 +329,40 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) *Response {
 		}
 	}
 
+	s.log.LogRequest("tools/call", "tool", params.Name)
+
+	// Track execution time
+	startTime := time.Now()
+
 	result, err := s.callTool(ctx, params.Name, params.Arguments)
 	if err != nil {
+		duration := time.Since(startTime).Seconds() * 1000
+		s.log.LogError("tool_call", err, "tool", params.Name, "duration_ms", duration)
 		return &Response{
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result: CallToolResult{
 				Content: []ContentBlock{
-					{Type: "text", Text: fmt.Sprintf("Error: %v", err)},
+					{Type: "text", Text: fmt.Sprintf("❌ **Error**\n\n```\n%v\n```", err)},
 				},
 				IsError: true,
 			},
 		}
 	}
 
-	// Convert result to JSON for text response
-	resultJSON, _ := json.MarshalIndent(result, "", "  ")
+	duration := time.Since(startTime)
+	durationMs := duration.Seconds() * 1000
+	s.log.LogResponse("tools/call", durationMs, "tool", params.Name)
+
+	// Format the response with rich UX
+	formattedOutput := s.formatter.FormatToolResponse(params.Name, result, duration)
 
 	return &Response{
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result: CallToolResult{
 			Content: []ContentBlock{
-				{Type: "text", Text: string(resultJSON)},
+				{Type: "text", Text: formattedOutput},
 			},
 		},
 	}
@@ -375,7 +411,7 @@ func (s *Server) sendResponse(resp *Response) {
 
 	data, err := json.Marshal(resp)
 	if err != nil {
-		fmt.Fprintf(s.stderr, "Error marshaling response: %v\n", err)
+		s.log.Error("failed to marshal response", "error", err)
 		return
 	}
 
