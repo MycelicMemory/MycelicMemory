@@ -50,9 +50,9 @@ class MemoryAugmentedExperiment:
 
     def __init__(
         self,
-        dataset_path: str = "data/locomo10.json",
+        dataset_path: str = "dataset/locomo10.json",
         max_questions: Optional[int] = None,
-        ultrathink_url: str = "http://localhost:3002/api/v1",
+        ultrathink_url: str = "http://localhost:3099/api/v1",
         enable_logging: bool = True,
         log_dir: str = "logs"
     ):
@@ -321,8 +321,8 @@ Return ONLY the choice index (0-9), nothing else."""
             retrieved_results, retrieval_time = self.memory_client.retrieve_memories(
                 query=question["question"],
                 top_k=10,
-                use_ai=True,
-                min_similarity=0.3
+                use_ai=True,  # Use semantic search with Ollama embeddings
+                min_similarity=0.0
             )
             print(f"   • Retrieved {len(retrieved_results)} memories in {retrieval_time:.3f}s")
 
@@ -546,7 +546,7 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="data/locomo10.json",
+        default="dataset/locomo10.json",
         help="Path to LoCoMo-MC10 JSONL dataset"
     )
     parser.add_argument(
@@ -564,7 +564,7 @@ def main():
     parser.add_argument(
         "--ultrathink-url",
         type=str,
-        default="http://localhost:3002/api/v1",
+        default="http://localhost:3099/api/v1",
         help="Ultrathink server URL"
     )
     parser.add_argument(
