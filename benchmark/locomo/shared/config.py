@@ -6,6 +6,7 @@ Loads settings from environment variables with .env file support.
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Load .env file if present
 try:
@@ -32,8 +33,20 @@ def get_required_env(key: str) -> str:
     return value
 
 
-# API Keys
-DEEPSEEK_API_KEY = get_required_env("DEEPSEEK_API_KEY")
+# API Keys - lazy loaded to allow imports without key (e.g., for dataset downloads)
+_deepseek_api_key: Optional[str] = None
+
+
+def get_deepseek_api_key() -> str:
+    """Get DeepSeek API key (lazy-loaded, validates on first use)."""
+    global _deepseek_api_key
+    if _deepseek_api_key is None:
+        _deepseek_api_key = get_required_env("DEEPSEEK_API_KEY")
+    return _deepseek_api_key
+
+
+# Keep constant for backwards compat, but don't fail if missing at import time
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
 
 # Server URLs
 ULTRATHINK_URL = os.getenv("ULTRATHINK_URL", "http://localhost:3099/api/v1")
