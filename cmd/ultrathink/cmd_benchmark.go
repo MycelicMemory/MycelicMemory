@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,9 @@ var (
 	benchmarkVerbose      bool
 	benchmarkQuick        int
 	benchmarkChangeDesc   string
+	benchmarkType         string
+	benchmarkRandomSample bool
+	benchmarkSeed         int
 )
 
 // benchmarkCmd represents the benchmark command
@@ -99,6 +103,9 @@ func init() {
 	benchmarkRunCmd.Flags().IntVar(&benchmarkQuick, "quick", 20, "Number of questions to evaluate (0 = all)")
 	benchmarkRunCmd.Flags().BoolVarP(&benchmarkVerbose, "verbose", "v", false, "Enable verbose output")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkChangeDesc, "desc", "", "Description of changes being tested")
+	benchmarkRunCmd.Flags().StringVar(&benchmarkType, "type", "locomo10", "Benchmark type: locomo10 (free-response) or locomo_mc10 (multiple choice)")
+	benchmarkRunCmd.Flags().BoolVar(&benchmarkRandomSample, "random", false, "Randomly sample questions instead of first N")
+	benchmarkRunCmd.Flags().IntVar(&benchmarkSeed, "seed", 0, "Random seed for reproducible sampling (0 = no seed)")
 }
 
 func getBenchmarkService() (*benchmark.Service, *database.Database, error) {
@@ -148,18 +155,35 @@ func runBenchmark() {
 		os.Exit(1)
 	}
 
+	// Handle seed - use nil if 0
+	var seedPtr *int
+	if benchmarkSeed != 0 {
+		seedPtr = &benchmarkSeed
+	}
+
 	// Build config
 	runConfig := &benchmark.RunConfig{
-		BenchmarkType: "locomo",
+		BenchmarkType: benchmarkType,
 		MaxQuestions:  benchmarkQuick,
 		Verbose:       benchmarkVerbose,
 		ChangeDesc:    benchmarkChangeDesc,
+		RandomSample:  benchmarkRandomSample,
+		Seed:          seedPtr,
 	}
 
+	// Display what we're running
+	fmt.Printf("Benchmark Type: %s\n", benchmarkType)
 	if benchmarkQuick == 0 {
 		fmt.Println("Running full benchmark (all questions)...")
 	} else {
 		fmt.Printf("Running quick benchmark (%d questions)...\n", benchmarkQuick)
+	}
+	if benchmarkRandomSample {
+		if seedPtr != nil {
+			fmt.Printf("Random sampling: enabled (seed: %d)\n", *seedPtr)
+		} else {
+			fmt.Println("Random sampling: enabled (random seed)")
+		}
 	}
 
 	if benchmarkChangeDesc != "" {
@@ -179,31 +203,115 @@ func runBenchmark() {
 
 	elapsed := time.Since(startTime)
 
-	// Display results
+	// Display enhanced results
+	displayEnhancedResults(results, elapsed)
+}
+
+func displayEnhancedResults(results *benchmark.RunResults, elapsed time.Duration) {
 	fmt.Println()
-	fmt.Println("Results")
-	fmt.Println("-------")
-	fmt.Printf("Run ID: %s\n", results.RunID[:8])
+	fmt.Println(strings.Repeat("═", 80))
+	fmt.Println("                    BENCHMARK RESULTS SUMMARY")
+	fmt.Println(strings.Repeat("═", 80))
+
+	fmt.Printf("\nRun ID: %s\n", results.RunID[:8])
 	fmt.Printf("Git: %s (%s)%s\n", results.Git.ShortHash, results.Git.Branch, dirtyIndicator(results.Git.Dirty))
-	fmt.Printf("Duration: %s\n", elapsed.Round(time.Second))
 	fmt.Println()
 
-	fmt.Println("Overall Scores:")
-	fmt.Printf("  LLM Judge Accuracy: %.1f%%\n", results.Overall.LLMJudgeAccuracy)
-	fmt.Printf("  F1 Score: %.4f\n", results.Overall.F1Score)
-	fmt.Printf("  BLEU-1 Score: %.4f\n", results.Overall.BLEU1Score)
-	fmt.Printf("  Questions: %d\n", results.Overall.TotalQuestions)
-	fmt.Println()
+	// Overall Accuracy
+	fmt.Println("📊 OVERALL ACCURACY")
+	fmt.Println(strings.Repeat("─", 40))
+	fmt.Printf("   Accuracy: %.1f%%\n", results.Overall.LLMJudgeAccuracy)
+	fmt.Printf("   Correct:  %d/%d\n", results.Overall.TotalCorrect, results.Overall.TotalQuestions)
 
+	// By Question Type
 	if len(results.ByCategory) > 0 {
-		fmt.Println("By Category:")
+		fmt.Println("\n🎯 ACCURACY BY QUESTION TYPE")
+		fmt.Println(strings.Repeat("─", 40))
+		typeOrder := []string{"single_hop", "multi_hop", "temporal_reasoning", "open_domain"}
+		typeEmoji := map[string]string{
+			"single_hop":         "1️⃣ ",
+			"multi_hop":          "🔗",
+			"temporal_reasoning": "⏰",
+			"open_domain":        "🌐",
+		}
+		typeNames := map[string]string{
+			"single_hop":         "Single Hop",
+			"multi_hop":          "Multi Hop",
+			"temporal_reasoning": "Temporal",
+			"open_domain":        "Open Domain",
+		}
+		for _, cat := range typeOrder {
+			if scores, ok := results.ByCategory[cat]; ok {
+				emoji := typeEmoji[cat]
+				name := typeNames[cat]
+				if name == "" {
+					name = strings.ReplaceAll(cat, "_", " ")
+				}
+				fmt.Printf("   %s %s: %.1f%% (%d/%d)\n",
+					emoji, name, scores.LLMJudgeAccuracy,
+					scores.CorrectCount, scores.TotalQuestions)
+			}
+		}
+		// Show any other categories not in the standard list
 		for cat, scores := range results.ByCategory {
-			fmt.Printf("  %s: %.1f%% (%d questions)\n", cat, scores.LLMJudgeAccuracy, scores.TotalQuestions)
+			isStandard := false
+			for _, t := range typeOrder {
+				if t == cat {
+					isStandard = true
+					break
+				}
+			}
+			if !isStandard {
+				name := strings.ReplaceAll(cat, "_", " ")
+				fmt.Printf("   ❓ %s: %.1f%% (%d/%d)\n",
+					name, scores.LLMJudgeAccuracy,
+					scores.CorrectCount, scores.TotalQuestions)
+			}
 		}
 	}
 
+	// Latency Stats
+	if results.Latency != nil {
+		fmt.Println("\n⏱️  LATENCY STATISTICS")
+		fmt.Println(strings.Repeat("─", 40))
+		fmt.Printf("   Mean:    %.3fs\n", results.Latency.MeanSeconds)
+		fmt.Printf("   Median:  %.3fs\n", results.Latency.MedianSeconds)
+		fmt.Printf("   P95:     %.3fs\n", results.Latency.P95Seconds)
+		fmt.Printf("   P99:     %.3fs\n", results.Latency.P99Seconds)
+		fmt.Printf("   Min/Max: %.3fs / %.3fs\n",
+			results.Latency.MinSeconds, results.Latency.MaxSeconds)
+		fmt.Printf("   StdDev:  %.3fs\n", results.Latency.StdDevSeconds)
+	}
+
+	// Token Usage
+	if results.Tokens != nil {
+		fmt.Println("\n📝 TOKEN USAGE")
+		fmt.Println(strings.Repeat("─", 40))
+		fmt.Printf("   Total Input:    %d\n", results.Tokens.TotalInput)
+		fmt.Printf("   Total Output:   %d\n", results.Tokens.TotalOutput)
+		fmt.Printf("   Total:          %d\n", results.Tokens.Total)
+		fmt.Printf("   Mean per Q:     %.0f in / %.1f out\n",
+			results.Tokens.MeanInput, results.Tokens.MeanOutput)
+	}
+
+	// Cost Estimation
+	if results.Cost != nil {
+		fmt.Println("\n💰 COST ESTIMATION (DeepSeek)")
+		fmt.Println(strings.Repeat("─", 40))
+		fmt.Printf("   Input Cost:     $%.6f\n", results.Cost.InputCostUSD)
+		fmt.Printf("   Output Cost:    $%.6f\n", results.Cost.OutputCostUSD)
+		fmt.Printf("   Total Cost:     $%.6f\n", results.Cost.TotalCostUSD)
+		fmt.Printf("   Per Question:   $%.6f\n", results.Cost.CostPerQuestionUSD)
+	}
+
+	// Duration
+	fmt.Println("\n⏳ DURATION")
+	fmt.Println(strings.Repeat("─", 40))
+	fmt.Printf("   Total Time:     %s\n", elapsed.Round(time.Second))
+
 	fmt.Println()
-	fmt.Printf("Results saved to database and cataloged.\n")
+	fmt.Println(strings.Repeat("═", 80))
+	fmt.Printf("\nResults saved to database and cataloged.\n")
 }
 
 func showBenchmarkStatus() {

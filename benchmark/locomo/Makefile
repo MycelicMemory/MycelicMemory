@@ -1,7 +1,7 @@
 # LoCoMo Memory-Augmented Benchmark
 # Tests ultrathink's memory retrieval against the LoCoMo datasets
 
-.PHONY: help setup download-mc download-fr run-mc run-mc-quick run-fr run-fr-quick evaluate-mc clean
+.PHONY: help setup download-mc download-fr run-mc run-mc-quick run-fr run-fr-quick evaluate-mc clean server
 
 # Configuration
 PYTHON ?= python3
@@ -84,3 +84,7 @@ clean:
 	rm -rf $(RESULTS_DIR)/*.json
 	rm -rf logs/*.log logs/*.jsonl logs/*.json
 	rm -rf __pycache__ */__pycache__ */*/__pycache__
+
+# Bridge server for Go runner integration
+server:
+	$(PYTHON) bridge_server.py --port 9876
