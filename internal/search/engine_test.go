@@ -265,11 +265,13 @@ func TestMergeResults(t *testing.T) {
 		t.Errorf("Expected 3 merged results, got %d", len(merged))
 	}
 
-	// Check that mem2 has the higher relevance (0.9 from semantic)
+	// Check that mem2 has weighted combined score with boost
+	// Formula: (0.5 * 0.4 + 0.9 * 0.6) * 1.2 = 0.888
 	for _, r := range merged {
 		if r.Memory.ID == "2" {
-			if r.Relevance != 0.9 {
-				t.Errorf("Expected mem2 to have relevance 0.9, got %f", r.Relevance)
+			expectedScore := 0.888
+			if r.Relevance < expectedScore-0.01 || r.Relevance > expectedScore+0.01 {
+				t.Errorf("Expected mem2 to have relevance ~%.3f (weighted combination with boost), got %f", expectedScore, r.Relevance)
 			}
 			break
 		}
