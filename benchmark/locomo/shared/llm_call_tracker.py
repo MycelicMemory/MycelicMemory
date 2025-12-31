@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import requests
 
-from logging_system import BenchmarkLogger, CallType
+from .logging_system import BenchmarkLogger, CallType
 
 
 @dataclass
