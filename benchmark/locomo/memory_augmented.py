@@ -487,30 +487,51 @@ Return ONLY the choice index (0-9), nothing else."""
 
         metrics = self.metrics_tracker.get_overall_metrics()
 
-        print(f"\nAccuracy: {metrics['overall_accuracy']:.1f}%")
-        print(f"  Correct: {metrics['num_correct']}/{metrics['total_questions']}")
+        # Overall Accuracy
+        overall = metrics.get('overall', {})
+        print(f"\nAccuracy: {overall.get('accuracy', 0):.1f}%")
+        print(f"  Correct: {overall.get('correct_predictions', 0)}/{overall.get('total_questions', 0)}")
 
-        if metrics.get('per_type_accuracy'):
-            print("\nPer-Type Accuracy:")
-            for q_type, acc_data in metrics['per_type_accuracy'].items():
-                pct = acc_data['correct'] / acc_data['total'] * 100 if acc_data['total'] > 0 else 0
-                print(f"  {q_type}: {pct:.1f}% ({acc_data['correct']}/{acc_data['total']})")
+        # Latency Metrics
+        latency = metrics.get('latency', {})
+        if latency:
+            print("\nLatency Metrics (seconds):")
+            print(f"  Mean: {latency.get('mean_latency_seconds', 0):.3f}s")
+            print(f"  Median: {latency.get('median_latency_seconds', 0):.3f}s")
+            print(f"  P95: {latency.get('p95_latency_seconds', 0):.3f}s")
+            print(f"  Min/Max: {latency.get('min_latency_seconds', 0):.3f}s / {latency.get('max_latency_seconds', 0):.3f}s")
 
-        print("\nLatency Metrics (seconds):")
-        print(f"  Mean: {metrics['latency_mean']:.3f}s")
-        print(f"  P95: {metrics['latency_p95']:.3f}s")
-        print(f"  Min/Max: {metrics['latency_min']:.3f}s / {metrics['latency_max']:.3f}s")
+        # LLM Latency
+        llm_latency = metrics.get('llm_latency', {})
+        if llm_latency:
+            print("\nLLM Response Latency:")
+            print(f"  Mean: {llm_latency.get('mean_llm_response_seconds', 0):.3f}s")
+            print(f"  Total: {llm_latency.get('total_llm_time_seconds', 0):.3f}s")
 
-        print("\nToken Usage:")
-        print(f"  Total Input: {metrics['total_input_tokens']}")
-        print(f"  Total Output: {metrics['total_output_tokens']}")
-        print(f"  Mean per Q: {metrics['mean_input_tokens_per_q']:.0f} in, {metrics['mean_output_tokens_per_q']:.1f} out")
+        # Context Building Latency
+        ctx_latency = metrics.get('context_latency', {})
+        if ctx_latency:
+            print("\nContext Building Latency:")
+            print(f"  Mean: {ctx_latency.get('mean_context_building_seconds', 0):.3f}s")
+            print(f"  Total: {ctx_latency.get('total_context_building_seconds', 0):.3f}s")
 
-        print("\nCost Estimation (DeepSeek pricing):")
-        print(f"  Input Cost: ${metrics['input_cost']:.6f}")
-        print(f"  Output Cost: ${metrics['output_cost']:.6f}")
-        print(f"  Total Cost: ${metrics['total_cost']:.6f}")
-        print(f"  Per Question: ${metrics['cost_per_question']:.6f}")
+        # Token Usage
+        tokens = metrics.get('tokens', {})
+        if tokens:
+            print("\nToken Usage:")
+            print(f"  Total Input: {tokens.get('total_input_tokens', 0):,}")
+            print(f"  Total Output: {tokens.get('total_output_tokens', 0):,}")
+            print(f"  Total: {tokens.get('total_tokens', 0):,}")
+            print(f"  Mean per Q: {tokens.get('mean_input_tokens', 0):.0f} in, {tokens.get('mean_output_tokens', 0):.1f} out")
+
+        # Cost Estimation
+        cost = metrics.get('cost_estimation', {})
+        if cost:
+            print("\nCost Estimation (DeepSeek pricing):")
+            print(f"  Input Cost: ${cost.get('input_cost_usd', 0):.6f}")
+            print(f"  Output Cost: ${cost.get('output_cost_usd', 0):.6f}")
+            print(f"  Total Cost: ${cost.get('total_cost_usd', 0):.6f}")
+            print(f"  Per Question: ${cost.get('cost_per_question_usd', 0):.6f}")
 
         print("\n" + "="*70)
 
