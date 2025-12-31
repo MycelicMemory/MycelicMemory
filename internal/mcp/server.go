@@ -786,6 +786,20 @@ func (s *Server) getToolDefinitions() []Tool {
 						Description: "Run asynchronously (returns immediately, check status later)",
 						Default:     false,
 					},
+					"benchmark_type": {
+						Type:        "string",
+						Description: "Benchmark type: locomo10 (free-response, F1 score) or locomo_mc10 (multiple choice, accuracy)",
+						Default:     "locomo10",
+					},
+					"random_sample": {
+						Type:        "boolean",
+						Description: "Randomly sample questions instead of taking first N",
+						Default:     false,
+					},
+					"seed": {
+						Type:        "integer",
+						Description: "Random seed for reproducible sampling",
+					},
 				},
 			},
 		},

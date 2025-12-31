@@ -68,10 +68,13 @@ func (r *Runner) CheckBridge() error {
 
 // BridgeRunRequest is the request to the Python bridge
 type BridgeRunRequest struct {
-	RunID        string `json:"run_id"`
-	MaxQuestions int    `json:"max_questions"`
-	Categories   []string `json:"categories,omitempty"`
-	Verbose      bool   `json:"verbose"`
+	RunID         string   `json:"run_id"`
+	BenchmarkType string   `json:"benchmark_type"`
+	MaxQuestions  int      `json:"max_questions"`
+	Categories    []string `json:"categories,omitempty"`
+	RandomSample  bool     `json:"random_sample"`
+	Seed          *int     `json:"seed,omitempty"`
+	Verbose       bool     `json:"verbose"`
 }
 
 // BridgeRunResponse is the response from the Python bridge
@@ -84,12 +87,14 @@ type BridgeRunResponse struct {
 			F1Score          float64 `json:"f1_score"`
 			BLEU1Score       float64 `json:"bleu1_score"`
 			TotalQuestions   int     `json:"total_questions"`
+			TotalCorrect     int     `json:"total_correct"`
 		} `json:"overall"`
 		ByCategory map[string]struct {
 			LLMJudgeAccuracy float64 `json:"llm_judge_accuracy"`
 			F1Score          float64 `json:"f1_score"`
 			BLEU1Score       float64 `json:"bleu1_score"`
 			Count            int     `json:"count"`
+			Correct          int     `json:"correct"`
 		} `json:"by_category"`
 		Questions []struct {
 			ID              string  `json:"id"`
@@ -101,6 +106,30 @@ type BridgeRunResponse struct {
 			F1Score         float64 `json:"f1_score"`
 			BLEU1Score      float64 `json:"bleu1_score"`
 		} `json:"questions"`
+		// Enhanced metrics
+		Latency *struct {
+			MeanSeconds   float64 `json:"mean_latency_seconds"`
+			MedianSeconds float64 `json:"median_latency_seconds"`
+			P95Seconds    float64 `json:"p95_latency_seconds"`
+			P99Seconds    float64 `json:"p99_latency_seconds"`
+			MinSeconds    float64 `json:"min_latency_seconds"`
+			MaxSeconds    float64 `json:"max_latency_seconds"`
+			StdDevSeconds float64 `json:"stdev_latency_seconds"`
+		} `json:"latency,omitempty"`
+		Tokens *struct {
+			TotalInput  int     `json:"total_input_tokens"`
+			TotalOutput int     `json:"total_output_tokens"`
+			Total       int     `json:"total_tokens"`
+			MeanInput   float64 `json:"mean_input_tokens"`
+			MeanOutput  float64 `json:"mean_output_tokens"`
+		} `json:"tokens,omitempty"`
+		Cost *struct {
+			InputCostUSD       float64 `json:"input_cost_usd"`
+			OutputCostUSD      float64 `json:"output_cost_usd"`
+			TotalCostUSD       float64 `json:"total_cost_usd"`
+			CostPerQuestionUSD float64 `json:"cost_per_question_usd"`
+		} `json:"cost_estimation,omitempty"`
+		DurationSecs float64 `json:"duration_seconds,omitempty"`
 	} `json:"results"`
 }
 
@@ -135,10 +164,13 @@ func (r *Runner) Run(ctx context.Context, config *RunConfig) (*RunResults, error
 
 	// Prepare bridge request
 	bridgeReq := &BridgeRunRequest{
-		RunID:        runID,
-		MaxQuestions: config.MaxQuestions,
-		Categories:   config.QuestionTypes,
-		Verbose:      config.Verbose,
+		RunID:         runID,
+		BenchmarkType: config.BenchmarkType,
+		MaxQuestions:  config.MaxQuestions,
+		Categories:    config.QuestionTypes,
+		RandomSample:  config.RandomSample,
+		Seed:          config.Seed,
+		Verbose:       config.Verbose,
 	}
 
 	reqBody, err := json.Marshal(bridgeReq)
@@ -226,6 +258,38 @@ func (r *Runner) Run(ctx context.Context, config *RunConfig) (*RunResults, error
 			LLMJudgeLabel:   q.LLMJudgeLabel,
 			F1Score:         q.F1Score,
 			BLEU1Score:      q.BLEU1Score,
+		}
+	}
+
+	// Parse enhanced metrics if available
+	if bridgeResp.Results.Latency != nil {
+		results.Latency = &LatencyStats{
+			MeanSeconds:   bridgeResp.Results.Latency.MeanSeconds,
+			MedianSeconds: bridgeResp.Results.Latency.MedianSeconds,
+			P95Seconds:    bridgeResp.Results.Latency.P95Seconds,
+			P99Seconds:    bridgeResp.Results.Latency.P99Seconds,
+			MinSeconds:    bridgeResp.Results.Latency.MinSeconds,
+			MaxSeconds:    bridgeResp.Results.Latency.MaxSeconds,
+			StdDevSeconds: bridgeResp.Results.Latency.StdDevSeconds,
+		}
+	}
+
+	if bridgeResp.Results.Tokens != nil {
+		results.Tokens = &TokenStats{
+			TotalInput:  bridgeResp.Results.Tokens.TotalInput,
+			TotalOutput: bridgeResp.Results.Tokens.TotalOutput,
+			Total:       bridgeResp.Results.Tokens.Total,
+			MeanInput:   bridgeResp.Results.Tokens.MeanInput,
+			MeanOutput:  bridgeResp.Results.Tokens.MeanOutput,
+		}
+	}
+
+	if bridgeResp.Results.Cost != nil {
+		results.Cost = &CostEstimation{
+			InputCostUSD:       bridgeResp.Results.Cost.InputCostUSD,
+			OutputCostUSD:      bridgeResp.Results.Cost.OutputCostUSD,
+			TotalCostUSD:       bridgeResp.Results.Cost.TotalCostUSD,
+			CostPerQuestionUSD: bridgeResp.Results.Cost.CostPerQuestionUSD,
 		}
 	}
 

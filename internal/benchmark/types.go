@@ -8,24 +8,28 @@ import (
 
 // RunConfig holds configuration for a benchmark run
 type RunConfig struct {
-	BenchmarkType  string `json:"benchmark_type"`  // "locomo"
-	MaxQuestions   int    `json:"max_questions"`   // 0 = all questions
-	QuestionTypes  []string `json:"question_types"` // Filter by category
-	TopK           int    `json:"top_k"`           // Number of memories to retrieve
-	Verbose        bool   `json:"verbose"`
-	UseSummaries   bool   `json:"use_summaries"`
-	Async          bool   `json:"async"`           // Run asynchronously
-	ChangeDesc     string `json:"change_description"` // Description of code change being tested
+	BenchmarkType  string   `json:"benchmark_type"`      // "locomo10" or "locomo_mc10"
+	MaxQuestions   int      `json:"max_questions"`       // 0 = all questions
+	QuestionTypes  []string `json:"question_types"`      // Filter by category
+	TopK           int      `json:"top_k"`               // Number of memories to retrieve
+	Verbose        bool     `json:"verbose"`
+	UseSummaries   bool     `json:"use_summaries"`
+	Async          bool     `json:"async"`               // Run asynchronously
+	ChangeDesc     string   `json:"change_description"`  // Description of code change being tested
+	RandomSample   bool     `json:"random_sample"`       // Randomly sample questions instead of first N
+	Seed           *int     `json:"seed,omitempty"`      // Random seed for reproducible sampling
 }
 
 // DefaultRunConfig returns default configuration
 func DefaultRunConfig() *RunConfig {
 	return &RunConfig{
-		BenchmarkType: "locomo",
+		BenchmarkType: "locomo10",
 		MaxQuestions:  0,
 		TopK:          10,
 		Verbose:       false,
 		Async:         false,
+		RandomSample:  false,
+		Seed:          nil,
 	}
 }
 
@@ -73,6 +77,34 @@ type OverallScores struct {
 	TotalCorrect     int     `json:"total_correct"`
 }
 
+// LatencyStats holds latency statistics for benchmark execution
+type LatencyStats struct {
+	MeanSeconds   float64 `json:"mean_seconds"`
+	MedianSeconds float64 `json:"median_seconds"`
+	P95Seconds    float64 `json:"p95_seconds"`
+	P99Seconds    float64 `json:"p99_seconds"`
+	MinSeconds    float64 `json:"min_seconds"`
+	MaxSeconds    float64 `json:"max_seconds"`
+	StdDevSeconds float64 `json:"stdev_seconds"`
+}
+
+// TokenStats holds token usage statistics
+type TokenStats struct {
+	TotalInput  int     `json:"total_input"`
+	TotalOutput int     `json:"total_output"`
+	Total       int     `json:"total"`
+	MeanInput   float64 `json:"mean_input"`
+	MeanOutput  float64 `json:"mean_output"`
+}
+
+// CostEstimation holds cost estimation for API usage
+type CostEstimation struct {
+	InputCostUSD       float64 `json:"input_cost_usd"`
+	OutputCostUSD      float64 `json:"output_cost_usd"`
+	TotalCostUSD       float64 `json:"total_cost_usd"`
+	CostPerQuestionUSD float64 `json:"cost_per_question_usd"`
+}
+
 // QuestionResult holds result for a single question
 type QuestionResult struct {
 	QuestionID      string  `json:"question_id"`
@@ -102,6 +134,10 @@ type RunResults struct {
 	ByCategory     map[string]CategoryScores  `json:"by_category"`
 	Questions      []QuestionResult           `json:"questions,omitempty"`
 	ErrorMessage   string                     `json:"error_message,omitempty"`
+	// Enhanced metrics
+	Latency        *LatencyStats              `json:"latency,omitempty"`
+	Tokens         *TokenStats                `json:"tokens,omitempty"`
+	Cost           *CostEstimation            `json:"cost,omitempty"`
 }
 
 // Progress represents benchmark execution progress
