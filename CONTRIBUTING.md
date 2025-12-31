@@ -13,11 +13,13 @@ Thank you for your interest in contributing to Ultrathink! This document provide
 
 ### Prerequisites
 
-- Go 1.21 or higher
-- SQLite 3.50.0 or higher
-- Node.js 16+ (for npm wrapper development)
-- Git
-- GitHub account
+- **Go 1.23+** - Required for building
+- **C compiler** - Required for CGO (SQLite FTS5 bindings)
+  - macOS: `xcode-select --install`
+  - Linux: `apt-get install build-essential` or `dnf groupinstall "Development Tools"`
+- **Node.js 16+** - For npm wrapper development (optional)
+- **Git** - For version control
+- **GitHub account** - For contributing
 
 ### Setting Up Development Environment
 
