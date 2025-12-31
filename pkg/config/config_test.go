@@ -139,6 +139,11 @@ func TestLoadConfig_NoFile(t *testing.T) {
 	defer os.Chdir(oldWd)
 	os.Chdir(tmpDir)
 
+	// Temporarily override HOME to prevent finding user's config
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
 	// Should return default config without error
 	cfg, err := Load()
 	if err != nil {
