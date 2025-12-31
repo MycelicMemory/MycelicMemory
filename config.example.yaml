@@ -28,19 +28,6 @@ setup:
   # Set to true after setup wizard completes
   wizard_shown: false
 
-# License Configuration (Open source version)
-license:
-  # License requirement (false for open source)
-  required: false
-
-  # Check license on startup
-  check_on_startup: false
-
-  # Terms of service
-  terms:
-    required: false
-    source: embedded
-
 # REST API Configuration
 rest_api:
   # Enable REST API server

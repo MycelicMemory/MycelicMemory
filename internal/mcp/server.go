@@ -123,6 +123,10 @@ func (s *Server) handleRequest(ctx context.Context, line string) *Response {
 		return s.handleToolsList(req)
 	case "tools/call":
 		return s.handleToolsCall(ctx, req)
+	case "prompts/list":
+		return s.handlePromptsList(req)
+	case "prompts/get":
+		return s.handlePromptsGet(req)
 	case "ping":
 		return &Response{
 			JSONRPC: "2.0",
@@ -157,10 +161,116 @@ func (s *Server) handleInitialize(req Request) *Response {
 				Tools: &ToolsCapability{
 					ListChanged: false,
 				},
+				Prompts: &PromptsCapability{
+					ListChanged: false,
+				},
 			},
 			ServerInfo: ServerInfo{
 				Name:    ServerName,
 				Version: ServerVersion,
+			},
+		},
+	}
+}
+
+// handlePromptsList returns available prompts for automatic behavior
+func (s *Server) handlePromptsList(req Request) *Response {
+	prompts := []Prompt{
+		{
+			Name:        "auto-memory",
+			Description: "Instructions for automatic memory storage and retrieval",
+			Arguments:   []PromptArgument{},
+		},
+	}
+
+	return &Response{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result: PromptsListResult{
+			Prompts: prompts,
+		},
+	}
+}
+
+// handlePromptsGet returns the content of a specific prompt
+func (s *Server) handlePromptsGet(req Request) *Response {
+	var params struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return &Response{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Error: &RPCError{
+				Code:    InvalidParams,
+				Message: "Invalid params",
+				Data:    err.Error(),
+			},
+		}
+	}
+
+	if params.Name != "auto-memory" {
+		return &Response{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Error: &RPCError{
+				Code:    InvalidParams,
+				Message: "Prompt not found",
+				Data:    params.Name,
+			},
+		}
+	}
+
+	promptContent := `# Ultrathink Automatic Memory System
+
+You have access to persistent memory. Use it proactively to build and leverage a knowledge base.
+
+## AUTOMATIC SEARCH (Do this first!)
+At the START of conversations, search for relevant context:
+- Search for memories related to the user's topic/question
+- Check for past decisions, preferences, and learnings before answering
+
+## AUTOMATIC STORAGE (Do this continuously)
+Store memories when the user shares valuable information:
+
+| Type | Example Trigger | Tags | Importance |
+|------|-----------------|------|------------|
+| Technical decision | "We chose X because..." | decision, <tech> | 8-9 |
+| Debugging insight | "The bug was caused by..." | debugging, gotcha | 7-9 |
+| Architecture | "This service handles..." | architecture | 8 |
+| Preference | "I prefer X over Y" | preference | 7 |
+| Learning | "TIL..." or "I learned..." | learning | 6-8 |
+| Project context | Tech stack, conventions | project | 9-10 |
+
+## TAGGING STRATEGY
+Use consistent, searchable tags:
+- decision, debugging, gotcha, preference, learning, architecture
+- Language: go, python, typescript, rust, etc.
+- Domain: frontend, backend, devops, database, etc.
+
+## WHAT TO STORE
+✅ Store: Future-useful info, debugging insights, project conventions, preferences
+❌ Don't store: Generic knowledge, temporary info, sensitive data
+
+## RELATIONSHIP BUILDING
+When storing related concepts:
+1. Search for existing related memories
+2. Create relationships between connected memories using the relationships tool
+3. Build a knowledge graph over time`
+
+	return &Response{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result: PromptGetResult{
+			Description: "Instructions for automatic memory storage and retrieval",
+			Messages: []PromptMessage{
+				{
+					Role: "user",
+					Content: ContentBlock{
+						Type: "text",
+						Text: promptContent,
+					},
+				},
 			},
 		},
 	}

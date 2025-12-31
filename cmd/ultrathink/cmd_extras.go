@@ -87,17 +87,6 @@ Examples:
 	},
 }
 
-// licenseCmd represents the license command
-var licenseCmd = &cobra.Command{
-	Use:   "license",
-	Short: "License key management",
-	Long: `View or manage license information.
-
-Note: Ultrathink is open source software and does not require a license key.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		runLicense()
-	},
-}
 
 func init() {
 	rootCmd.AddCommand(categorizeCmd)
@@ -105,7 +94,6 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(killCmd)
-	rootCmd.AddCommand(licenseCmd)
 
 	// Categorize flags
 	categorizeCmd.Flags().BoolVar(&categorizeAutoCreate, "auto-create", true, "Auto-create suggested categories")
@@ -270,15 +258,3 @@ func runKill(pidStr string) {
 	fmt.Printf("Sent SIGTERM to process %d\n", pid)
 }
 
-func runLicense() {
-	fmt.Println("Ultrathink License")
-	fmt.Println("==================")
-	fmt.Println()
-	fmt.Println("Ultrathink is open source software.")
-	fmt.Println("No license key is required.")
-	fmt.Println()
-	fmt.Println("This project is a clean-room implementation inspired by Local Memory.")
-	fmt.Println("It is released under the MIT License.")
-	fmt.Println()
-	fmt.Println("For more information, visit: https://github.com/MycelicMemory/ultrathink")
-}

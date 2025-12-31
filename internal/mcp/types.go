@@ -46,11 +46,17 @@ type ServerInfo struct {
 
 // ServerCapabilities represents MCP server capabilities
 type ServerCapabilities struct {
-	Tools *ToolsCapability `json:"tools,omitempty"`
+	Tools   *ToolsCapability   `json:"tools,omitempty"`
+	Prompts *PromptsCapability `json:"prompts,omitempty"`
 }
 
 // ToolsCapability represents tools capability
 type ToolsCapability struct {
+	ListChanged bool `json:"listChanged,omitempty"`
+}
+
+// PromptsCapability represents prompts capability
+type PromptsCapability struct {
 	ListChanged bool `json:"listChanged,omitempty"`
 }
 
@@ -89,6 +95,25 @@ type Property struct {
 // ToolsListResult is the response to tools/list request
 type ToolsListResult struct {
 	Tools []Tool `json:"tools"`
+}
+
+// Prompt represents an MCP prompt definition
+type Prompt struct {
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	Arguments   []PromptArgument `json:"arguments,omitempty"`
+}
+
+// PromptArgument represents a prompt argument
+type PromptArgument struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Required    bool   `json:"required,omitempty"`
+}
+
+// PromptsListResult is the response to prompts/list request
+type PromptsListResult struct {
+	Prompts []Prompt `json:"prompts"`
 }
 
 // CallToolParams are the parameters for tools/call request
@@ -207,4 +232,16 @@ type DeleteMemoryParams struct {
 // GetMemoryParams for get_memory_by_id tool
 type GetMemoryParams struct {
 	ID string `json:"id"`
+}
+
+// PromptMessage represents a message in a prompt
+type PromptMessage struct {
+	Role    string       `json:"role"`
+	Content ContentBlock `json:"content"`
+}
+
+// PromptGetResult is the response to prompts/get request
+type PromptGetResult struct {
+	Description string          `json:"description,omitempty"`
+	Messages    []PromptMessage `json:"messages"`
 }

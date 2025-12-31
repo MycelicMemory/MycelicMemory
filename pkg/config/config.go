@@ -10,17 +10,15 @@ import (
 )
 
 // Config represents the complete application configuration
-// Structure verified from Local Memory v1.2.0 config.yaml
 type Config struct {
-	Profile  string           `mapstructure:"profile"`
-	Database DatabaseConfig   `mapstructure:"database"`
-	Setup    SetupConfig      `mapstructure:"setup"`
-	License  LicenseConfig    `mapstructure:"license"`
-	RestAPI  RestAPIConfig    `mapstructure:"rest_api"`
-	Session  SessionConfig    `mapstructure:"session"`
-	Logging  LoggingConfig    `mapstructure:"logging"`
-	Ollama   OllamaConfig     `mapstructure:"ollama"`
-	Qdrant   QdrantConfig     `mapstructure:"qdrant"`
+	Profile  string          `mapstructure:"profile"`
+	Database DatabaseConfig  `mapstructure:"database"`
+	Setup    SetupConfig     `mapstructure:"setup"`
+	RestAPI  RestAPIConfig   `mapstructure:"rest_api"`
+	Session  SessionConfig   `mapstructure:"session"`
+	Logging  LoggingConfig   `mapstructure:"logging"`
+	Ollama   OllamaConfig    `mapstructure:"ollama"`
+	Qdrant   QdrantConfig    `mapstructure:"qdrant"`
 }
 
 // DatabaseConfig holds database configuration
@@ -36,19 +34,6 @@ type DatabaseConfig struct {
 type SetupConfig struct {
 	FirstRun     bool `mapstructure:"first_run"`
 	WizardShown  bool `mapstructure:"wizard_shown"`
-}
-
-// LicenseConfig holds license and terms configuration
-type LicenseConfig struct {
-	Required       bool        `mapstructure:"required"`
-	CheckOnStartup bool        `mapstructure:"check_on_startup"`
-	Terms          TermsConfig `mapstructure:"terms"`
-}
-
-// TermsConfig holds terms of service configuration
-type TermsConfig struct {
-	Required bool   `mapstructure:"required"`
-	Source   string `mapstructure:"source"`
 }
 
 // RestAPIConfig holds REST API server configuration
@@ -109,14 +94,6 @@ func DefaultConfig() *Config {
 		Setup: SetupConfig{
 			FirstRun:    true,
 			WizardShown: false,
-		},
-		License: LicenseConfig{
-			Required:       false, // Open source version
-			CheckOnStartup: false,
-			Terms: TermsConfig{
-				Required: false,
-				Source:   "embedded",
-			},
 		},
 		RestAPI: RestAPIConfig{
 			Enabled:  true,
