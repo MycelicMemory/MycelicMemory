@@ -3,42 +3,20 @@ Real-time progress display for free-response benchmark execution.
 Provides colored, structured console output with running F1 totals.
 """
 
-import sys
 from dataclasses import dataclass, field
 from typing import Dict, List
 from collections import defaultdict
-from datetime import datetime
 
-
-class Colors:
-    """ANSI color codes for terminal output."""
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-
-    # Categories
-    SINGLE_HOP = "\033[94m"      # Blue
-    TEMPORAL = "\033[93m"        # Yellow
-    INFERENTIAL = "\033[95m"     # Magenta
-    OPEN_DOMAIN = "\033[96m"     # Cyan
-    ADVERSARIAL = "\033[91m"     # Red
-
-    # F1 score thresholds
-    HIGH_F1 = "\033[92m"         # Green (>= 0.7)
-    MID_F1 = "\033[93m"          # Yellow (0.4-0.7)
-    LOW_F1 = "\033[91m"          # Red (< 0.4)
-
-    # Metrics
-    METRIC = "\033[90m"          # Gray
+from shared.display_base import Colors, DisplayBase
 
 
 # Category mappings (1-5)
 CATEGORY_COLORS = {
-    1: Colors.SINGLE_HOP,
-    2: Colors.TEMPORAL,
-    3: Colors.INFERENTIAL,
-    4: Colors.OPEN_DOMAIN,
-    5: Colors.ADVERSARIAL,
+    1: Colors.BLUE,       # Single-hop
+    2: Colors.YELLOW,     # Temporal
+    3: Colors.MAGENTA,    # Inferential
+    4: Colors.CYAN,       # Open-domain
+    5: Colors.RED,        # Adversarial
 }
 
 CATEGORY_EMOJI = {
@@ -71,12 +49,8 @@ class RunningTotals:
     latencies: List[float] = field(default_factory=list)
 
 
-class FRProgressDisplay:
+class FRProgressDisplay(DisplayBase):
     """Real-time progress display for free-response benchmark execution."""
-
-    # DeepSeek pricing (per 1M tokens)
-    INPUT_PRICE_PER_MTOK = 0.014
-    OUTPUT_PRICE_PER_MTOK = 0.056
 
     def __init__(self, total_questions: int, use_colors: bool = True):
         """
@@ -86,25 +60,17 @@ class FRProgressDisplay:
             total_questions: Total number of questions in benchmark
             use_colors: Whether to use ANSI colors (auto-detects TTY)
         """
-        self.total_questions = total_questions
-        self.use_colors = use_colors and sys.stdout.isatty()
+        super().__init__(total_questions, use_colors)
         self.totals = RunningTotals()
-        self.start_time = datetime.now()
-
-    def _color(self, text: str, color: str) -> str:
-        """Apply color if enabled."""
-        if self.use_colors:
-            return f"{color}{text}{Colors.RESET}"
-        return text
 
     def _f1_color(self, f1_score: float) -> str:
         """Get color based on F1 score threshold."""
         if f1_score >= 0.7:
-            return Colors.HIGH_F1
+            return Colors.HIGH
         elif f1_score >= 0.4:
-            return Colors.MID_F1
+            return Colors.MID
         else:
-            return Colors.LOW_F1
+            return Colors.LOW
 
     def _format_category(self, category: int) -> str:
         """Format category with color and emoji."""
@@ -113,22 +79,15 @@ class FRProgressDisplay:
         name = CATEGORY_NAMES.get(category, "Unknown")
         return f"{emoji} {self._color(name, color)}"
 
-    def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
-        """Calculate cost based on DeepSeek pricing."""
-        input_cost = (input_tokens / 1_000_000) * self.INPUT_PRICE_PER_MTOK
-        output_cost = (output_tokens / 1_000_000) * self.OUTPUT_PRICE_PER_MTOK
-        return input_cost + output_cost
+    # Note: _calculate_cost() inherited from DisplayBase
 
     def display_header(self, dataset_path: str, ultrathink_url: str):
         """Display benchmark header."""
-        print()
-        print(self._color("=" * 80, Colors.BOLD))
-        print(self._color("     MEMORY-AUGMENTED LoCoMo FREE-RESPONSE BENCHMARK", Colors.BOLD))
-        print(self._color("=" * 80, Colors.BOLD))
-        print(f"  Questions:  {self.total_questions}")
-        print(f"  Dataset:    {dataset_path}")
-        print(f"  Ultrathink: {ultrathink_url}")
-        print(self._color("=" * 80, Colors.BOLD))
+        super().display_header(
+            "MEMORY-AUGMENTED LoCoMo FREE-RESPONSE BENCHMARK",
+            dataset_path,
+            ultrathink_url
+        )
 
     def display_question_start(
         self,
@@ -152,20 +111,7 @@ class FRProgressDisplay:
         q_label = self._color("Q:", Colors.DIM)
         print(f"   {q_label} {truncated}")
 
-    def display_memory_ops(
-        self,
-        num_ingested: int,
-        ingest_time: float,
-        num_retrieved: int,
-        retrieval_time: float,
-    ):
-        """Display memory operation results."""
-        inbox = "\U0001f4e5"
-        search = "\U0001f50d"
-        ingest_str = f"Ingested {num_ingested} memories ({ingest_time:.3f}s)"
-        retrieve_str = f"Retrieved {num_retrieved} memories ({retrieval_time:.3f}s)"
-        print(f"   {inbox} {ingest_str}")
-        print(f"   {search} {retrieve_str}")
+    # Note: display_memory_ops() inherited from DisplayBase
 
     def display_result(
         self,
@@ -281,52 +227,11 @@ class FRProgressDisplay:
                 f1_color = self._f1_color(cat_f1)
                 print(f"   {cat_display}: {self._color(f'{cat_f1:.3f}', f1_color)} F1 ({cat_total} questions)")
 
-        # --- LATENCY STATS ---
-        timer_emoji = "\u23f1\ufe0f"
-        memo_emoji = "\U0001f4dd"
-        money_emoji = "\U0001f4b0"
-        hourglass_emoji = "\u23f3"
-
-        latency = metrics.get('latency', {})
-        if latency:
-            print(f"\n{self._color(timer_emoji + '  LATENCY STATISTICS', Colors.BOLD)}")
-            print(self._color(single_line, Colors.DIM))
-            print(f"   Mean:    {latency.get('mean_latency_seconds', 0):.3f}s")
-            print(f"   Median:  {latency.get('median_latency_seconds', 0):.3f}s")
-            print(f"   P95:     {latency.get('p95_latency_seconds', 0):.3f}s")
-            print(f"   P99:     {latency.get('p99_latency_seconds', 0):.3f}s")
-            print(f"   Min/Max: {latency.get('min_latency_seconds', 0):.3f}s / {latency.get('max_latency_seconds', 0):.3f}s")
-            print(f"   StdDev:  {latency.get('stdev_latency_seconds', 0):.3f}s")
-
-        # --- TOKEN USAGE ---
-        tokens = metrics.get('tokens', {})
-        if tokens:
-            print(f"\n{self._color(memo_emoji + ' TOKEN USAGE', Colors.BOLD)}")
-            print(self._color(single_line, Colors.DIM))
-            print(f"   Total Input:    {tokens.get('total_input_tokens', 0):,}")
-            print(f"   Total Output:   {tokens.get('total_output_tokens', 0):,}")
-            print(f"   Total:          {tokens.get('total_tokens', 0):,}")
-            print(f"   Mean per Q:     {tokens.get('mean_input_tokens', 0):.0f} in / {tokens.get('mean_output_tokens', 0):.1f} out")
-
-        # --- COST ESTIMATION ---
-        cost = metrics.get('cost_estimation', {})
-        if cost:
-            print(f"\n{self._color(money_emoji + ' COST ESTIMATION (DeepSeek)', Colors.BOLD)}")
-            print(self._color(single_line, Colors.DIM))
-            print(f"   Input Cost:     ${cost.get('input_cost_usd', 0):.6f}")
-            print(f"   Output Cost:    ${cost.get('output_cost_usd', 0):.6f}")
-            print(f"   Total Cost:     ${cost.get('total_cost_usd', 0):.6f}")
-            print(f"   Per Question:   ${cost.get('cost_per_question_usd', 0):.6f}")
-
-        # --- DURATION ---
-        print(f"\n{self._color(hourglass_emoji + ' DURATION', Colors.BOLD)}")
-        print(self._color(single_line, Colors.DIM))
-        mins = int(duration_secs // 60)
-        secs = duration_secs % 60
-        if mins > 0:
-            print(f"   Total Time:     {mins}m {secs:.1f}s ({duration_secs:.2f}s)")
-        else:
-            print(f"   Total Time:     {secs:.1f}s")
+        # Use shared display methods for common sections
+        self.display_latency_stats(metrics.get('latency', {}))
+        self.display_token_stats(metrics.get('tokens', {}))
+        self.display_cost_stats(metrics.get('cost_estimation', {}))
+        self.display_duration(duration_secs)
 
         print()
-        print(self._color(double_line, Colors.BOLD))
+        print(self._color("\u2550" * 80, Colors.BOLD))

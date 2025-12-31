@@ -3,38 +3,18 @@ Real-time progress display for benchmark execution.
 Provides colored, structured console output with running totals.
 """
 
-import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from collections import defaultdict
-from datetime import datetime
 
-
-class Colors:
-    """ANSI color codes for terminal output."""
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-
-    # Question types
-    SINGLE_HOP = "\033[94m"      # Blue
-    MULTI_HOP = "\033[95m"       # Magenta
-    TEMPORAL = "\033[93m"        # Yellow
-    OPEN_DOMAIN = "\033[96m"     # Cyan
-
-    # Status
-    CORRECT = "\033[92m"         # Green
-    INCORRECT = "\033[91m"       # Red
-
-    # Metrics
-    METRIC = "\033[90m"          # Gray
+from shared.display_base import Colors, DisplayBase
 
 
 QUESTION_TYPE_COLORS = {
-    "single_hop": Colors.SINGLE_HOP,
-    "multi_hop": Colors.MULTI_HOP,
-    "temporal_reasoning": Colors.TEMPORAL,
-    "open_domain": Colors.OPEN_DOMAIN,
+    "single_hop": Colors.BLUE,
+    "multi_hop": Colors.MAGENTA,
+    "temporal_reasoning": Colors.YELLOW,
+    "open_domain": Colors.CYAN,
     "unknown": Colors.DIM,
 }
 
@@ -69,12 +49,8 @@ class RunningTotals:
     latencies: List[float] = field(default_factory=list)
 
 
-class ProgressDisplay:
+class ProgressDisplay(DisplayBase):
     """Real-time progress display for benchmark execution."""
-
-    # DeepSeek pricing (per 1M tokens)
-    INPUT_PRICE_PER_MTOK = 0.014
-    OUTPUT_PRICE_PER_MTOK = 0.056
 
     def __init__(self, total_questions: int, use_colors: bool = True):
         """
@@ -84,16 +60,8 @@ class ProgressDisplay:
             total_questions: Total number of questions in benchmark
             use_colors: Whether to use ANSI colors (auto-detects TTY)
         """
-        self.total_questions = total_questions
-        self.use_colors = use_colors and sys.stdout.isatty()
+        super().__init__(total_questions, use_colors)
         self.totals = RunningTotals()
-        self.start_time = datetime.now()
-
-    def _color(self, text: str, color: str) -> str:
-        """Apply color if enabled."""
-        if self.use_colors:
-            return f"{color}{text}{Colors.RESET}"
-        return text
 
     def _format_question_type(self, qtype: str) -> str:
         """Format question type with color and emoji."""
@@ -102,22 +70,15 @@ class ProgressDisplay:
         type_name = QUESTION_TYPE_NAMES.get(qtype, qtype.replace("_", " ").title())
         return f"{emoji} {self._color(type_name, color)}"
 
-    def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
-        """Calculate cost based on DeepSeek pricing."""
-        input_cost = (input_tokens / 1_000_000) * self.INPUT_PRICE_PER_MTOK
-        output_cost = (output_tokens / 1_000_000) * self.OUTPUT_PRICE_PER_MTOK
-        return input_cost + output_cost
+    # Note: _calculate_cost() inherited from DisplayBase
 
     def display_header(self, dataset_path: str, ultrathink_url: str):
         """Display benchmark header."""
-        print()
-        print(self._color("=" * 80, Colors.BOLD))
-        print(self._color("     MEMORY-AUGMENTED LoCoMo-MC10 BENCHMARK", Colors.BOLD))
-        print(self._color("=" * 80, Colors.BOLD))
-        print(f"  Questions:  {self.total_questions}")
-        print(f"  Dataset:    {dataset_path}")
-        print(f"  Ultrathink: {ultrathink_url}")
-        print(self._color("=" * 80, Colors.BOLD))
+        super().display_header(
+            "MEMORY-AUGMENTED LoCoMo-MC10 BENCHMARK",
+            dataset_path,
+            ultrathink_url
+        )
 
     def display_question_start(
         self,
@@ -139,18 +100,7 @@ class ProgressDisplay:
         truncated = question_text[:75] + "..." if len(question_text) > 75 else question_text
         print(f"   {self._color('Q:', Colors.DIM)} {truncated}")
 
-    def display_memory_ops(
-        self,
-        num_ingested: int,
-        ingest_time: float,
-        num_retrieved: int,
-        retrieval_time: float,
-    ):
-        """Display memory operation results."""
-        ingest_str = f"Ingested {num_ingested} memories ({ingest_time:.3f}s)"
-        retrieve_str = f"Retrieved {num_retrieved} memories ({retrieval_time:.3f}s)"
-        print(f"   \U0001f4e5 {ingest_str}")
-        print(f"   \U0001f50d {retrieve_str}")
+    # Note: display_memory_ops() inherited from DisplayBase
 
     def display_result(
         self,
@@ -180,7 +130,7 @@ class ProgressDisplay:
 
         # Result line
         status = "\u2713 CORRECT" if is_correct else "\u2717 INCORRECT"
-        status_color = Colors.CORRECT if is_correct else Colors.INCORRECT
+        status_color = Colors.HIGH if is_correct else Colors.LOW
         pred_str = str(predicted_idx) if predicted_idx is not None else "None"
         print(f"   {self._color(status, status_color)} | Predicted: {pred_str} vs Correct: {correct_idx}")
 
@@ -230,7 +180,7 @@ class ProgressDisplay:
         target_emoji = "\U0001f3af"  # 🎯
         print(f"\n{self._color(chart_emoji + ' OVERALL ACCURACY', Colors.BOLD)}")
         print(self._color("\u2500" * 40, Colors.DIM))
-        acc_color = Colors.CORRECT if acc >= 50 else Colors.INCORRECT
+        acc_color = Colors.HIGH if acc >= 50 else Colors.LOW
         print(f"   Accuracy: {self._color(f'{acc:.1f}%', acc_color)}")
         print(f"   Correct:  {correct}/{total}")
 
@@ -246,7 +196,7 @@ class ProgressDisplay:
                 type_acc = tm.get('accuracy', 0)
                 type_correct = tm.get('correct', 0)
                 type_total = tm.get('total', 0)
-                acc_color = Colors.CORRECT if type_acc >= 50 else Colors.INCORRECT
+                acc_color = Colors.HIGH if type_acc >= 50 else Colors.LOW
                 print(f"   {type_display}: {self._color(f'{type_acc:.1f}%', acc_color)} ({type_correct}/{type_total})")
 
         # Check for any other types not in the standard list
@@ -257,55 +207,14 @@ class ProgressDisplay:
                 type_acc = tm.get('accuracy', 0)
                 type_correct = tm.get('correct', 0)
                 type_total = tm.get('total', 0)
-                acc_color = Colors.CORRECT if type_acc >= 50 else Colors.INCORRECT
+                acc_color = Colors.HIGH if type_acc >= 50 else Colors.LOW
                 print(f"   {type_display}: {self._color(f'{type_acc:.1f}%', acc_color)} ({type_correct}/{type_total})")
 
-        # --- LATENCY STATS ---
-        timer_emoji = "\u23f1\ufe0f"  # ⏱️
-        memo_emoji = "\U0001f4dd"  # 📝
-        money_emoji = "\U0001f4b0"  # 💰
-        hourglass_emoji = "\u23f3"  # ⏳
-
-        latency = metrics.get('latency', {})
-        if latency:
-            print(f"\n{self._color(timer_emoji + '  LATENCY STATISTICS', Colors.BOLD)}")
-            print(self._color("\u2500" * 40, Colors.DIM))
-            print(f"   Mean:    {latency.get('mean_latency_seconds', 0):.3f}s")
-            print(f"   Median:  {latency.get('median_latency_seconds', 0):.3f}s")
-            print(f"   P95:     {latency.get('p95_latency_seconds', 0):.3f}s")
-            print(f"   P99:     {latency.get('p99_latency_seconds', 0):.3f}s")
-            print(f"   Min/Max: {latency.get('min_latency_seconds', 0):.3f}s / {latency.get('max_latency_seconds', 0):.3f}s")
-            print(f"   StdDev:  {latency.get('stdev_latency_seconds', 0):.3f}s")
-
-        # --- TOKEN USAGE ---
-        tokens = metrics.get('tokens', {})
-        if tokens:
-            print(f"\n{self._color(memo_emoji + ' TOKEN USAGE', Colors.BOLD)}")
-            print(self._color("\u2500" * 40, Colors.DIM))
-            print(f"   Total Input:    {tokens.get('total_input_tokens', 0):,}")
-            print(f"   Total Output:   {tokens.get('total_output_tokens', 0):,}")
-            print(f"   Total:          {tokens.get('total_tokens', 0):,}")
-            print(f"   Mean per Q:     {tokens.get('mean_input_tokens', 0):.0f} in / {tokens.get('mean_output_tokens', 0):.1f} out")
-
-        # --- COST ESTIMATION ---
-        cost = metrics.get('cost_estimation', {})
-        if cost:
-            print(f"\n{self._color(money_emoji + ' COST ESTIMATION (DeepSeek)', Colors.BOLD)}")
-            print(self._color("\u2500" * 40, Colors.DIM))
-            print(f"   Input Cost:     ${cost.get('input_cost_usd', 0):.6f}")
-            print(f"   Output Cost:    ${cost.get('output_cost_usd', 0):.6f}")
-            print(f"   Total Cost:     ${cost.get('total_cost_usd', 0):.6f}")
-            print(f"   Per Question:   ${cost.get('cost_per_question_usd', 0):.6f}")
-
-        # --- DURATION ---
-        print(f"\n{self._color(hourglass_emoji + ' DURATION', Colors.BOLD)}")
-        print(self._color("\u2500" * 40, Colors.DIM))
-        mins = int(duration_secs // 60)
-        secs = duration_secs % 60
-        if mins > 0:
-            print(f"   Total Time:     {mins}m {secs:.1f}s ({duration_secs:.2f}s)")
-        else:
-            print(f"   Total Time:     {secs:.1f}s")
+        # Use shared display methods for common sections
+        self.display_latency_stats(metrics.get('latency', {}))
+        self.display_token_stats(metrics.get('tokens', {}))
+        self.display_cost_stats(metrics.get('cost_estimation', {}))
+        self.display_duration(duration_secs)
 
         print()
         print(self._color("\u2550" * 80, Colors.BOLD))
