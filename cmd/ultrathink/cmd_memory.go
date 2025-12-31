@@ -172,6 +172,12 @@ func getDB() (*database.Database, *config.Config, error) {
 		return nil, nil, err
 	}
 
+	// Initialize schema if needed
+	if err := db.InitSchema(); err != nil {
+		db.Close()
+		return nil, nil, err
+	}
+
 	return db, cfg, nil
 }
 

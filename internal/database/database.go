@@ -70,6 +70,19 @@ func (d *Database) InitSchema() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	// Check if schema already exists by checking for a key table
+	var tableName string
+	err := d.db.QueryRow(`
+		SELECT name FROM sqlite_master
+		WHERE type='table' AND name='memories'
+		LIMIT 1
+	`).Scan(&tableName)
+	if err == nil && tableName != "" {
+		log.Info("schema already initialized")
+		return nil
+	}
+	log.Debug("schema not yet initialized", "check_err", err, "table_name", tableName)
+
 	// Begin transaction for schema initialization
 	tx, err := d.db.Begin()
 	if err != nil {
@@ -86,10 +99,11 @@ func (d *Database) InitSchema() error {
 	}
 
 	// Execute FTS5 schema (virtual table, triggers)
+	// FTS5 is optional, so skip if it fails
 	log.Debug("creating FTS5 schema")
 	if _, err := tx.Exec(FTS5Schema); err != nil {
-		log.Error("failed to create FTS5 schema", "error", err)
-		return fmt.Errorf("failed to create FTS5 schema: %w", err)
+		log.Warn("failed to create FTS5 schema (skipping)", "error", err)
+		// Don't return error - FTS5 is optional
 	}
 
 	// Record schema version
