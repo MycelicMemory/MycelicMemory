@@ -31,6 +31,7 @@ from shared.ultrathink_client import UltrathinkClient, RetrievalResult
 from shared.logging_system import BenchmarkLogger, CallType, init_logger, get_logger
 from shared.llm_call_tracker import LLMCallTracker
 from shared.config import get_deepseek_api_key, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from shared.phoenix_tracer import PhoenixTracer
 from locomo10.metrics_tracker import FRMetricsTracker, TokenMetrics
 from locomo10.progress_display import FRProgressDisplay
 from locomo10.f1_evaluator import F1Evaluator, get_category_name, get_category_display
@@ -57,7 +58,8 @@ class FreeResponseExperiment:
         enable_logging: bool = True,
         log_dir: str = "logs",
         random_sample: bool = False,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        enable_phoenix: bool = False
     ):
         """
         Initialize free-response experiment.
@@ -70,6 +72,7 @@ class FreeResponseExperiment:
             log_dir: Directory for log files
             random_sample: If True, randomly sample questions instead of taking first N
             seed: Random seed for reproducible sampling (None = random)
+            enable_phoenix: Enable Phoenix tracing UI (localhost:6006)
         """
         self.dataset_path = dataset_path
         self.max_questions = max_questions
@@ -87,6 +90,9 @@ class FreeResponseExperiment:
             )
         else:
             self.logger = None
+
+        # Initialize Phoenix tracer for LLM observability
+        self.phoenix = PhoenixTracer(enabled=enable_phoenix, launch_ui=enable_phoenix)
 
         # Initialize clients
         self.memory_client = UltrathinkClient(base_url=ultrathink_url)
@@ -241,6 +247,18 @@ class FreeResponseExperiment:
 
         return messages
 
+    def _calculate_cost(self, token_metrics: TokenMetrics) -> float:
+        """
+        Calculate cost in USD for DeepSeek API call.
+
+        DeepSeek-chat pricing (as of 2024):
+        - Input: $0.14 per 1M tokens
+        - Output: $0.28 per 1M tokens
+        """
+        input_cost = token_metrics.input_tokens * 0.14 / 1_000_000
+        output_cost = token_metrics.output_tokens * 0.28 / 1_000_000
+        return input_cost + output_cost
+
     def _generate_answer(
         self,
         question: str,
@@ -328,6 +346,11 @@ Provide a concise, direct answer. Do not explain your reasoning."""
             ultrathink_url=self.ultrathink_url
         )
 
+        # Launch Phoenix UI if enabled
+        phoenix_url = self.phoenix.launch_ui()
+        if phoenix_url:
+            print(f"Phoenix UI: {phoenix_url}")
+
         # Log benchmark start
         if self.logger:
             self.logger.log_benchmark_event(
@@ -359,7 +382,17 @@ Provide a concise, direct answer. Do not explain your reasoning."""
         last_conv_id = None
         cached_memory_ids = []
 
-        for idx, question_data in enumerate(self.questions):
+        # Wrap entire benchmark in Phoenix trace
+        with self.phoenix.trace(
+            name="locomo10-benchmark",
+            metadata={
+                "total_questions": len(self.questions),
+                "dataset": self.dataset_path,
+                "ultrathink_url": self.ultrathink_url,
+            }
+        ) as benchmark_ctx:
+
+          for idx, question_data in enumerate(self.questions):
             q_id = question_data["question_id"]
             conv_id = question_data["conversation_id"]
             category = question_data["category"]
@@ -385,172 +418,216 @@ Provide a concise, direct answer. Do not explain your reasoning."""
                     }
                 )
 
-            # Step 1: Ingest conversation as memories (cache by conversation)
-            session_id = f"locomo-fr-{conv_id}"
+            # Wrap each question in Phoenix span for detailed tracing
+            with self.phoenix.span(
+                benchmark_ctx,
+                name=f"question-{idx+1}",
+                metadata={
+                    "question_id": q_id,
+                    "category": category,
+                    "category_name": get_category_name(category),
+                }
+            ) as question_ctx:
 
-            if conv_id != last_conv_id:
-                # Clear previous session if exists
-                if last_conv_id is not None:
-                    prev_session_id = f"locomo-fr-{last_conv_id}"
-                    self.memory_client.clear_session(prev_session_id)
+                # Step 1: Ingest conversation as memories (cache by conversation)
+                session_id = f"locomo-fr-{conv_id}"
 
-                # Ingest new conversation
-                messages = self._flatten_conversation(question_data["conversation"])
-                ingest_start = time.time()
-                cached_memory_ids, ingest_time = self.memory_client.ingest_conversation(
-                    messages=messages,
-                    session_id=session_id,
-                    domain="locomo-fr-benchmark"
+                if conv_id != last_conv_id:
+                    # Clear previous session if exists
+                    if last_conv_id is not None:
+                        prev_session_id = f"locomo-fr-{last_conv_id}"
+                        self.memory_client.clear_session(prev_session_id)
+
+                    # Ingest new conversation
+                    messages = self._flatten_conversation(question_data["conversation"])
+                    ingest_start = time.time()
+                    cached_memory_ids, ingest_time = self.memory_client.ingest_conversation(
+                        messages=messages,
+                        session_id=session_id,
+                        domain="locomo-fr-benchmark"
+                    )
+                    last_conv_id = conv_id
+
+                    # Log memory ingest
+                    if self.logger:
+                        self.logger.log_memory_call(
+                            call_type=CallType.MEMORY_INGEST,
+                            operation="ingest_conversation",
+                            duration_ms=ingest_time * 1000,
+                            num_items=len(cached_memory_ids),
+                            status="success",
+                            metadata={
+                                "question_id": q_id,
+                                "session_id": session_id,
+                                "num_messages": len(messages)
+                            }
+                        )
+                else:
+                    # Use cached conversation
+                    ingest_time = 0.0
+
+                # Step 2: Retrieve relevant memories
+                retrieve_start = time.time()
+                retrieved_results, retrieval_time = self.memory_client.retrieve_memories(
+                    query=question_data["question"],
+                    top_k=10,
+                    use_ai=True,
+                    min_similarity=0.0
                 )
-                last_conv_id = conv_id
 
-                # Log memory ingest
+                # Log retrieval to Phoenix
+                self.phoenix.log_retrieval(
+                    question_ctx,
+                    query=question_data["question"],
+                    num_results=len(retrieved_results),
+                    latency_ms=retrieval_time * 1000
+                )
+
+                # Display memory operations
+                progress.display_memory_ops(
+                    num_ingested=len(cached_memory_ids),
+                    ingest_time=ingest_time,
+                    num_retrieved=len(retrieved_results),
+                    retrieval_time=retrieval_time
+                )
+
+                # Log memory retrieval
                 if self.logger:
                     self.logger.log_memory_call(
-                        call_type=CallType.MEMORY_INGEST,
-                        operation="ingest_conversation",
-                        duration_ms=ingest_time * 1000,
-                        num_items=len(cached_memory_ids),
+                        call_type=CallType.MEMORY_RETRIEVE,
+                        operation="retrieve_memories",
+                        duration_ms=retrieval_time * 1000,
+                        num_items=len(retrieved_results),
                         status="success",
                         metadata={
                             "question_id": q_id,
-                            "session_id": session_id,
-                            "num_messages": len(messages)
+                            "query_preview": question_data["question"][:100],
+                            "top_k": 10,
+                            "use_ai": True
                         }
                     )
-            else:
-                # Use cached conversation
-                ingest_time = 0.0
 
-            # Step 2: Retrieve relevant memories
-            retrieve_start = time.time()
-            retrieved_results, retrieval_time = self.memory_client.retrieve_memories(
-                query=question_data["question"],
-                top_k=10,
-                use_ai=True,
-                min_similarity=0.0
-            )
+                # Step 3: Format retrieved context
+                retrieved_context = self.memory_client.format_retrieved_as_context(retrieved_results)
+                retrieved_tokens = len(retrieved_context.split())
 
-            # Display memory operations
-            progress.display_memory_ops(
-                num_ingested=len(cached_memory_ids),
-                ingest_time=ingest_time,
-                num_retrieved=len(retrieved_results),
-                retrieval_time=retrieval_time
-            )
-
-            # Log memory retrieval
-            if self.logger:
-                self.logger.log_memory_call(
-                    call_type=CallType.MEMORY_RETRIEVE,
-                    operation="retrieve_memories",
-                    duration_ms=retrieval_time * 1000,
-                    num_items=len(retrieved_results),
-                    status="success",
-                    metadata={
-                        "question_id": q_id,
-                        "query_preview": question_data["question"][:100],
-                        "top_k": 10,
-                        "use_ai": True
-                    }
+                # Step 4: Generate FREE-TEXT answer
+                prediction, token_metrics, llm_latency = self._generate_answer(
+                    question=question_data["question"],
+                    context=retrieved_context,
+                    category=category
                 )
 
-            # Step 3: Format retrieved context
-            retrieved_context = self.memory_client.format_retrieved_as_context(retrieved_results)
-            retrieved_tokens = len(retrieved_context.split())
+                # Log LLM call to Phoenix
+                self.phoenix.log_llm_call(
+                    question_ctx,
+                    model=DEEPSEEK_MODEL,
+                    prompt=f"Q: {question_data['question']}\nContext: {retrieved_context[:500]}...",
+                    response=prediction,
+                    input_tokens=token_metrics.input_tokens,
+                    output_tokens=token_metrics.output_tokens,
+                    latency_ms=llm_latency * 1000,
+                    cost_usd=self._calculate_cost(token_metrics)
+                )
 
-            # Step 4: Generate FREE-TEXT answer
-            prediction, token_metrics, llm_latency = self._generate_answer(
-                question=question_data["question"],
-                context=retrieved_context,
-                category=category
-            )
+                # Step 5: Evaluate with F1 score
+                ground_truth = question_data["answer"]
+                eval_result = self.evaluator.evaluate(
+                    prediction=prediction,
+                    ground_truth=ground_truth,
+                    category=category
+                )
+                f1_score = eval_result["f1_score"]
 
-            # Step 5: Evaluate with F1 score
-            ground_truth = question_data["answer"]
-            eval_result = self.evaluator.evaluate(
-                prediction=prediction,
-                ground_truth=ground_truth,
-                category=category
-            )
-            f1_score = eval_result["f1_score"]
+                # Log evals to Phoenix
+                self.phoenix.log_eval(
+                    question_ctx,
+                    name="f1_score",
+                    value=f1_score,
+                    comment=get_category_name(category)
+                )
+                self.phoenix.log_eval(
+                    question_ctx,
+                    name="accuracy",
+                    value=1.0 if f1_score >= 0.5 else 0.0
+                )
 
-            # Display result with F1 score
-            progress.display_result(
-                prediction=prediction,
-                ground_truth=ground_truth,
-                f1_score=f1_score,
-                llm_latency=llm_latency,
-                input_tokens=token_metrics.input_tokens,
-                output_tokens=token_metrics.output_tokens,
-                category=category
-            )
+                # Display result with F1 score
+                progress.display_result(
+                    prediction=prediction,
+                    ground_truth=ground_truth,
+                    f1_score=f1_score,
+                    llm_latency=llm_latency,
+                    input_tokens=token_metrics.input_tokens,
+                    output_tokens=token_metrics.output_tokens,
+                    category=category
+                )
 
-            # Step 6: Track metrics
-            baseline_tokens = 20000  # Approximate for full conversation
-            total_latency = retrieval_time + llm_latency  # End-to-end latency
+                # Step 6: Track metrics
+                baseline_tokens = 20000  # Approximate for full conversation
+                total_latency = retrieval_time + llm_latency  # End-to-end latency
 
-            # Record in metrics tracker
-            self.metrics_tracker.add_result(
-                question_id=q_id,
-                question_text=question_data["question"],
-                category=category,
-                ground_truth=ground_truth,
-                prediction=prediction,
-                f1_score=f1_score,
-                evaluation_method=eval_result["evaluation_method"],
-                latency=total_latency,  # End-to-end for backwards compatibility
-                tokens=token_metrics,
-                llm_response_time=llm_latency,
-                context_building_time=retrieval_time,
-                memory_retrieval_latency=retrieval_time,  # Key metric for ultrathink performance
-                end_to_end_latency=total_latency,  # Retrieval + LLM
-            )
+                # Record in metrics tracker
+                self.metrics_tracker.add_result(
+                    question_id=q_id,
+                    question_text=question_data["question"],
+                    category=category,
+                    ground_truth=ground_truth,
+                    prediction=prediction,
+                    f1_score=f1_score,
+                    evaluation_method=eval_result["evaluation_method"],
+                    latency=total_latency,  # End-to-end for backwards compatibility
+                    tokens=token_metrics,
+                    llm_response_time=llm_latency,
+                    context_building_time=retrieval_time,
+                    memory_retrieval_latency=retrieval_time,  # Key metric for ultrathink performance
+                    end_to_end_latency=total_latency,  # Retrieval + LLM
+                )
 
-            # Store raw result
-            result = {
-                "question_id": q_id,
-                "conversation_id": conv_id,
-                "question": question_data["question"],
-                "ground_truth": ground_truth,
-                "prediction": prediction,
-                "f1_score": f1_score,
-                "evaluation_method": eval_result["evaluation_method"],
-                "category": category,
-                "category_name": get_category_name(category),
-                "latency_total": retrieval_time + llm_latency,
-                "latency_context_building": retrieval_time,
-                "latency_llm_response": llm_latency,
-                "tokens": {
-                    "input_tokens": token_metrics.input_tokens,
-                    "output_tokens": token_metrics.output_tokens,
-                    "total_tokens": token_metrics.total_tokens
-                },
-                "retrieval_metadata": {
-                    "tokens_baseline": baseline_tokens,
-                    "tokens_retrieved": retrieved_tokens,
-                    "token_reduction_pct": (baseline_tokens - retrieved_tokens) / baseline_tokens * 100 if baseline_tokens > 0 else 0,
-                    "num_memories_retrieved": len(retrieved_results),
-                    "retrieval_latency": retrieval_time,
-                    "session_id": session_id
+                # Store raw result
+                result = {
+                    "question_id": q_id,
+                    "conversation_id": conv_id,
+                    "question": question_data["question"],
+                    "ground_truth": ground_truth,
+                    "prediction": prediction,
+                    "f1_score": f1_score,
+                    "evaluation_method": eval_result["evaluation_method"],
+                    "category": category,
+                    "category_name": get_category_name(category),
+                    "latency_total": retrieval_time + llm_latency,
+                    "latency_context_building": retrieval_time,
+                    "latency_llm_response": llm_latency,
+                    "tokens": {
+                        "input_tokens": token_metrics.input_tokens,
+                        "output_tokens": token_metrics.output_tokens,
+                        "total_tokens": token_metrics.total_tokens
+                    },
+                    "retrieval_metadata": {
+                        "tokens_baseline": baseline_tokens,
+                        "tokens_retrieved": retrieved_tokens,
+                        "token_reduction_pct": (baseline_tokens - retrieved_tokens) / baseline_tokens * 100 if baseline_tokens > 0 else 0,
+                        "num_memories_retrieved": len(retrieved_results),
+                        "retrieval_latency": retrieval_time,
+                        "session_id": session_id
+                    }
                 }
-            }
 
-            results[q_id] = result
+                results[q_id] = result
 
-            # Log question end
-            if self.logger:
-                self.logger.log_benchmark_event(
-                    CallType.QUESTION_END,
-                    f"Question {idx+1} completed",
-                    {
-                        "question_id": q_id,
-                        "f1_score": f1_score,
-                        "category": category,
-                        "tokens_used": token_metrics.total_tokens,
-                        "total_latency": retrieval_time + llm_latency
-                    }
-                )
+                # Log question end
+                if self.logger:
+                    self.logger.log_benchmark_event(
+                        CallType.QUESTION_END,
+                        f"Question {idx+1} completed",
+                        {
+                            "question_id": q_id,
+                            "f1_score": f1_score,
+                            "category": category,
+                            "tokens_used": token_metrics.total_tokens,
+                            "total_latency": retrieval_time + llm_latency
+                        }
+                    )
 
         # Cleanup final session
         if last_conv_id is not None:
@@ -657,6 +734,12 @@ def main():
         default=None,
         help="Random seed for reproducible sampling"
     )
+    parser.add_argument(
+        "--phoenix",
+        action="store_true",
+        default=False,
+        help="Enable Phoenix tracing UI (opens localhost:6006)"
+    )
 
     args = parser.parse_args()
 
@@ -668,7 +751,8 @@ def main():
         enable_logging=args.enable_logging,
         log_dir=args.log_dir,
         random_sample=args.random_sample,
-        seed=args.seed
+        seed=args.seed,
+        enable_phoenix=args.phoenix
     )
 
     experiment.run(output_path=args.output)
