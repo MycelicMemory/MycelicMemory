@@ -41,10 +41,14 @@ CREATE TABLE IF NOT EXISTS memories (
 	agent_type TEXT DEFAULT 'unknown',
 	agent_context TEXT,
 	access_scope TEXT DEFAULT 'session',
-	slug TEXT
+	slug TEXT,
+	-- Hierarchical chunking fields (Phase 1 benchmark improvement)
+	parent_memory_id TEXT REFERENCES memories(id) ON DELETE CASCADE,
+	chunk_level INTEGER DEFAULT 0,  -- 0=full, 1=paragraph, 2=atomic
+	chunk_index INTEGER DEFAULT 0   -- position within parent
 );
 
--- VERIFIED: 7 indexes on memories table
+-- VERIFIED: 9 indexes on memories table (added chunk indexes for Phase 1)
 CREATE INDEX IF NOT EXISTS idx_memories_session_id ON memories(session_id);
 CREATE INDEX IF NOT EXISTS idx_memories_domain ON memories(domain);
 CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
@@ -52,6 +56,8 @@ CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance);
 CREATE INDEX IF NOT EXISTS idx_memories_access_scope ON memories(access_scope);
 CREATE INDEX IF NOT EXISTS idx_memories_slug ON memories(slug);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_slug_unique ON memories(slug) WHERE slug IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memories_parent ON memories(parent_memory_id);
+CREATE INDEX IF NOT EXISTS idx_memories_chunk_level ON memories(chunk_level);
 
 -- =============================================================================
 -- MEMORY RELATIONSHIPS TABLE

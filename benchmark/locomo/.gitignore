@@ -1,0 +1,8 @@
+# Generated data
+dataset/
+results/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

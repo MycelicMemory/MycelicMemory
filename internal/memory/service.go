@@ -15,6 +15,7 @@ type Service struct {
 	db              *database.Database
 	config          *config.Config
 	sessionDetector *SessionDetector
+	chunker         *Chunker
 }
 
 // NewService creates a new memory service
@@ -31,10 +32,14 @@ func NewService(db *database.Database, cfg *config.Config) *Service {
 		detector.ManualID = cfg.Session.ManualID
 	}
 
+	// Initialize chunker with default config
+	chunker := NewChunker(DefaultChunkConfig())
+
 	return &Service{
 		db:              db,
 		config:          cfg,
 		sessionDetector: detector,
+		chunker:         chunker,
 	}
 }
 
@@ -61,6 +66,7 @@ type StoreResult struct {
 
 // Store creates a new memory with validation and enrichment
 // VERIFIED: Matches local-memory store_memory behavior
+// Enhanced with hierarchical chunking for better retrieval (Phase 1 benchmark improvement)
 func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 	// Validate content
 	if strings.TrimSpace(opts.Content) == "" {
@@ -121,9 +127,16 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 		// Log warning but don't fail - session tracking is optional
 	}
 
-	// Create memory
+	content := strings.TrimSpace(opts.Content)
+
+	// Check if content should be chunked
+	if s.chunker.ShouldChunk(content) {
+		return s.storeWithChunks(opts, content, importance, sessionID, agentType, agentContext, accessScope, tags)
+	}
+
+	// Store as single memory (no chunking needed)
 	memory := &database.Memory{
-		Content:      strings.TrimSpace(opts.Content),
+		Content:      content,
 		Importance:   importance,
 		Tags:         tags,
 		Domain:       opts.Domain,
@@ -133,6 +146,8 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 		AgentContext: agentContext,
 		AccessScope:  accessScope,
 		Slug:         opts.Slug,
+		ChunkLevel:   0, // Root level
+		ChunkIndex:   0,
 	}
 
 	// Store in database
@@ -142,6 +157,61 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 
 	return &StoreResult{
 		Memory:    memory,
+		IsNew:     true,
+		SessionID: sessionID,
+	}, nil
+}
+
+// storeWithChunks stores a large memory as a parent with child chunks
+func (s *Service) storeWithChunks(opts *StoreOptions, content string, importance int, sessionID, agentType, agentContext, accessScope string, tags []string) (*StoreResult, error) {
+	// Create parent memory (stores full content for backward compatibility)
+	parentMemory := &database.Memory{
+		Content:      content,
+		Importance:   importance,
+		Tags:         tags,
+		Domain:       opts.Domain,
+		Source:       opts.Source,
+		SessionID:    sessionID,
+		AgentType:    agentType,
+		AgentContext: agentContext,
+		AccessScope:  accessScope,
+		Slug:         opts.Slug,
+		ChunkLevel:   0, // Root level
+		ChunkIndex:   0,
+	}
+
+	if err := s.db.CreateMemory(parentMemory); err != nil {
+		return nil, fmt.Errorf("failed to store parent memory: %w", err)
+	}
+
+	// Generate chunks
+	chunks := s.chunker.ChunkContent(content)
+
+	// Store each chunk as a child memory
+	for _, chunk := range chunks {
+		chunkMemory := &database.Memory{
+			Content:        chunk.Content,
+			Importance:     importance, // Inherit parent importance
+			Tags:           tags,       // Inherit parent tags
+			Domain:         opts.Domain,
+			Source:         opts.Source,
+			SessionID:      sessionID,
+			AgentType:      agentType,
+			AgentContext:   agentContext,
+			AccessScope:    accessScope,
+			ParentMemoryID: parentMemory.ID,
+			ChunkLevel:     chunk.Level,
+			ChunkIndex:     chunk.Index,
+		}
+
+		if err := s.db.CreateMemory(chunkMemory); err != nil {
+			// Log warning but continue - partial chunking is better than none
+			continue
+		}
+	}
+
+	return &StoreResult{
+		Memory:    parentMemory,
 		IsNew:     true,
 		SessionID: sessionID,
 	}, nil
