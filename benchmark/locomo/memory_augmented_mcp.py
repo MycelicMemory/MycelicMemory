@@ -1,16 +1,18 @@
 """
-Memory-Augmented LoCoMo-MC10 Benchmark
+Memory-Augmented LoCoMo-MC10 Benchmark using Ultrathink MCP
 
-Runs LoCoMo-MC10 benchmark with ultrathink memory retrieval instead of full context.
+Uses ultrathink memory system via MCP interface for:
+- Storing conversation history as memories
+- Semantic retrieval for relevant context
+- Avoiding full-context overhead
 
 Flow:
 1. Load dataset
 2. For each question:
-   - Ingest conversation history as memories
-   - Retrieve relevant memories via semantic search
-   - Generate answer using retrieved context (not full context)
+   - Store conversation as memories (MCP)
+   - Retrieve relevant memories via semantic search (MCP)
+   - Generate answer using retrieved context
    - Track metrics: accuracy, tokens saved, latency
-   - Clean up memories
 3. Generate results and comparison report
 """
 
@@ -24,8 +26,8 @@ from dataclasses import dataclass
 from datetime import datetime
 import requests
 
-from ultrathink_client import UltrathinkClient, RetrievalResult
-from metrics_tracker import MetricsTracker, TokenMetrics, QuestionResult
+from metrics_tracker import MetricsTracker, TokenMetrics
+
 
 # DeepSeek API configuration
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "REDACTED_API_KEY")
@@ -33,41 +35,24 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-chat"
 
 
-@dataclass
-class RetrievalMetrics:
-    """Metrics for memory retrieval efficiency."""
-    tokens_baseline: int          # Full context baseline
-    tokens_retrieved: int         # Retrieved context
-    token_reduction_pct: float    # (baseline - retrieved) / baseline * 100
-    num_memories_retrieved: int   # Count of memories used
-    retrieval_latency: float      # Time to retrieve
-
-
-class MemoryAugmentedExperiment:
-    """Run LoCoMo-MC10 benchmark with memory-augmented retrieval."""
+class MemoryAugmentedMCPExperiment:
+    """Run LoCoMo-MC10 benchmark with memory-augmented retrieval via MCP."""
 
     def __init__(
         self,
         dataset_path: str = "data/locomo10.json",
-        max_questions: Optional[int] = None,
-        ultrathink_url: str = "http://localhost:3002/api/v1"
+        max_questions: Optional[int] = None
     ):
         """
-        Initialize memory-augmented experiment.
+        Initialize memory-augmented MCP experiment.
 
         Args:
             dataset_path: Path to LoCoMo-MC10 JSONL dataset
             max_questions: Max questions to process (None = all)
-            ultrathink_url: Ultrathink server URL
         """
         self.dataset_path = dataset_path
         self.max_questions = max_questions
         self.deepseek_api_key = DEEPSEEK_API_KEY
-        self.ultrathink_url = ultrathink_url
-
-        # Initialize clients
-        self.memory_client = UltrathinkClient(base_url=ultrathink_url)
-        self.llm_client = requests.Session()
 
         # Initialize metrics
         self.metrics_tracker = MetricsTracker()
@@ -76,7 +61,7 @@ class MemoryAugmentedExperiment:
         self.questions = self._load_dataset()
 
     def _load_dataset(self) -> List[Dict]:
-        """Load LoCoMo-MC10 dataset from JSON or JSONL file."""
+        """Load LoCoMo-MC10 dataset from JSONL file."""
         questions = []
 
         if not os.path.exists(self.dataset_path):
@@ -85,30 +70,14 @@ class MemoryAugmentedExperiment:
             self._download_dataset()
 
         with open(self.dataset_path, "r") as f:
-            content = f.read().strip()
-
-        # Try to load as JSON array first
-        if content.startswith("["):
-            try:
-                data = json.loads(content)
-                if isinstance(data, list):
-                    questions = data
-                    if self.max_questions:
-                        questions = questions[:self.max_questions]
-            except json.JSONDecodeError:
-                pass
-
-        # If not loaded as array, try JSONL format
-        if not questions:
-            with open(self.dataset_path, "r") as f:
-                for i, line in enumerate(f):
-                    if self.max_questions and i >= self.max_questions:
-                        break
-                    try:
-                        q = json.loads(line.strip())
-                        questions.append(q)
-                    except json.JSONDecodeError:
-                        continue
+            for i, line in enumerate(f):
+                if self.max_questions and i >= self.max_questions:
+                    break
+                try:
+                    q = json.loads(line.strip())
+                    questions.append(q)
+                except json.JSONDecodeError:
+                    continue
 
         print(f"✓ Loaded {len(questions)} questions")
         return questions
@@ -143,6 +112,96 @@ class MemoryAugmentedExperiment:
                         "content": content
                     })
         return messages
+
+    def _store_memories_mcp(self, messages: List[Dict], session_id: str, domain: str = "locomo-benchmark") -> int:
+        """
+        Store conversation messages as memories using MCP.
+
+        Uses Claude Code's ultrathink MCP integration.
+        """
+        num_stored = 0
+
+        for i, msg in enumerate(messages):
+            try:
+                content = msg.get("content", "").strip()
+                if not content:
+                    continue
+
+                role = msg.get("role", "user")
+
+                # Store memory using MCP
+                from mcp__ultrathink__store_memory import store_memory
+
+                memory_id = store_memory(
+                    content=content,
+                    importance=5,  # Default importance
+                    tags=[role, "conversation-turn", f"position-{i}", f"session-{session_id}"],
+                    domain=domain,
+                    source=f"locomo-{session_id}-turn-{i}"
+                )
+
+                if memory_id:
+                    num_stored += 1
+
+            except Exception as e:
+                print(f"⚠️  Failed to store message {i}: {e}")
+                continue
+
+        return num_stored
+
+    def _retrieve_memories_mcp(self, query: str, top_k: int = 10) -> Tuple[List[Dict], float]:
+        """
+        Retrieve relevant memories using MCP semantic search.
+
+        Returns: (results, retrieval_time)
+        """
+        start_time = time.time()
+
+        try:
+            from mcp__ultrathink__search import search
+
+            results = search(
+                query=query,
+                limit=top_k,
+                search_type="semantic",
+                use_ai=True,
+                response_format="concise"
+            )
+
+            elapsed = time.time() - start_time
+
+            # Format results into consistent structure
+            formatted_results = []
+            if results:
+                for item in results:
+                    formatted_results.append({
+                        "id": item.get("id", ""),
+                        "content": item.get("content", item.get("summary", "")),
+                        "relevance_score": item.get("relevance_score", item.get("similarity_score", 0.0)),
+                        "tags": item.get("tags", [])
+                    })
+
+            return formatted_results, elapsed
+
+        except Exception as e:
+            print(f"❌ Retrieval error: {e}")
+            return [], time.time() - start_time
+
+    def _format_retrieved_context(self, results: List[Dict]) -> str:
+        """Format retrieved memories into context string."""
+        if not results:
+            return ""
+
+        parts = []
+        for i, result in enumerate(results, 1):
+            score = result.get("relevance_score", 0.0)
+            content = result.get("content", "")
+            if content:
+                parts.append(f"[Memory {i}] {content}")
+                if score:
+                    parts.append(f"(Relevance: {score:.2f})")
+
+        return "\n".join(parts)
 
     def _generate_answer(
         self,
@@ -190,12 +249,12 @@ Return ONLY the choice index (0-9), nothing else."""
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0,
-            "max_tokens": 20,  # Increased from 10 to allow for formatting
+            "max_tokens": 20,
             "top_p": 1
         }
 
         try:
-            response = self.llm_client.post(
+            response = requests.post(
                 "https://api.deepseek.com/chat/completions",
                 headers=headers,
                 json=payload,
@@ -226,9 +285,9 @@ Return ONLY the choice index (0-9), nothing else."""
             print(f"❌ LLM error: {e}")
             return None, TokenMetrics(0, 0, 0, 0, 0, 0)
 
-    def run(self, output_path: str = "results/memory_augmented_results.json") -> Dict:
+    def run(self, output_path: str = "results/memory_augmented_mcp_results.json") -> Dict:
         """
-        Run memory-augmented benchmark.
+        Run memory-augmented benchmark using MCP.
 
         Args:
             output_path: Where to save results
@@ -237,13 +296,8 @@ Return ONLY the choice index (0-9), nothing else."""
             Dictionary of metrics
         """
         print("\n" + "="*70)
-        print("MEMORY-AUGMENTED LoCoMo-MC10 BENCHMARK")
+        print("MEMORY-AUGMENTED LoCoMo-MC10 BENCHMARK (MCP)")
         print("="*70)
-
-        # Verify ultrathink is running
-        if not self.memory_client.health_check():
-            print("❌ Ultrathink server not running!")
-            sys.exit(1)
 
         results = {}
         start_time = time.time()
@@ -252,31 +306,26 @@ Return ONLY the choice index (0-9), nothing else."""
             q_id = question.get("question_id", f"q_{idx}")
             print(f"\n[{idx+1}/{len(self.questions)}] {q_id}: {question['question'][:50]}...")
 
-            # Step 1: Ingest conversation as memories
+            # Step 1: Store conversation as memories via MCP
             session_id = f"locomo-{q_id}"
             messages = self._flatten_haystack_sessions(question.get("haystack_sessions", []))
 
-            ingest_start = time.time()
-            memory_ids, ingest_time = self.memory_client.ingest_conversation(
-                messages=messages,
-                session_id=session_id,
-                domain="locomo-benchmark"
-            )
-            print(f"   • Ingested {len(memory_ids)} memories in {ingest_time:.3f}s")
+            store_start = time.time()
+            num_stored = self._store_memories_mcp(messages, session_id)
+            store_time = time.time() - store_start
+            print(f"   • Stored {num_stored} memories in {store_time:.3f}s")
 
-            # Step 2: Retrieve relevant memories
+            # Step 2: Retrieve relevant memories via MCP
             retrieve_start = time.time()
-            retrieved_results, retrieval_time = self.memory_client.retrieve_memories(
+            retrieved_results, retrieval_time = self._retrieve_memories_mcp(
                 query=question["question"],
-                top_k=10,
-                use_ai=True,
-                min_similarity=0.3
+                top_k=10
             )
             print(f"   • Retrieved {len(retrieved_results)} memories in {retrieval_time:.3f}s")
 
             # Step 3: Format retrieved context
-            retrieved_context = self.memory_client.format_retrieved_as_context(retrieved_results)
-            retrieved_tokens = len(retrieved_context.split())  # Approximate token count
+            retrieved_context = self._format_retrieved_context(retrieved_results)
+            retrieved_tokens = len(retrieved_context.split())  # Approximate
 
             # Step 4: Generate answer with retrieved context
             predicted_idx, token_metrics = self._generate_answer(
@@ -290,25 +339,11 @@ Return ONLY the choice index (0-9), nothing else."""
             is_correct = predicted_idx == correct_idx
 
             print(f"   • Predicted: {predicted_idx}, Correct: {correct_idx} {'✓' if is_correct else '❌'}")
-            print(f"   • Tokens: {token_metrics.total_tokens} (retrieved context: ~{retrieved_tokens})")
+            print(f"   • Tokens: {token_metrics.total_tokens} (retrieved: ~{retrieved_tokens})")
 
             # Step 6: Track metrics
-            baseline_tokens = 16690  # Known baseline from run_experiments.py
+            baseline_tokens = 16690  # Known baseline
 
-            # Record in metrics tracker
-            self.metrics_tracker.add_result(
-                question_id=q_id,
-                question_text=question["question"],
-                question_type=question.get("question_type", "unknown"),
-                correct_choice_index=correct_idx,
-                predicted_choice_index=predicted_idx,
-                latency=token_metrics.latency_total,
-                tokens=token_metrics,
-                llm_response_time=token_metrics.latency_llm_response,
-                context_building_time=token_metrics.latency_context_building
-            )
-
-            # Also store raw result with retrieval metadata
             result = {
                 "question_id": q_id,
                 "question": question["question"],
@@ -336,16 +371,22 @@ Return ONLY the choice index (0-9), nothing else."""
 
             results[q_id] = result
 
-            # Step 7: Cleanup memories
-            cleanup_start = time.time()
-            deleted, cleanup_time = self.memory_client.clear_session(session_id)
-            cleanup_elapsed = time.time() - cleanup_start
-            # Note: deleted may be 0 if tag-based search doesn't work
+            self.metrics_tracker.add_result(
+                question_id=q_id,
+                question_text=question["question"],
+                question_type=question.get("question_type", "unknown"),
+                correct_choice_index=correct_idx,
+                predicted_choice_index=predicted_idx,
+                latency=token_metrics.latency_total,
+                tokens=token_metrics,
+                llm_response_time=token_metrics.latency_llm_response,
+                context_building_time=token_metrics.latency_context_building
+            )
 
         # Generate summary
         total_time = time.time() - start_time
         summary = {
-            "benchmark": "locomo-mc10-memory-augmented",
+            "benchmark": "locomo-mc10-memory-augmented-mcp",
             "timestamp": datetime.now().isoformat(),
             "total_questions": len(self.questions),
             "total_time_seconds": total_time,
@@ -367,7 +408,7 @@ Return ONLY the choice index (0-9), nothing else."""
     def _print_summary(self) -> None:
         """Print metrics summary."""
         print("\n" + "="*70)
-        print("MEMORY-AUGMENTED BENCHMARK SUMMARY")
+        print("MEMORY-AUGMENTED (MCP) BENCHMARK SUMMARY")
         print("="*70)
 
         metrics = self.metrics_tracker.get_overall_metrics()
@@ -405,7 +446,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Run LoCoMo-MC10 benchmark with memory-augmented retrieval"
+        description="Run LoCoMo-MC10 benchmark with memory-augmented retrieval via MCP"
     )
     parser.add_argument(
         "--dataset",
@@ -422,23 +463,16 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="results/memory_augmented_results.json",
+        default="results/memory_augmented_mcp_results.json",
         help="Output file for results"
-    )
-    parser.add_argument(
-        "--ultrathink-url",
-        type=str,
-        default="http://localhost:3002/api/v1",
-        help="Ultrathink server URL"
     )
 
     args = parser.parse_args()
 
     # Create and run experiment
-    experiment = MemoryAugmentedExperiment(
+    experiment = MemoryAugmentedMCPExperiment(
         dataset_path=args.dataset,
-        max_questions=args.max_questions,
-        ultrathink_url=args.ultrathink_url
+        max_questions=args.max_questions
     )
 
     experiment.run(output_path=args.output)
