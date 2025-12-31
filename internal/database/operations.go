@@ -368,14 +368,43 @@ func (d *Database) SearchFTS(query string, filters *SearchFilters) ([]*SearchRes
 	return results, nil
 }
 
-// escapeFTS5Query escapes special FTS5 characters
+// escapeFTS5Query escapes special FTS5 characters and converts multi-word
+// queries to use OR operator for better recall in semantic retrieval.
+// FTS5's default behavior treats space-separated words as implicit AND,
+// which returns 0 results when no single document contains all words.
+// Using OR allows matching any keyword with BM25 ranking preferring
+// documents that match more keywords.
 func escapeFTS5Query(query string) string {
-	// FTS5 uses double quotes for phrase matching
-	// Escape special characters
-	replacer := strings.NewReplacer(
-		"\"", "\"\"",
-	)
-	return replacer.Replace(query)
+	// Escape double quotes first
+	query = strings.ReplaceAll(query, "\"", "\"\"")
+
+	// Check if query already contains FTS5 operators (don't modify)
+	upperQuery := strings.ToUpper(query)
+	if strings.Contains(upperQuery, " OR ") ||
+		strings.Contains(upperQuery, " AND ") ||
+		strings.Contains(upperQuery, " NOT ") ||
+		strings.Contains(upperQuery, " NEAR") {
+		return query
+	}
+
+	// Split into words and join with OR for better recall
+	words := strings.Fields(query)
+	if len(words) > 1 {
+		// Filter out very short words that may cause noise
+		var validWords []string
+		for _, w := range words {
+			if len(w) >= 2 { // Keep words with 2+ characters
+				validWords = append(validWords, w)
+			}
+		}
+		if len(validWords) > 1 {
+			return strings.Join(validWords, " OR ")
+		}
+		if len(validWords) == 1 {
+			return validWords[0]
+		}
+	}
+	return query
 }
 
 // CreateRelationship creates a relationship between two memories
