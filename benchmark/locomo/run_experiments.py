@@ -108,6 +108,25 @@ def build_context_from_sessions(question_data: Dict, use_summaries: bool = False
         return "\n".join(context_parts)
 
 
+def format_choices(choices: List[str]) -> str:
+    """Format answer choices as numbered list for the prompt."""
+    formatted = []
+    for i, choice in enumerate(choices):
+        formatted.append(f"{i}. {choice}")
+    return "\n".join(formatted)
+
+
+def extract_choice_index(response: str) -> Optional[int]:
+    """Extract choice index (0-9) from LLM response."""
+    response = response.strip()
+    # Try to find a number 0-9 in the response
+    import re
+    match = re.search(r'\b([0-9])\b', response)
+    if match:
+        return int(match.group(1))
+    return None
+
+
 class UltrathinkExperiment:
     """Run LoCoMo benchmark experiments using ultrathink memory system."""
 
@@ -129,17 +148,21 @@ class UltrathinkExperiment:
         # Load dataset
         self.questions = load_dataset(dataset_path, max_questions)
 
-    def generate_answer(self, question: str, context: str) -> str:
-        """Generate an answer using DeepSeek with the provided context."""
+    def generate_answer(self, question: str, context: str, choices: List[str]) -> Optional[int]:
+        """Generate answer choice using DeepSeek with the provided context."""
+        choices_str = format_choices(choices)
+
         if self.use_summaries:
             prompt = ANSWER_PROMPT_SUMMARY.format(
                 summaries=context,
-                question=question
+                question=question,
+                choices=choices_str
             )
         else:
             prompt = ANSWER_PROMPT_ULTRATHINK.format(
                 memories=context,
-                question=question
+                question=question,
+                choices=choices_str
             )
 
         try:
@@ -147,12 +170,14 @@ class UltrathinkExperiment:
                 model=DEEPSEEK_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
-                max_tokens=100,
+                max_tokens=10,
             )
-            return response.choices[0].message.content.strip()
+            response_text = response.choices[0].message.content.strip()
+            choice_index = extract_choice_index(response_text)
+            return choice_index
         except Exception as e:
             print(f"Error generating answer: {e}")
-            return ""
+            return None
 
     def run(self, output_path: str = "results/ultrathink_results.json"):
         """Run the benchmark experiment."""
@@ -168,20 +193,26 @@ class UltrathinkExperiment:
             question_type = q.get("question_type", "unknown")
             category = CATEGORY_MAP.get(question_type, "0")
 
+            # Parse MC fields
+            choices = q.get("choices", [])
+            correct_choice_index = q.get("correct_choice_index", -1)
+
             # Build context from session data
             context = build_context_from_sessions(q, self.use_summaries)
 
-            # Generate answer
+            # Generate answer (returns choice index 0-9)
             start_time = time.time()
-            generated_answer = self.generate_answer(question_text, context)
+            predicted_choice_index = self.generate_answer(question_text, context, choices)
             elapsed = time.time() - start_time
             total_time += elapsed
 
-            # Store result
+            # Store result with both predicted and correct indices
             results[question_id].append({
                 "question": question_text,
-                "answer": gold_answer,
-                "response": generated_answer,
+                "gold_answer": gold_answer,
+                "choices": choices,
+                "correct_choice_index": correct_choice_index,
+                "predicted_choice_index": predicted_choice_index,
                 "category": category,
                 "question_type": question_type,
                 "latency": elapsed,

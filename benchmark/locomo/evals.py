@@ -1,60 +1,88 @@
 """
-Main evaluation script for LoCoMo benchmark.
-Adapted from mem0ai/mem0 evaluation code.
+Evaluation script for LoCoMo-MC10 benchmark.
+Evaluates multiple-choice predictions using simple accuracy metrics.
 """
 
 import argparse
-import concurrent.futures
 import json
-import threading
 from collections import defaultdict
-
-from metrics.llm_judge import evaluate_llm_judge
-from metrics.utils import calculate_bleu_scores, calculate_metrics
-from tqdm import tqdm
+from typing import Dict, List, Tuple
 
 
-def process_item(item_data):
-    """Process a single conversation's questions and evaluate responses."""
-    k, v = item_data
-    local_results = defaultdict(list)
+def evaluate_mc_results(results: Dict) -> Dict:
+    """
+    Evaluate multiple-choice results by comparing predicted vs correct choice indices.
 
-    for item in v:
-        gt_answer = str(item["answer"])
-        pred_answer = str(item["response"])
-        category = str(item["category"])
-        question = str(item["question"])
+    Args:
+        results: Dictionary of question results from run_experiments.py
 
-        # Skip category 5 (adversarial - optional)
-        if category == "5":
-            continue
+    Returns:
+        Dictionary containing accuracy metrics overall and per question type
+    """
+    metrics = {
+        "overall": {
+            "total": 0,
+            "correct": 0,
+            "accuracy": 0.0,
+            "by_type": {}
+        }
+    }
 
-        metrics = calculate_metrics(pred_answer, gt_answer)
-        bleu_scores = calculate_bleu_scores(pred_answer, gt_answer)
-        llm_score = evaluate_llm_judge(question, gt_answer, pred_answer)
+    type_metrics = defaultdict(lambda: {"total": 0, "correct": 0})
 
-        local_results[k].append(
-            {
-                "question": question,
-                "answer": gt_answer,
-                "response": pred_answer,
-                "category": category,
-                "bleu_score": bleu_scores["bleu1"],
-                "f1_score": metrics["f1"],
-                "llm_score": llm_score,
-            }
+    # Process all results
+    total_questions = 0
+    total_correct = 0
+
+    for question_id, items in results.items():
+        for item in items:
+            predicted_index = item.get("predicted_choice_index")
+            correct_index = item.get("correct_choice_index")
+            question_type = item.get("question_type", "unknown")
+
+            # Handle missing predictions (None returned from LLM)
+            if predicted_index is None:
+                predicted_index = -1
+
+            total_questions += 1
+            type_metrics[question_type]["total"] += 1
+
+            # Check if prediction matches ground truth
+            if predicted_index == correct_index:
+                total_correct += 1
+                type_metrics[question_type]["correct"] += 1
+
+    # Calculate overall accuracy
+    metrics["overall"]["total"] = total_questions
+    metrics["overall"]["correct"] = total_correct
+    metrics["overall"]["accuracy"] = (
+        (total_correct / total_questions * 100) if total_questions > 0 else 0.0
+    )
+
+    # Calculate per-type accuracy
+    for question_type, counts in sorted(type_metrics.items()):
+        accuracy = (
+            (counts["correct"] / counts["total"] * 100)
+            if counts["total"] > 0 else 0.0
         )
+        metrics["overall"]["by_type"][question_type] = {
+            "total": counts["total"],
+            "correct": counts["correct"],
+            "accuracy": accuracy
+        }
 
-    return local_results
+    return metrics
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate LoCoMo benchmark results")
+    parser = argparse.ArgumentParser(
+        description="Evaluate LoCoMo-MC10 benchmark results"
+    )
     parser.add_argument(
         "--input_file",
         type=str,
         default="results/ultrathink_results.json",
-        help="Path to the input results file"
+        help="Path to the input results file from run_experiments.py"
     )
     parser.add_argument(
         "--output_file",
@@ -62,79 +90,53 @@ def main():
         default="results/evaluation_metrics.json",
         help="Path to save the evaluation results"
     )
-    parser.add_argument(
-        "--max_workers",
-        type=int,
-        default=10,
-        help="Maximum number of worker threads"
-    )
 
     args = parser.parse_args()
 
+    # Load results
     with open(args.input_file, "r") as f:
         data = json.load(f)
 
-    results = defaultdict(list)
-    results_lock = threading.Lock()
+    # Evaluate
+    metrics = evaluate_mc_results(data)
 
-    # Use ThreadPoolExecutor with specified workers
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.max_workers) as executor:
-        futures = [executor.submit(process_item, item_data) for item_data in data.items()]
-
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
-            local_results = future.result()
-            with results_lock:
-                for k, items in local_results.items():
-                    results[k].extend(items)
-
-    # Save results to JSON file
+    # Save metrics
     with open(args.output_file, "w") as f:
-        json.dump(results, f, indent=4)
+        json.dump(metrics, f, indent=2)
 
-    print(f"Results saved to {args.output_file}")
+    print(f"Evaluation metrics saved to {args.output_file}")
 
     # Print summary
-    all_llm_scores = []
-    all_f1_scores = []
-    all_bleu_scores = []
-    by_category = defaultdict(lambda: {"llm": [], "f1": [], "bleu": []})
-
-    for k, items in results.items():
-        for item in items:
-            all_llm_scores.append(item["llm_score"])
-            all_f1_scores.append(item["f1_score"])
-            all_bleu_scores.append(item["bleu_score"])
-            cat = item["category"]
-            by_category[cat]["llm"].append(item["llm_score"])
-            by_category[cat]["f1"].append(item["f1_score"])
-            by_category[cat]["bleu"].append(item["bleu_score"])
-
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 60)
     print("OVERALL RESULTS")
-    print("=" * 50)
-    if all_llm_scores:
-        print(f"LLM Judge Accuracy: {sum(all_llm_scores) / len(all_llm_scores) * 100:.2f}%")
-        print(f"F1 Score: {sum(all_f1_scores) / len(all_f1_scores):.4f}")
-        print(f"BLEU-1 Score: {sum(all_bleu_scores) / len(all_bleu_scores):.4f}")
+    print("=" * 60)
+    overall = metrics["overall"]
+    print(f"Total Questions: {overall['total']}")
+    print(f"Correct Predictions: {overall['correct']}")
+    print(f"Accuracy: {overall['accuracy']:.2f}%")
 
-    print("\n" + "=" * 50)
-    print("RESULTS BY CATEGORY")
-    print("=" * 50)
-    category_names = {
-        "1": "Single-Hop",
-        "2": "Multi-Hop",
-        "3": "Temporal",
-        "4": "Open-Domain",
-        "5": "Adversarial"
+    print("\n" + "=" * 60)
+    print("RESULTS BY QUESTION TYPE")
+    print("=" * 60)
+
+    type_names = {
+        "single_hop": "Single-Hop",
+        "multi_hop": "Multi-Hop",
+        "temporal_reasoning": "Temporal",
+        "open_domain": "Open-Domain",
+        "adversarial": "Adversarial"
     }
-    for cat in sorted(by_category.keys()):
-        cat_name = category_names.get(cat, f"Category {cat}")
-        llm_scores = by_category[cat]["llm"]
-        f1_scores = by_category[cat]["f1"]
-        if llm_scores:
-            print(f"\n{cat_name}:")
-            print(f"  LLM Judge: {sum(llm_scores) / len(llm_scores) * 100:.2f}% ({sum(llm_scores)}/{len(llm_scores)})")
-            print(f"  F1 Score: {sum(f1_scores) / len(f1_scores):.4f}")
+
+    if overall["by_type"]:
+        for qtype in sorted(overall["by_type"].keys()):
+            type_name = type_names.get(qtype, qtype)
+            type_data = overall["by_type"][qtype]
+            print(
+                f"\n{type_name}:"
+                f"\n  Total: {type_data['total']}"
+                f"\n  Correct: {type_data['correct']}"
+                f"\n  Accuracy: {type_data['accuracy']:.2f}%"
+            )
 
 
 if __name__ == "__main__":
