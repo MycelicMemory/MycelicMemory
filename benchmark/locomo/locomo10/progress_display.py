@@ -193,6 +193,8 @@ class FRProgressDisplay(DisplayBase):
 
         chart_emoji = "\U0001f4ca"
         target_emoji = "\U0001f3af"
+        timer_emoji = "\u23f1\ufe0f"
+        brain_emoji = "\U0001f9e0"
         single_line = "\u2500" * 40
 
         print(f"\n{self._color(chart_emoji + ' OVERALL F1 SCORE', Colors.BOLD)}")
@@ -202,8 +204,60 @@ class FRProgressDisplay(DisplayBase):
         print(f"   Median F1: {median_f1:.3f}")
         print(f"   Questions: {total}")
 
-        # --- F1 BY CATEGORY ---
-        print(f"\n{self._color(target_emoji + ' F1 BY QUESTION CATEGORY', Colors.BOLD)}")
+        # --- ACCURACY BY CATEGORY (excluding adversarial) ---
+        accuracy_by_cat = metrics.get('accuracy_by_category', {})
+        if accuracy_by_cat:
+            print(f"\n{self._color(target_emoji + ' ACCURACY BY CATEGORY (excl. adversarial)', Colors.BOLD)}")
+            print(self._color(single_line, Colors.DIM))
+
+            # Display overall accuracy first
+            overall_acc = accuracy_by_cat.get('overall_excluding_adversarial', {})
+            if overall_acc:
+                acc_pct = overall_acc.get('accuracy_pct', 0)
+                correct = overall_acc.get('correct', 0)
+                total_q = overall_acc.get('total', 0)
+                acc_color = Colors.HIGH if acc_pct >= 70 else Colors.MID if acc_pct >= 40 else Colors.LOW
+                print(f"   Overall:   {self._color(f'{acc_pct:.1f}%', acc_color)} ({correct}/{total_q} correct)")
+
+            # Display per-category accuracy
+            category_order = [1, 2, 3, 4]  # Single-hop, Temporal, Inferential, Open-domain (no adversarial)
+            for cat_id in category_order:
+                cat_name = CATEGORY_NAMES.get(cat_id, "unknown").lower().replace("-", "_")
+                if cat_name in accuracy_by_cat:
+                    cat_acc = accuracy_by_cat[cat_name]
+                    cat_display = self._format_category(cat_id)
+                    acc_pct = cat_acc.get('accuracy_pct', 0)
+                    correct = cat_acc.get('correct', 0)
+                    total_q = cat_acc.get('total', 0)
+                    acc_color = Colors.HIGH if acc_pct >= 70 else Colors.MID if acc_pct >= 40 else Colors.LOW
+                    print(f"   {cat_display}: {self._color(f'{acc_pct:.1f}%', acc_color)} ({correct}/{total_q})")
+
+        # --- LATENCY METRICS ---
+        mem_latency = metrics.get('memory_retrieval_latency', {})
+        e2e_latency = metrics.get('end_to_end_latency', {})
+
+        if mem_latency or e2e_latency:
+            print(f"\n{self._color(timer_emoji + '  LATENCY METRICS', Colors.BOLD)}")
+            print(self._color(single_line, Colors.DIM))
+
+            if mem_latency:
+                p50_ms = mem_latency.get('p50_seconds', 0) * 1000
+                p95_ms = mem_latency.get('p95_seconds', 0) * 1000
+                # Compare with Nebula benchmark (~125ms)
+                p50_color = Colors.HIGH if p50_ms < 125 else Colors.MID if p50_ms < 250 else Colors.LOW
+                p95_color = Colors.HIGH if p95_ms < 125 else Colors.MID if p95_ms < 250 else Colors.LOW
+                print(f"   Memory Retrieval:")
+                print(f"      P50: {self._color(f'{p50_ms:.1f}ms', p50_color)}  P95: {self._color(f'{p95_ms:.1f}ms', p95_color)}")
+                print(f"      (Nebula benchmark: ~125ms)")
+
+            if e2e_latency:
+                p50_s = e2e_latency.get('p50_seconds', 0)
+                p95_s = e2e_latency.get('p95_seconds', 0)
+                print(f"   End-to-End (retrieval + LLM):")
+                print(f"      P50: {p50_s:.3f}s  P95: {p95_s:.3f}s")
+
+        # --- F1 BY CATEGORY (for reference) ---
+        print(f"\n{self._color(brain_emoji + ' F1 BY QUESTION CATEGORY', Colors.BOLD)}")
         print(self._color(single_line, Colors.DIM))
 
         category_order = [1, 2, 3, 4, 5]  # Single-hop, Temporal, Inferential, Open-domain, Adversarial
@@ -228,7 +282,6 @@ class FRProgressDisplay(DisplayBase):
                 print(f"   {cat_display}: {self._color(f'{cat_f1:.3f}', f1_color)} F1 ({cat_total} questions)")
 
         # Use shared display methods for common sections
-        self.display_latency_stats(metrics.get('latency', {}))
         self.display_token_stats(metrics.get('tokens', {}))
         self.display_cost_stats(metrics.get('cost_estimation', {}))
         self.display_duration(duration_secs)

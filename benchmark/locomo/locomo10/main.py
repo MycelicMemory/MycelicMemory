@@ -488,6 +488,7 @@ Provide a concise, direct answer. Do not explain your reasoning."""
 
             # Step 6: Track metrics
             baseline_tokens = 20000  # Approximate for full conversation
+            total_latency = retrieval_time + llm_latency  # End-to-end latency
 
             # Record in metrics tracker
             self.metrics_tracker.add_result(
@@ -498,10 +499,12 @@ Provide a concise, direct answer. Do not explain your reasoning."""
                 prediction=prediction,
                 f1_score=f1_score,
                 evaluation_method=eval_result["evaluation_method"],
-                latency=llm_latency,
+                latency=total_latency,  # End-to-end for backwards compatibility
                 tokens=token_metrics,
                 llm_response_time=llm_latency,
-                context_building_time=retrieval_time
+                context_building_time=retrieval_time,
+                memory_retrieval_latency=retrieval_time,  # Key metric for ultrathink performance
+                end_to_end_latency=total_latency,  # Retrieval + LLM
             )
 
             # Store raw result
