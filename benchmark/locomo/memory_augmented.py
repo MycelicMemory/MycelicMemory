@@ -29,6 +29,7 @@ from metrics_tracker import MetricsTracker, TokenMetrics, QuestionResult
 from logging_system import BenchmarkLogger, CallType, init_logger, get_logger
 from llm_call_tracker import LLMCallTracker
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from progress_display import ProgressDisplay
 
 
 @dataclass
@@ -66,11 +67,6 @@ class MemoryAugmentedExperiment:
         self.max_questions = max_questions
         self.deepseek_api_key = DEEPSEEK_API_KEY
         self.ultrathink_url = ultrathink_url
-
-        # Debug: verify API key is loaded correctly
-        key_len = len(self.deepseek_api_key) if self.deepseek_api_key else 0
-        key_prefix = self.deepseek_api_key[:3] if key_len >= 3 else "N/A"
-        print(f"[DEBUG] API key loaded: {key_len} chars, prefix: {key_prefix}...")
 
         # Initialize logging
         self.enable_logging = enable_logging
@@ -244,9 +240,12 @@ Return ONLY the choice index (0-9), nothing else."""
         Returns:
             Dictionary of metrics
         """
-        print("\n" + "="*70)
-        print("MEMORY-AUGMENTED LoCoMo-MC10 BENCHMARK")
-        print("="*70)
+        # Initialize progress display for live logging
+        progress = ProgressDisplay(total_questions=len(self.questions))
+        progress.display_header(
+            dataset_path=self.dataset_path,
+            ultrathink_url=self.ultrathink_url
+        )
 
         # Log benchmark start
         if self.logger:
@@ -277,7 +276,15 @@ Return ONLY the choice index (0-9), nothing else."""
 
         for idx, question in enumerate(self.questions):
             q_id = question.get("question_id", f"q_{idx}")
-            print(f"\n[{idx+1}/{len(self.questions)}] {q_id}: {question['question'][:50]}...")
+            q_type = question.get("question_type", "unknown")
+
+            # Display question start with type prominently
+            progress.display_question_start(
+                idx=idx,
+                question_id=q_id,
+                question_type=q_type,
+                question_text=question['question']
+            )
 
             # Step 1: Log question start
             if self.logger:
@@ -301,7 +308,6 @@ Return ONLY the choice index (0-9), nothing else."""
                 session_id=session_id,
                 domain="locomo-benchmark"
             )
-            print(f"   • Ingested {len(memory_ids)} memories in {ingest_time:.3f}s")
 
             # Log memory ingest
             if self.logger:
@@ -326,7 +332,14 @@ Return ONLY the choice index (0-9), nothing else."""
                 use_ai=True,  # Use semantic search with Ollama embeddings
                 min_similarity=0.0
             )
-            print(f"   • Retrieved {len(retrieved_results)} memories in {retrieval_time:.3f}s")
+
+            # Display memory operations
+            progress.display_memory_ops(
+                num_ingested=len(memory_ids),
+                ingest_time=ingest_time,
+                num_retrieved=len(retrieved_results),
+                retrieval_time=retrieval_time
+            )
 
             # Log memory retrieval
             if self.logger:
@@ -359,8 +372,16 @@ Return ONLY the choice index (0-9), nothing else."""
             correct_idx = question.get("correct_choice_index")
             is_correct = predicted_idx == correct_idx
 
-            print(f"   • Predicted: {predicted_idx}, Correct: {correct_idx} {'✓' if is_correct else '❌'}")
-            print(f"   • Tokens: {token_metrics.total_tokens} (retrieved context: ~{retrieved_tokens})")
+            # Display result with running totals
+            progress.display_result(
+                predicted_idx=predicted_idx,
+                correct_idx=correct_idx,
+                is_correct=is_correct,
+                llm_latency=llm_latency,
+                input_tokens=token_metrics.input_tokens,
+                output_tokens=token_metrics.output_tokens,
+                question_type=q_type
+            )
 
             # Step 6: Track metrics
             baseline_tokens = 16690  # Known baseline from run_experiments.py
@@ -476,8 +497,14 @@ Return ONLY the choice index (0-9), nothing else."""
             report_path = self.logger.save_report()
             print(f"\n✓ Detailed logs saved to {report_path}")
 
-        # Print metrics
-        self._print_summary()
+        # Display comprehensive final summary with all metrics
+        overall_metrics = self.metrics_tracker.get_overall_metrics()
+        per_type_metrics = self.metrics_tracker.get_per_type_metrics()
+        progress.display_final_summary(
+            metrics=overall_metrics,
+            per_type_metrics=per_type_metrics,
+            duration_secs=total_time
+        )
 
         return summary
 
