@@ -40,8 +40,9 @@ const (
 
 // ServerInfo represents MCP server information
 type ServerInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
 }
 
 // ServerCapabilities represents MCP server capabilities
@@ -52,12 +53,12 @@ type ServerCapabilities struct {
 
 // ToolsCapability represents tools capability
 type ToolsCapability struct {
-	ListChanged bool `json:"listChanged,omitempty"`
+	ListChanged bool `json:"listChanged"`
 }
 
 // PromptsCapability represents prompts capability
 type PromptsCapability struct {
-	ListChanged bool `json:"listChanged,omitempty"`
+	ListChanged bool `json:"listChanged"`
 }
 
 // InitializeResult is the response to initialize request

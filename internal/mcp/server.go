@@ -161,13 +161,15 @@ func (s *Server) handleInitialize(req Request) *Response {
 				Tools: &ToolsCapability{
 					ListChanged: false,
 				},
-				Prompts: &PromptsCapability{
-					ListChanged: false,
-				},
+				// Prompts disabled for now to match local-memory compatibility
+				// Prompts: &PromptsCapability{
+				// 	ListChanged: false,
+				// },
 			},
 			ServerInfo: ServerInfo{
-				Name:    ServerName,
-				Version: ServerVersion,
+				Name:        ServerName,
+				Version:     ServerVersion,
+				Description: "AI-powered persistent memory system with semantic search and relationship mapping",
 			},
 		},
 	}
