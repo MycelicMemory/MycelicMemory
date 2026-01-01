@@ -39,7 +39,7 @@ Ultrathink gives Claude persistent memory across conversations. Store knowledge,
 
 ```bash
 # Via npm (easiest - pre-built binaries)
-npm install -g ultrathink
+npm install -g github:MycelicMemory/ultrathink
 
 # Or build from source (requires Go 1.23+ and C compiler)
 git clone https://github.com/MycelicMemory/ultrathink.git

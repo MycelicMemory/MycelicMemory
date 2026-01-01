@@ -74,7 +74,7 @@ function main() {
       console.error(`Error executing ultrathink: ${error.message}`);
       console.error('');
       console.error('Troubleshooting steps:');
-      console.error('1. Try reinstalling: npm uninstall -g ultrathink && npm install -g ultrathink');
+      console.error('1. Try reinstalling: npm uninstall -g ultrathink && npm install -g github:MycelicMemory/ultrathink');
       console.error('2. Check that the binary was downloaded correctly');
       console.error('3. On macOS, you may need to allow the binary in System Preferences > Security');
       process.exit(1);
@@ -95,7 +95,7 @@ function main() {
     console.error('The ultrathink binary was not found. This usually means the');
     console.error('post-install script failed to download it.');
     console.error('');
-    console.error('Try reinstalling: npm uninstall -g ultrathink && npm install -g ultrathink');
+    console.error('Try reinstalling: npm uninstall -g ultrathink && npm install -g github:MycelicMemory/ultrathink');
     process.exit(1);
   }
 }

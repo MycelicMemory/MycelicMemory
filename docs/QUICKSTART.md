@@ -23,7 +23,7 @@ If you have Node.js 16+ installed, this is the fastest way to get started.
 ### Step 1: Install via npm
 
 ```bash
-npm install -g ultrathink
+npm install -g github:MycelicMemory/ultrathink
 ```
 
 This downloads a pre-built binary for your platform. No compilation needed.
