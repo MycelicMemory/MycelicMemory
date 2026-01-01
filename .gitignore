@@ -53,6 +53,7 @@ temp/
 
 # npm package binaries
 npm/bin/
+bin/ultrathink-*
 
 # OS specific
 Thumbs.db
