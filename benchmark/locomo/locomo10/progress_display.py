@@ -10,28 +10,28 @@ from collections import defaultdict
 from shared.display_base import Colors, DisplayBase
 
 
-# Category mappings (1-5)
+# Category mappings (1-5) - Corrected to match LoCoMo paper/code
 CATEGORY_COLORS = {
-    1: Colors.BLUE,       # Single-hop
-    2: Colors.YELLOW,     # Temporal
-    3: Colors.MAGENTA,    # Inferential
+    1: Colors.MAGENTA,    # Multi-hop (was: Blue/Single-hop)
+    2: Colors.BLUE,       # Single-hop (was: Yellow/Temporal)
+    3: Colors.YELLOW,     # Temporal (was: Magenta/Inferential)
     4: Colors.CYAN,       # Open-domain
     5: Colors.RED,        # Adversarial
 }
 
 CATEGORY_EMOJI = {
-    1: "\U0001f4cd",      # Pin (Single-hop)
-    2: "\u23f0",          # Clock (Temporal)
-    3: "\U0001f9e0",      # Brain (Inferential)
+    1: "\U0001f517",      # Link (Multi-hop - connecting info)
+    2: "\U0001f4cd",      # Pin (Single-hop - single fact)
+    3: "\u23f0",          # Clock (Temporal - date/time)
     4: "\U0001f310",      # Globe (Open-domain)
     5: "\u2694\ufe0f",    # Swords (Adversarial)
 }
 
 CATEGORY_NAMES = {
-    1: "Single-hop",
-    2: "Temporal",
-    3: "Inferential",
-    4: "Open-domain",
+    1: "Multi-Hop",       # Was: Single-hop
+    2: "Single-Hop",      # Was: Temporal
+    3: "Temporal",        # Was: Inferential
+    4: "Open-Domain",
     5: "Adversarial",
 }
 
@@ -220,7 +220,7 @@ class FRProgressDisplay(DisplayBase):
                 print(f"   Overall:   {self._color(f'{acc_pct:.1f}%', acc_color)} ({correct}/{total_q} correct)")
 
             # Display per-category accuracy
-            category_order = [1, 2, 3, 4]  # Single-hop, Temporal, Inferential, Open-domain (no adversarial)
+            category_order = [1, 2, 3, 4]  # Multi-hop, Single-hop, Temporal, Open-domain (no adversarial)
             for cat_id in category_order:
                 cat_name = CATEGORY_NAMES.get(cat_id, "unknown").lower().replace("-", "_")
                 if cat_name in accuracy_by_cat:
@@ -260,7 +260,7 @@ class FRProgressDisplay(DisplayBase):
         print(f"\n{self._color(brain_emoji + ' F1 BY QUESTION CATEGORY', Colors.BOLD)}")
         print(self._color(single_line, Colors.DIM))
 
-        category_order = [1, 2, 3, 4, 5]  # Single-hop, Temporal, Inferential, Open-domain, Adversarial
+        category_order = [1, 2, 3, 4, 5]  # Multi-hop, Single-hop, Temporal, Open-domain, Adversarial
         for cat_id in category_order:
             cat_name = CATEGORY_NAMES.get(cat_id, "unknown").lower().replace("-", "_")
             if cat_name in per_category_metrics:

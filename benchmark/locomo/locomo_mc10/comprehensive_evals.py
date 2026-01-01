@@ -115,15 +115,16 @@ def print_metrics_summary(tracker: MetricsTracker) -> None:
     print(f"Total Cost: ${cost['total_cost_usd']:.6f}")
     print(f"Cost per Question: ${cost['cost_per_question_usd']:.6f}")
 
-    # Per-type breakdown
+    # Per-type breakdown (category names match LoCoMo benchmark)
     print("\n🎯 ACCURACY BY QUESTION TYPE")
     print("-" * 70)
     type_names = {
-        "single_hop": "Single-Hop (Direct Recall)",
-        "multi_hop": "Multi-Hop (Multi-step Reasoning)",
-        "temporal_reasoning": "Temporal (Date/Time Understanding)",
-        "open_domain": "Open-Domain (General Knowledge)",
-        "adversarial": "Adversarial (Robustness)",
+        "multi_hop": "Multi-Hop (Category 1 - Aggregates multiple evidence pieces)",
+        "single_hop": "Single-Hop (Category 2 - Direct fact recall)",
+        "temporal": "Temporal (Category 3 - Date/Time reasoning)",
+        "temporal_reasoning": "Temporal (Category 3 - Date/Time reasoning)",  # Alias
+        "open_domain": "Open-Domain (Category 4 - Conversational context)",
+        "adversarial": "Adversarial (Category 5 - Robustness testing)",
     }
 
     for qtype in sorted(per_type_metrics.keys()):

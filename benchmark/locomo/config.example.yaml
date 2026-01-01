@@ -1,0 +1,43 @@
+# LoCoMo Benchmark Configuration
+# All tunable parameters for benchmark runs
+
+# LLM Settings
+llm:
+  model: "deepseek-chat"
+  temperature: 0.0
+  max_tokens: 100
+
+# Memory Retrieval Settings
+retrieval:
+  top_k: 10
+  min_similarity: 0.0
+  use_ai: true
+
+# Baseline Token Counts
+# These represent the approximate tokens for full conversations
+# Used to calculate token reduction percentages
+baselines:
+  # Free-response benchmark (locomo10)
+  # Full conversation ~20K tokens on average
+  fr_tokens: 20000
+
+  # Multiple-choice benchmark (locomo_mc10)
+  # From historical run_experiments.py measurements
+  mc_tokens: 16690
+
+# Cost Estimation (DeepSeek pricing per 1M tokens)
+pricing:
+  input_price_per_mtok: 0.014
+  output_price_per_mtok: 0.056
+
+# Server Settings
+server:
+  default_url: "http://localhost:3099/api/v1"
+  health_check_timeout: 5
+  request_timeout: 30
+
+# Output Settings
+output:
+  results_dir: "results"
+  logs_dir: "logs"
+  use_colors: true

@@ -237,20 +237,32 @@ func GenerateImprovementSuggestions(results *RunResults) []string {
 
 	for _, cat := range weakCategories {
 		if cat.LLMJudgeAccuracy < 50 {
+			// Match category names from LoCoMo benchmark (case-insensitive check)
 			switch cat.Category {
-			case "Multi-Hop":
+			case "multi_hop", "Multi-Hop":
 				suggestions = append(suggestions,
 					"Multi-hop questions performing poorly - consider improving memory relationship discovery",
 					"Try increasing top-k retrieval for multi-hop questions",
-					"Consider adding chain-of-thought prompting for complex reasoning")
-			case "Temporal":
+					"Consider adding chain-of-thought prompting for complex reasoning",
+					"Multi-hop requires aggregating info across multiple evidence pieces")
+			case "temporal", "Temporal":
 				suggestions = append(suggestions,
 					"Temporal reasoning needs improvement - ensure timestamps are properly indexed",
-					"Consider adding temporal context to retrieval queries")
-			case "Single-Hop":
+					"Consider adding temporal context to retrieval queries",
+					"Check that date/time information is preserved in memory ingestion")
+			case "single_hop", "Single-Hop":
 				suggestions = append(suggestions,
 					"Single-hop retrieval is weak - review embedding quality",
-					"Check if relevant memories are being retrieved in top results")
+					"Check if relevant memories are being retrieved in top results",
+					"Consider tuning similarity thresholds for retrieval")
+			case "open_domain", "Open-Domain":
+				suggestions = append(suggestions,
+					"Open-domain questions struggling - may need broader context retrieval",
+					"Consider increasing memory diversity in retrieval")
+			case "adversarial", "Adversarial":
+				suggestions = append(suggestions,
+					"Adversarial questions failing - model should respond 'no information available' when context lacks answer",
+					"Review prompt to better handle unanswerable questions")
 			}
 		}
 	}

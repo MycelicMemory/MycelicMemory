@@ -4,12 +4,12 @@ F1 Score Evaluation for LoCoMo Free-Response Benchmark
 Implements LoCoMo-compatible F1 scoring with token normalization and Porter stemming.
 Based on the official LoCoMo evaluation methodology.
 
-Categories:
-- 1: Single-hop (entity/attribute facts)
-- 2: Temporal (date/time reasoning)
-- 3: Inferential (requires reasoning)
+Categories (from LoCoMo paper/code):
+- 1: Multi-hop (aggregates info from multiple evidence pieces, comma-separated answers)
+- 2: Single-hop (direct fact recall from single evidence)
+- 3: Temporal (date/time reasoning)
 - 4: Open-domain (conversational context)
-- 5: Adversarial (robustness testing)
+- 5: Adversarial (robustness testing - answer should be "no information available")
 """
 
 import re
@@ -19,20 +19,20 @@ from typing import List, Tuple
 from nltk.stem import PorterStemmer
 
 
-# Category mappings
+# Category mappings (corrected to match LoCoMo paper/code)
 CATEGORY_NAMES = {
-    1: "single_hop",
-    2: "temporal",
-    3: "inferential",
+    1: "multi_hop",
+    2: "single_hop",
+    3: "temporal",
     4: "open_domain",
     5: "adversarial",
 }
 
 CATEGORY_DISPLAY = {
-    1: "Single-hop",
-    2: "Temporal",
-    3: "Inferential",
-    4: "Open-domain",
+    1: "Multi-Hop",
+    2: "Single-Hop",
+    3: "Temporal",
+    4: "Open-Domain",
     5: "Adversarial",
 }
 
@@ -155,6 +155,35 @@ class F1Evaluator:
         prediction_lower = str(prediction).lower()
         return any(phrase in prediction_lower for phrase in self.no_info_phrases)
 
+    def multi_hop_f1(self, prediction: str, ground_truth: str) -> float:
+        """
+        Compute multi-hop F1 score matching LoCoMo methodology.
+
+        For multi-hop questions, both prediction and ground truth may contain
+        comma-separated sub-answers. We compute:
+        1. Split both prediction and ground_truth by comma
+        2. For each ground truth sub-answer, find the best matching prediction
+        3. Return the mean F1 across all ground truth sub-answers
+
+        This matches LoCoMo's evaluation.py f1() function.
+        """
+        # Split both by comma
+        predictions = [p.strip() for p in prediction.split(',') if p.strip()]
+        ground_truths = [g.strip() for g in ground_truth.split(',') if g.strip()]
+
+        # Handle edge cases
+        if not predictions or not ground_truths:
+            return self.f1_score(prediction, ground_truth)
+
+        # For each ground truth, find the best matching prediction
+        scores = []
+        for gt in ground_truths:
+            best_score = max(self.f1_score(pred, gt) for pred in predictions)
+            scores.append(best_score)
+
+        # Return mean across all ground truths
+        return sum(scores) / len(scores) if scores else 0.0
+
     def evaluate_by_category(
         self,
         prediction: str,
@@ -162,7 +191,7 @@ class F1Evaluator:
         category: int
     ) -> Tuple[float, str]:
         """
-        Category-specific evaluation.
+        Category-specific evaluation matching LoCoMo methodology.
 
         Returns:
             Tuple of (score, evaluation_method)
@@ -174,18 +203,15 @@ class F1Evaluator:
             score = 1.0 if self.is_no_information_answer(prediction) else 0.0
             return score, "adversarial_binary"
 
-        elif category == 1:  # Single-hop (may have multiple valid answers)
-            # For single-hop questions with potentially multiple answers,
-            # we take max F1 across comma-separated predictions
-            # This handles cases where multiple entities are valid answers
-            if "," in prediction:
-                predictions = [p.strip() for p in prediction.split(",")]
-                scores = [self.f1_score(pred, ground_truth) for pred in predictions]
-                return max(scores), "max_f1_multi"
-            else:
-                return self.f1_score(prediction, ground_truth), "f1"
+        elif category == 1:  # Multi-hop (aggregates info from multiple evidence pieces)
+            # Multi-hop questions may have comma-separated multi-answers in BOTH
+            # prediction and ground_truth. Use LoCoMo's multi-hop F1 algorithm:
+            # For each GT sub-answer, find best matching prediction, then average.
+            score = self.multi_hop_f1(prediction, ground_truth)
+            return score, "multi_hop_f1"
 
-        else:  # Categories 2, 3, 4 (Temporal, Inferential, Open-domain)
+        else:  # Categories 2, 3, 4 (Single-hop, Temporal, Open-domain)
+            # Standard F1 without comma splitting
             return self.f1_score(prediction, ground_truth), "f1"
 
     def evaluate(

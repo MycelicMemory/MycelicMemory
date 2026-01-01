@@ -39,9 +39,7 @@
   "bin": {
     "ultrathink": "bin/ultrathink"
   },
-  "scripts": {
-    "postinstall": "node scripts/install.js"
-  },
+  "scripts": {},
   "files": [
     "index.js",
     "bin/",
