@@ -1,0 +1,49 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+
+function getBinaryName() {
+  const platform = os.platform();
+  const arch = os.arch();
+
+  switch (platform) {
+    case 'darwin':
+      return arch === 'arm64' ? 'ultrathink-macos-arm64' : 'ultrathink-macos-x64';
+    case 'linux':
+      return arch === 'arm64' ? 'ultrathink-linux-arm64' : 'ultrathink-linux-x64';
+    case 'win32':
+      return arch === 'arm64' ? 'ultrathink-windows-arm64.exe' : 'ultrathink-windows-x64.exe';
+    default:
+      console.error(`Unsupported platform: ${platform}-${arch}`);
+      process.exit(1);
+  }
+}
+
+const binDir = __dirname;
+const binaryName = getBinaryName();
+const binaryPath = path.join(binDir, binaryName);
+
+if (!fs.existsSync(binaryPath)) {
+  console.error(`Binary not found: ${binaryPath}`);
+  console.error('');
+  console.error('The binary for your platform may not be available.');
+  console.error('Please build from source: https://github.com/MycelicMemory/ultrathink');
+  process.exit(1);
+}
+
+const child = spawn(binaryPath, process.argv.slice(2), {
+  stdio: 'inherit',
+  env: process.env
+});
+
+child.on('close', (code) => {
+  process.exit(code);
+});
+
+child.on('error', (err) => {
+  console.error(`Failed to start ultrathink: ${err.message}`);
+  process.exit(1);
+});

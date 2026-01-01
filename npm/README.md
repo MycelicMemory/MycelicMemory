@@ -9,7 +9,7 @@ Give Claude persistent memory across conversations. Store knowledge, search sema
 ## Installation
 
 ```bash
-npm install -g ultrathink
+npm install -g github:MycelicMemory/ultrathink
 ```
 
 ## Connect to Claude Code
@@ -44,7 +44,7 @@ Add to your Claude Desktop config:
   "mcpServers": {
     "ultrathink": {
       "command": "npx",
-      "args": ["-y", "ultrathink", "--mcp"]
+      "args": ["-y", "github:MycelicMemory/ultrathink", "--mcp"]
     }
   }
 }
