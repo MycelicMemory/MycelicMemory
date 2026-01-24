@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.2.1)'
+        required: true
+        type: string
+
+env:
+  CGO_ENABLED: 1
+  BUILD_TAGS: fts5
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: arm64
+            name: ultrathink-macos-arm64
+          - goarch: amd64
+            name: ultrathink-macos-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Build
+        env:
+          GOARCH: ${{ matrix.goarch }}
+          GOOS: darwin
+        run: |
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+          chmod +x ${{ matrix.name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            name: ultrathink-linux-x64
+          - goarch: arm64
+            name: ultrathink-linux-arm64
+            cc: aarch64-linux-gnu-gcc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Install cross-compiler (arm64)
+        if: matrix.goarch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build
+        env:
+          GOARCH: ${{ matrix.goarch }}
+          GOOS: linux
+          CC: ${{ matrix.cc || 'gcc' }}
+        run: |
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+          chmod +x ${{ matrix.name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            name: ultrathink-windows-x64.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Build
+        env:
+          GOARCH: ${{ matrix.goarch }}
+          GOOS: windows
+        run: |
+          go build -tags "${{ env.BUILD_TAGS }}" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  release:
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          for dir in dist/*/; do
+            binary=$(ls "$dir")
+            cp "$dir$binary" "release/$binary"
+          done
+          ls -la release/
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Ultrathink ${{ steps.version.outputs.version }}
+          body: |
+            ## Ultrathink ${{ steps.version.outputs.version }}
+
+            AI-powered persistent memory system for Claude and other AI agents.
+
+            ### Installation
+
+            **Via npm (recommended):**
+            ```bash
+            npm install -g github:MycelicMemory/ultrathink
+            ```
+
+            **Direct download:**
+            Download the binary for your platform below and add it to your PATH.
+
+            ### Platform Binaries
+
+            | Platform | Architecture | Binary |
+            |----------|--------------|--------|
+            | macOS | Apple Silicon (M1/M2/M3) | `ultrathink-macos-arm64` |
+            | macOS | Intel | `ultrathink-macos-x64` |
+            | Linux | x64 | `ultrathink-linux-x64` |
+            | Linux | ARM64 | `ultrathink-linux-arm64` |
+            | Windows | x64 | `ultrathink-windows-x64.exe` |
+          files: release/*
+          draft: false
+          prerelease: false
