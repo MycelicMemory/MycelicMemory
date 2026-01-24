@@ -1,6 +1,6 @@
 {
   "name": "mycelic-memory",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "AI-powered persistent memory system for Claude and other AI agents",
   "keywords": [
     "mcp",

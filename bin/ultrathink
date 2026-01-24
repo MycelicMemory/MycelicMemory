@@ -8,7 +8,7 @@ const https = require('https');
 const http = require('http');
 const { URL } = require('url');
 
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const GITHUB_OWNER = 'MycelicMemory';
 const GITHUB_REPO = 'ultrathink';
 
