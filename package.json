@@ -1,17 +1,18 @@
 {
-  "name": "mycelic-memory",
-  "version": "1.2.1",
+  "name": "ultrathink",
+  "version": "1.2.2",
   "description": "AI-powered persistent memory system for Claude and other AI agents",
   "keywords": [
     "mcp",
     "ai",
     "memory",
-    "vector-search",
-    "llm",
     "claude",
-    "ollama",
+    "anthropic",
+    "llm",
+    "vector-search",
     "semantic-search",
-    "knowledge-base"
+    "knowledge-base",
+    "ollama"
   ],
   "author": "Mycelic Memory",
   "license": "MIT",
@@ -35,16 +36,17 @@
     "x64",
     "arm64"
   ],
-  "main": "index.js",
+  "main": "lib/index.js",
   "bin": {
     "ultrathink": "bin/ultrathink"
   },
-  "scripts": {},
+  "scripts": {
+    "postinstall": "node lib/install.js"
+  },
   "files": [
-    "index.js",
     "bin/",
-    "scripts/",
-    "README.md"
-  ],
-  "preferGlobal": true
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ]
 }
