@@ -2,11 +2,10 @@
 set -e
 
 # Build script for ultrathink
-# Creates binaries for all supported platforms
+# Creates binaries for all supported platforms for GitHub releases
 
-VERSION="${VERSION:-1.2.0}"
+VERSION="${VERSION:-$(node -p "require('./package.json').version")}"
 OUTPUT_DIR="${OUTPUT_DIR:-dist}"
-NPM_BIN_DIR="npm/bin"
 
 echo "Building ultrathink v${VERSION}"
 echo "================================"
@@ -15,7 +14,6 @@ echo ""
 # Clean and create output directories
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
-mkdir -p "$NPM_BIN_DIR"
 
 # Build flags
 LDFLAGS="-s -w -X main.Version=${VERSION}"
@@ -36,10 +34,6 @@ build_platform() {
         ./cmd/ultrathink
 
     if [ $? -eq 0 ]; then
-        # Copy to npm bin directory
-        cp "${OUTPUT_DIR}/${output_name}" "${NPM_BIN_DIR}/${output_name}"
-
-        # Get file size
         local size=$(ls -lh "${OUTPUT_DIR}/${output_name}" | awk '{print $5}')
         echo "  -> ${output_name} (${size})"
     else
@@ -57,14 +51,11 @@ build_platform linux arm64 ultrathink-linux-arm64
 
 # Windows
 build_platform windows amd64 ultrathink-windows-x64.exe
-build_platform windows arm64 ultrathink-windows-arm64.exe
 
 echo ""
 echo "Build complete!"
 echo ""
 echo "Binaries created in ${OUTPUT_DIR}:"
 ls -lh "$OUTPUT_DIR"
-
 echo ""
-echo "npm binaries copied to ${NPM_BIN_DIR}:"
-ls -lh "$NPM_BIN_DIR"
+echo "Upload these to GitHub releases as v${VERSION}"

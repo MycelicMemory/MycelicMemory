@@ -5,49 +5,50 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#connect-to-claude">Connect to Claude</a> •
   <a href="#features">Features</a> •
-  <a href="#use-cases">Use Cases</a> •
-  <a href="#hooks">Auto-Memory Hooks</a> •
-  <a href="docs/QUICKSTART.md">Full Setup Guide</a>
+  <a href="#optional-ai-features">AI Features</a>
 </p>
 
 ---
 
-Ultrathink gives Claude persistent memory across conversations. Store knowledge, search semantically, build knowledge graphs, and get AI-powered insights from your memories.
+Ultrathink gives Claude persistent memory across conversations. Store knowledge, search semantically, and get AI-powered insights from your memories.
 
 **Free and open source** - no license keys, no subscriptions.
 
 ---
 
-## Prerequisites
+## Installation
 
-| Requirement | For npm Install | For Source Build |
-|-------------|-----------------|------------------|
-| Node.js 16+ | Required | Optional |
-| Go 1.23+ | Not needed | Required |
-| C compiler | Not needed | Required (CGO) |
-| Git | Optional | Required |
+### Prerequisites
 
-**Why CGO?** Ultrathink uses SQLite with FTS5 full-text search, which requires C bindings.
+**Required:**
+- **Node.js 16+** (includes npm)
+
+**Optional (for enhanced AI features):**
+- **Ollama** - For semantic search and AI analysis
+
+### Install via npm
+
+```bash
+npm install -g ultrathink
+```
+
+That's it. The installer automatically downloads the correct binary for your platform.
+
+### Verify Installation
+
+```bash
+ultrathink --version
+ultrathink doctor
+```
 
 ---
 
-## Quick Start
+## Connect to Claude
 
-### 1. Install
-
-```bash
-# Via npm (easiest - pre-built binaries)
-npm install -g github:MycelicMemory/ultrathink
-
-# Or build from source (requires Go 1.23+ and C compiler)
-git clone https://github.com/MycelicMemory/ultrathink.git
-cd ultrathink
-make deps && make build && make dev-install
-```
-
-### 2. Connect to Claude Code
+### Claude Code (CLI)
 
 Edit `~/.claude/mcp.json`:
 
@@ -62,24 +63,48 @@ Edit `~/.claude/mcp.json`:
 }
 ```
 
-### 3. Restart Claude Code
+Restart Claude Code:
 
 ```bash
 claude
 ```
 
-### 4. Start Using Memory
+### Claude Desktop
+
+Edit your config file:
+
+| Platform | Location |
+|----------|----------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+Add:
+
+```json
+{
+  "mcpServers": {
+    "ultrathink": {
+      "command": "ultrathink",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop.
+
+### Test It Works
 
 Ask Claude:
-- "Remember that Go channels are typed conduits for goroutine communication"
-- "What do I know about concurrency?"
-- "Summarize what I learned this week"
+- "Remember that ultrathink is now working"
+- "What memories do I have?"
 
 ---
 
 ## Features
 
-### Core Memory Operations
+### Memory Operations
 
 | Tool | Description |
 |------|-------------|
@@ -89,14 +114,13 @@ Ask Claude:
 | `update_memory` | Modify content, importance, or tags |
 | `delete_memory` | Remove a memory permanently |
 
-### AI-Powered Analysis
+### AI Analysis (requires Ollama)
 
 | Tool | Description |
 |------|-------------|
 | `analysis(question)` | Ask natural language questions about your memories |
 | `analysis(summarize)` | Generate summaries across timeframes |
 | `analysis(analyze)` | Detect patterns and themes |
-| `analysis(temporal_patterns)` | Track learning progression over time |
 
 ### Knowledge Organization
 
@@ -104,100 +128,45 @@ Ask Claude:
 |------|-------------|
 | `relationships` | Create/discover connections between memories |
 | `categories` | Organize memories hierarchically |
-| `domains` | Group by knowledge domain (programming, devops, etc.) |
-| `sessions` | Track memories by session/project |
-| `stats` | View memory statistics and metrics |
+| `domains` | Group by knowledge domain |
+| `sessions` | Track memories by session |
 
 ---
 
-## Use Cases
+## Optional: AI Features
 
-### For Developers
+Ultrathink works without AI services, but semantic search and AI-powered analysis require **Ollama**.
 
-1. **Code Decision Journal** - Record architectural decisions with rationale
-2. **Debugging Knowledge Base** - Store gotchas, bugs, and their solutions
-3. **API Reference Cache** - Remember API patterns you frequently use
-4. **Configuration Vault** - Track environment-specific settings
-5. **Learning Log** - Document new concepts as you learn them
+### Install Ollama
 
-### For Teams
+**macOS:**
+```bash
+brew install ollama
+ollama serve
+```
 
-6. **Project Context** - Share project-specific knowledge across sessions
-7. **Onboarding Assistant** - Build searchable codebase knowledge
-8. **Best Practices Library** - Curate team coding standards
-9. **Incident Postmortems** - Store and search past incidents
+**Linux:**
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama serve
+```
 
-### For Research
+**Windows:**
+Download from [ollama.ai](https://ollama.ai/download)
 
-10. **Literature Notes** - Store paper summaries with tags
-11. **Concept Relationships** - Map how ideas connect
-12. **Progress Tracking** - Monitor learning over time
-13. **Citation Manager** - Track sources and references
-
-### For Personal Knowledge
-
-14. **Second Brain** - Build a searchable knowledge base
-15. **Daily Learnings** - Capture TILs with automatic tagging
-
-See [docs/USE_CASES.md](docs/USE_CASES.md) for detailed examples of each use case.
-
----
-
-## Auto-Memory Hooks
-
-Ultrathink can automatically capture knowledge from your Claude Code sessions using hooks.
-
-### What Gets Captured
-
-- **Code Decisions** - "Because...", "Decided to...", "Instead of..."
-- **Bug Fixes** - "The bug was...", "Fixed by..."
-- **Best Practices** - "Should always/never...", "Gotcha..."
-- **Config Changes** - Edits to `.env`, `config.*`, `docker-compose.yml`, etc.
-
-### Quick Hook Setup
+### Download Models
 
 ```bash
-# Create hooks directory
-mkdir -p ~/.claude/hooks
-
-# Download hook scripts
-curl -o ~/.claude/hooks/ultrathink-memory-capture.py \
-  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-memory-capture.py
-curl -o ~/.claude/hooks/ultrathink-context-loader.py \
-  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-context-loader.py
-
-# Make executable
-chmod +x ~/.claude/hooks/*.py
+ollama pull nomic-embed-text   # For semantic search
+ollama pull qwen2.5:3b         # For AI analysis
 ```
 
-Add to `~/.claude/settings.json`:
+### Verify
 
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py"}]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py"}]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-context-loader.py"}]
-      }
-    ]
-  }
-}
+```bash
+ultrathink doctor
+# Should show: Ollama: Available
 ```
-
-See [docs/HOOKS.md](docs/HOOKS.md) for full hook documentation.
 
 ---
 
@@ -208,50 +177,18 @@ Ultrathink also works as a standalone CLI:
 ```bash
 # Store memories
 ultrathink remember "Go interfaces are satisfied implicitly"
-ultrathink remember "Important insight" --importance 9 --tags learning,go
+ultrathink remember "Important!" --importance 9 --tags learning,go
 
 # Search
 ultrathink search "concurrency patterns"
-ultrathink search "golang" --domain programming
 
-# Analyze
+# AI analysis (requires Ollama)
 ultrathink analyze "What have I learned about testing?"
-ultrathink analyze --type summarize --timeframe week
-
-# Relationships
-ultrathink relate <id1> <id2> --type similar
-ultrathink find_related <id>
 
 # Service management
 ultrathink start    # Start REST API daemon
 ultrathink stop     # Stop daemon
 ultrathink doctor   # Health check
-```
-
----
-
-## REST API
-
-Start the daemon for REST API access:
-
-```bash
-ultrathink start
-# API at http://localhost:3099
-```
-
-### Key Endpoints
-
-```http
-POST   /api/v1/memories              # Create memory
-GET    /api/v1/memories              # List memories
-GET    /api/v1/memories/:id          # Get memory
-PUT    /api/v1/memories/:id          # Update memory
-DELETE /api/v1/memories/:id          # Delete memory
-POST   /api/v1/memories/search       # Search memories
-POST   /api/v1/analyze               # AI analysis
-POST   /api/v1/relationships         # Create relationship
-GET    /api/v1/memories/:id/graph    # Relationship graph
-GET    /api/v1/health                # Health check
 ```
 
 ---
@@ -263,53 +200,51 @@ Config file: `~/.ultrathink/config.yaml`
 ```yaml
 database:
   path: ~/.ultrathink/memories.db
-  backup_interval: 24h
 
 rest_api:
   port: 3099
   host: localhost
-
-session:
-  auto_generate: true
-  strategy: git-directory
 
 ollama:
   enabled: true
   base_url: http://localhost:11434
   embedding_model: nomic-embed-text
   chat_model: qwen2.5:3b
-
-qdrant:
-  enabled: true
-  url: http://localhost:6333
 ```
 
 ---
 
-## Optional Dependencies
+## Build from Source
 
-| Component | Purpose | Installation |
-|-----------|---------|--------------|
-| **Ollama** | AI embeddings & analysis | `brew install ollama && ollama serve` |
-| **Qdrant** | Vector semantic search | `docker run -p 6333:6333 qdrant/qdrant` |
-
-### Setup Ollama
+If you prefer to build from source (requires Go 1.23+ and a C compiler):
 
 ```bash
-ollama serve
-ollama pull nomic-embed-text   # Embeddings
-ollama pull qwen2.5:3b         # Analysis
+git clone https://github.com/MycelicMemory/ultrathink.git
+cd ultrathink
+make deps && make build && make install
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
 
 ---
 
 ## Troubleshooting
 
-### MCP Not Available
+### "command not found: ultrathink"
+
+Ensure npm global bin is in your PATH:
+
+```bash
+npm bin -g
+# Add this directory to your PATH
+```
+
+### MCP Not Available in Claude
 
 ```bash
 # Verify installation
-which ultrathink && ultrathink --version
+which ultrathink
+ultrathink --version
 
 # Test MCP mode
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
@@ -318,15 +253,13 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
 cat ~/.claude/mcp.json | python3 -m json.tool
 ```
 
-### Ollama Issues
+### macOS Security Warning
 
-```bash
-ollama serve              # Start service
-curl localhost:11434/api/tags  # Verify
-ollama pull nomic-embed-text   # Get models
-```
+If macOS blocks the binary:
+1. Go to System Preferences > Security & Privacy > General
+2. Click "Allow Anyway" next to the ultrathink message
 
-### Full Health Check
+### Full Diagnostics
 
 ```bash
 ultrathink doctor
@@ -334,33 +267,12 @@ ultrathink doctor
 
 ---
 
-## Architecture
-
-```
-ultrathink/
-├── cmd/ultrathink/          # CLI entry point
-├── internal/
-│   ├── mcp/                 # MCP server (JSON-RPC 2.0)
-│   ├── api/                 # REST API (Gin)
-│   ├── memory/              # Core memory service
-│   ├── database/            # SQLite + FTS5
-│   ├── ai/                  # Ollama integration
-│   ├── relationships/       # Graph algorithms
-│   └── vector/              # Qdrant client
-├── pkg/config/              # Configuration
-├── hooks/                   # Claude Code hooks
-└── npm/                     # npm distribution
-```
-
----
-
 ## Documentation
 
-- [Quick Start Guide](docs/QUICKSTART.md) - Complete installation from scratch
-- [Use Cases](docs/USE_CASES.md) - 15 detailed examples with code
+- [Quick Start Guide](docs/QUICKSTART.md)
+- [Use Cases](docs/USE_CASES.md) - 15 detailed examples
 - [Hooks Setup](docs/HOOKS.md) - Automatic memory capture
-- [Benchmarks](benchmark/locomo/README.md) - LoCoMo memory retrieval benchmarks
-- [Contributing](CONTRIBUTING.md) - Development guide
+- [Contributing](CONTRIBUTING.md)
 
 ---
 
