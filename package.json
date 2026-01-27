@@ -36,16 +36,11 @@
     "x64",
     "arm64"
   ],
-  "main": "lib/index.js",
   "bin": {
     "ultrathink": "bin/ultrathink"
   },
-  "scripts": {
-    "postinstall": "node lib/install.js"
-  },
   "files": [
-    "bin/",
-    "lib/",
+    "bin/ultrathink",
     "README.md",
     "LICENSE"
   ]

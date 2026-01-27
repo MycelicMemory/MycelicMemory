@@ -1,8 +1,210 @@
 #!/usr/bin/env node
 
 /**
- * Ultrathink CLI entry point
- * This is the bin script that npm links to when installing globally
+ * Ultrathink CLI - AI-powered persistent memory system
+ * Self-contained entry point that downloads the binary on first run
  */
 
-require('../lib/index');
+const { spawn, execSync } = require('child_process');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
+
+const VERSION = '1.2.2';
+const GITHUB_OWNER = 'MycelicMemory';
+const GITHUB_REPO = 'ultrathink';
+
+/**
+ * Get the binary filename for the current platform
+ */
+function getBinaryName() {
+  const platform = os.platform();
+  const arch = os.arch();
+
+  const names = {
+    'darwin-arm64': 'ultrathink-macos-arm64',
+    'darwin-x64': 'ultrathink-macos-x64',
+    'linux-arm64': 'ultrathink-linux-arm64',
+    'linux-x64': 'ultrathink-linux-x64',
+    'win32-x64': 'ultrathink-windows-x64.exe',
+    'win32-arm64': 'ultrathink-windows-x64.exe',
+  };
+
+  const key = `${platform}-${arch}`;
+  const name = names[key];
+
+  if (!name) {
+    console.error(`Unsupported platform: ${key}`);
+    console.error('Supported: darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-x64');
+    process.exit(1);
+  }
+
+  return name;
+}
+
+/**
+ * Get the bin directory (same as this script's directory)
+ */
+function getBinDir() {
+  return __dirname;
+}
+
+/**
+ * Get full path to the binary
+ */
+function getBinaryPath() {
+  return path.join(getBinDir(), getBinaryName());
+}
+
+/**
+ * Download a file with redirect support
+ */
+function downloadFile(url, dest, maxRedirects = 10) {
+  return new Promise((resolve, reject) => {
+    if (maxRedirects <= 0) {
+      reject(new Error('Too many redirects'));
+      return;
+    }
+
+    const parsedUrl = new URL(url);
+    const protocol = parsedUrl.protocol === 'https:' ? https : http;
+
+    const request = protocol.get(url, {
+      headers: {
+        'User-Agent': `ultrathink/${VERSION}`,
+        'Accept': 'application/octet-stream'
+      }
+    }, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        const redirectUrl = new URL(response.headers.location, url).toString();
+        downloadFile(redirectUrl, dest, maxRedirects - 1).then(resolve).catch(reject);
+        return;
+      }
+
+      if (response.statusCode !== 200) {
+        reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+        return;
+      }
+
+      const file = fs.createWriteStream(dest);
+      let downloadedBytes = 0;
+      const totalBytes = parseInt(response.headers['content-length'], 10) || 0;
+
+      response.on('data', (chunk) => {
+        downloadedBytes += chunk.length;
+        if (totalBytes > 0 && process.stdout.isTTY) {
+          const percent = Math.round((downloadedBytes / totalBytes) * 100);
+          process.stdout.write(`\rDownloading... ${percent}%`);
+        }
+      });
+
+      response.pipe(file);
+
+      file.on('finish', () => {
+        file.close();
+        if (process.stdout.isTTY) process.stdout.write('\n');
+        resolve();
+      });
+
+      file.on('error', (err) => {
+        fs.unlink(dest, () => {});
+        reject(err);
+      });
+    });
+
+    request.on('error', reject);
+    request.setTimeout(120000, () => {
+      request.destroy();
+      reject(new Error('Download timeout'));
+    });
+  });
+}
+
+/**
+ * Verify the downloaded binary
+ */
+function verifyBinary(binaryPath) {
+  const stats = fs.statSync(binaryPath);
+  if (stats.size < 1000000) {
+    throw new Error('Binary too small, download may have failed');
+  }
+
+  if (os.platform() !== 'win32') {
+    fs.chmodSync(binaryPath, 0o755);
+  }
+
+  try {
+    execSync(`"${binaryPath}" --version`, { encoding: 'utf8', timeout: 10000, stdio: 'pipe' });
+  } catch (err) {
+    if (os.platform() === 'darwin') {
+      console.log('Note: On macOS, allow the binary in System Preferences > Security');
+    }
+  }
+}
+
+/**
+ * Download binary if not present
+ */
+async function ensureBinary() {
+  const binaryPath = getBinaryPath();
+
+  if (fs.existsSync(binaryPath)) {
+    return binaryPath;
+  }
+
+  console.log(`Downloading ultrathink for ${os.platform()}-${os.arch()}...`);
+
+  const binaryName = getBinaryName();
+  const urls = [
+    `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/v${VERSION}/${binaryName}`,
+    `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download/${binaryName}`
+  ];
+
+  for (const url of urls) {
+    try {
+      await downloadFile(url, binaryPath);
+      verifyBinary(binaryPath);
+      console.log('Download complete!');
+      return binaryPath;
+    } catch (err) {
+      if (fs.existsSync(binaryPath)) fs.unlinkSync(binaryPath);
+    }
+  }
+
+  console.error('Failed to download binary.');
+  console.error(`Download manually from: https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`);
+  process.exit(1);
+}
+
+/**
+ * Main entry point
+ */
+async function main() {
+  try {
+    const binaryPath = await ensureBinary();
+
+    const child = spawn(binaryPath, process.argv.slice(2), {
+      stdio: 'inherit',
+      env: process.env
+    });
+
+    child.on('exit', (code) => process.exit(code || 0));
+    child.on('error', (err) => {
+      console.error(`Failed to start: ${err.message}`);
+      process.exit(1);
+    });
+
+    ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => {
+      process.on(sig, () => child.pid && child.kill(sig));
+    });
+
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+main();
