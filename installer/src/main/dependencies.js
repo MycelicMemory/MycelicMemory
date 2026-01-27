@@ -41,7 +41,7 @@ function checkPort(port) {
 async function checkDependencies() {
   const results = {
     node: { installed: false, version: null, required: true },
-    ultrathink: { installed: false, version: null, required: true },
+    mycelicmemory: { installed: false, version: null, required: true },
     ollama: { installed: false, version: null, running: false, required: false },
     qdrant: { installed: false, running: false, required: false },
     docker: { installed: false, version: null, required: false }
@@ -53,9 +53,9 @@ async function checkDependencies() {
     required: true
   };
 
-  // Check ultrathink
-  results.ultrathink = {
-    ...checkCommand('ultrathink', '--version'),
+  // Check mycelicmemory
+  results.mycelicmemory = {
+    ...checkCommand('mycelicmemory', '--version'),
     required: true
   };
 
@@ -84,13 +84,13 @@ async function checkDependencies() {
 }
 
 /**
- * Install ultrathink via npm
+ * Install mycelicmemory via npm
  */
-function installUltrathink(onProgress) {
+function installMyclicMemory(onProgress) {
   return new Promise((resolve, reject) => {
     onProgress({ status: 'starting', message: 'Starting installation...' });
 
-    const child = exec('npm install -g ultrathink', { timeout: 300000 });
+    const child = exec('npm install -g mycelicmemory', { timeout: 300000 });
     let output = '';
 
     child.stdout.on('data', (data) => {
@@ -151,7 +151,7 @@ function getDependencyUrls() {
     },
     node: {
       name: 'Node.js',
-      description: 'Required runtime for ultrathink',
+      description: 'Required runtime for mycelicmemory',
       url: 'https://nodejs.org/en/download/',
       instructions: [
         'Download and install Node.js LTS',
@@ -163,6 +163,6 @@ function getDependencyUrls() {
 
 module.exports = {
   checkDependencies,
-  installUltrathink,
+  installMyclicMemory,
   getDependencyUrls
 };

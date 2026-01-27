@@ -1,10 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('ultrathink', {
+contextBridge.exposeInMainWorld('mycelicmemory', {
   checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
-  installUltrathink: () => ipcRenderer.invoke('install-ultrathink'),
+  installMyclicMemory: () => ipcRenderer.invoke('install-mycelicmemory'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  launchUltrathink: () => ipcRenderer.invoke('launch-ultrathink'),
+  launchMyclicMemory: () => ipcRenderer.invoke('launch-mycelicmemory'),
   onInstallProgress: (callback) => {
     ipcRenderer.on('install-progress', (event, progress) => callback(progress));
   }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
 )
 
 var (
@@ -35,8 +35,8 @@ var createCategoryCmd = &cobra.Command{
 	Long: `Create a new memory category.
 
 Examples:
-  ultrathink create_category "Technical Documentation"
-  ultrathink create_category "Meeting Notes" --description "Notes from meetings"`,
+  mycelicmemory create_category "Technical Documentation"
+  mycelicmemory create_category "Meeting Notes" --description "Notes from meetings"`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runCreateCategory(args[0])
@@ -70,8 +70,8 @@ var createDomainCmd = &cobra.Command{
 	Long: `Create a new knowledge domain.
 
 Examples:
-  ultrathink create_domain programming
-  ultrathink create_domain "machine-learning" --description "ML and AI concepts"`,
+  mycelicmemory create_domain programming
+  mycelicmemory create_domain "machine-learning" --description "ML and AI concepts"`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runCreateDomain(args[0])
@@ -85,7 +85,7 @@ var domainStatsCmd = &cobra.Command{
 	Long: `Show statistics for a specific knowledge domain.
 
 Examples:
-  ultrathink domain_stats programming`,
+  mycelicmemory domain_stats programming`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runDomainStats(args[0])
@@ -150,7 +150,7 @@ func runListCategories() {
 
 	if len(categories) == 0 {
 		fmt.Println("No categories found.")
-		fmt.Println("Create one with: ultrathink create_category <name>")
+		fmt.Println("Create one with: mycelicmemory create_category <name>")
 		return
 	}
 
@@ -232,7 +232,7 @@ func runListDomains() {
 
 	if len(domains) == 0 {
 		fmt.Println("No domains found.")
-		fmt.Println("Create one with: ultrathink create_domain <name>")
+		fmt.Println("Create one with: mycelicmemory create_domain <name>")
 		return
 	}
 

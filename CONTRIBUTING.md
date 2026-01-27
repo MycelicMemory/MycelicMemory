@@ -1,6 +1,6 @@
-# Contributing to Ultrathink
+# Contributing to MyclicMemory
 
-Thank you for your interest in contributing to Ultrathink! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to MyclicMemory! This document provides guidelines and information for contributors.
 
 ## Code of Conduct
 
@@ -25,8 +25,8 @@ Thank you for your interest in contributing to Ultrathink! This document provide
 
 1. **Fork and Clone**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/ultrathink.git
-   cd ultrathink
+   git clone https://github.com/YOUR_USERNAME/mycelicmemory.git
+   cd mycelicmemory
    ```
 
 2. **Install Dependencies**
@@ -41,7 +41,7 @@ Thank you for your interest in contributing to Ultrathink! This document provide
 
 4. **Build**
    ```bash
-   go build -o ultrathink cmd/ultrathink/main.go
+   go build -o mycelicmemory cmd/mycelicmemory/main.go
    ```
 
 ## Development Workflow
@@ -211,9 +211,9 @@ func TestMemoryStore(t *testing.T) {
 ## Project Structure
 
 ```
-ultrathink/
+mycelicmemory/
 ├── cmd/
-│   └── ultrathink/          # Main application entry point
+│   └── mycelicmemory/          # Main application entry point
 ├── internal/                # Private application code
 │   ├── database/           # SQLite operations
 │   ├── api/                # REST API handlers
@@ -289,7 +289,7 @@ Use the feature request template and include:
 
 ## Development Phases
 
-Current development follows a 10-phase roadmap. See [GitHub Issues](https://github.com/MycelicMemory/ultrathink/issues) for details:
+Current development follows a 10-phase roadmap. See [GitHub Issues](https://github.com/MycelicMemory/mycelicmemory/issues) for details:
 
 1. **Phase 1**: Project Setup & Foundation
 2. **Phase 2**: Database Layer (SQLite + FTS5)
@@ -304,7 +304,7 @@ Current development follows a 10-phase roadmap. See [GitHub Issues](https://gith
 
 ## Questions?
 
-- Check [GitHub Discussions](https://github.com/MycelicMemory/ultrathink/discussions)
+- Check [GitHub Discussions](https://github.com/MycelicMemory/mycelicmemory/discussions)
 - Review existing issues and PRs
 - Ask in your PR/issue
 
@@ -314,4 +314,4 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ---
 
-Thank you for contributing to Ultrathink!
+Thank you for contributing to MyclicMemory!

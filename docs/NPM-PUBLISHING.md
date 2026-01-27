@@ -1,28 +1,28 @@
-# Publishing ultrathink to npm
+# Publishing mycelicmemory to npm
 
 ## Current Status
 
-ultrathink is currently installable from GitHub:
+mycelicmemory is currently installable from GitHub:
 ```bash
-npm install -g github:MycelicMemory/ultrathink
+npm install -g github:MycelicMemory/mycelicmemory
 ```
 
 This document covers how to publish to the npm registry for easier installation:
 ```bash
-npm install -g ultrathink  # Goal
+npm install -g mycelicmemory  # Goal
 ```
 
 ## Prerequisites
 
 1. **npm account**: Create at https://www.npmjs.com/signup
 2. **npm CLI**: Install with Node.js
-3. **Package ownership**: Verify `ultrathink` name is available or you own it
+3. **Package ownership**: Verify `mycelicmemory` name is available or you own it
 
 ## Publishing Steps
 
 ### 1. Check Package Name Availability
 ```bash
-npm view ultrathink
+npm view mycelicmemory
 # If 404, name is available
 # If shows package info, name is taken
 ```
@@ -38,20 +38,20 @@ npm login
 Ensure these fields are correct:
 ```json
 {
-  "name": "ultrathink",
+  "name": "mycelicmemory",
   "version": "1.2.2",
   "description": "AI-powered persistent memory system",
   "bin": {
-    "ultrathink": "bin/ultrathink"
+    "mycelicmemory": "bin/mycelicmemory"
   },
   "files": [
-    "bin/ultrathink",
+    "bin/mycelicmemory",
     "README.md",
     "LICENSE"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/MycelicMemory/ultrathink.git"
+    "url": "https://github.com/MycelicMemory/mycelicmemory.git"
   },
   "keywords": ["ai", "memory", "mcp", "claude", "llm"],
   "author": "Mycelic Memory",
@@ -65,10 +65,10 @@ Ensure these fields are correct:
 npm pack
 
 # Install from tarball
-npm install -g ultrathink-1.2.2.tgz
+npm install -g mycelicmemory-1.2.2.tgz
 
 # Test
-ultrathink --version
+mycelicmemory --version
 ```
 
 ### 5. Publish
@@ -85,9 +85,9 @@ npm publish --tag latest
 
 ### 6. Verify Publication
 ```bash
-npm view ultrathink
-npm install -g ultrathink
-ultrathink --version
+npm view mycelicmemory
+npm install -g mycelicmemory
+mycelicmemory --version
 ```
 
 ## Automated Publishing (CI/CD)
@@ -148,7 +148,7 @@ npm version major
 
 ### Sync with Go Version
 Keep `package.json` version in sync with Go binary version:
-1. Update `cmd/ultrathink/root.go`: `Version = "1.2.3"`
+1. Update `cmd/mycelicmemory/root.go`: `Version = "1.2.3"`
 2. Update `package.json`: `"version": "1.2.3"`
 3. Commit and tag: `git tag v1.2.3`
 
@@ -156,7 +156,7 @@ Keep `package.json` version in sync with Go binary version:
 
 If you need to deprecate a version:
 ```bash
-npm deprecate ultrathink@1.0.0 "Critical bug, please upgrade"
+npm deprecate mycelicmemory@1.0.0 "Critical bug, please upgrade"
 ```
 
 ## Unpublishing
@@ -165,29 +165,29 @@ npm deprecate ultrathink@1.0.0 "Critical bug, please upgrade"
 
 ```bash
 # Within 72 hours of publish
-npm unpublish ultrathink@1.2.2
+npm unpublish mycelicmemory@1.2.2
 
 # After 72 hours, contact npm support
 ```
 
 ## Scoped Packages (Alternative)
 
-If `ultrathink` is taken, use scoped name:
+If `mycelicmemory` is taken, use scoped name:
 ```bash
 # In package.json
-"name": "@mycelicmemory/ultrathink"
+"name": "@mycelicmemory/mycelicmemory"
 
 # Publish public scoped package
 npm publish --access public
 
 # Install
-npm install -g @mycelicmemory/ultrathink
+npm install -g @mycelicmemory/mycelicmemory
 ```
 
 ## Troubleshooting
 
 ### "Package name too similar to existing package"
-- Use scoped name: `@org/ultrathink`
+- Use scoped name: `@org/mycelicmemory`
 - Or contact npm support
 
 ### "403 Forbidden"

@@ -1,11 +1,11 @@
-// Package logging provides structured logging for ultrathink.
+// Package logging provides structured logging for mycelicmemory.
 //
 // This package wraps Go's log/slog package to provide consistent,
-// structured logging across all ultrathink components.
+// structured logging across all mycelicmemory components.
 //
 // Usage:
 //
-//	import "github.com/MycelicMemory/ultrathink/internal/logging"
+//	import "github.com/MycelicMemory/mycelicmemory/internal/logging"
 //
 //	// Initialize once at startup
 //	logging.Init(logging.Config{

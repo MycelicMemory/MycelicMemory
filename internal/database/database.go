@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/internal/logging"
+	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	_ "github.com/mattn/go-sqlite3"
 )
 

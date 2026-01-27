@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Ultrathink CLI - AI-powered persistent memory system
+ * MyclicMemory CLI - AI-powered persistent memory system
  * Self-contained entry point that downloads the binary on first run
  */
 
@@ -15,7 +15,7 @@ const { URL } = require('url');
 
 const VERSION = '1.2.2';
 const GITHUB_OWNER = 'MycelicMemory';
-const GITHUB_REPO = 'ultrathink';
+const GITHUB_REPO = 'mycelicmemory';
 
 /**
  * Get the binary filename for the current platform
@@ -25,12 +25,12 @@ function getBinaryName() {
   const arch = os.arch();
 
   const names = {
-    'darwin-arm64': 'ultrathink-macos-arm64',
-    'darwin-x64': 'ultrathink-macos-x64',
-    'linux-arm64': 'ultrathink-linux-arm64',
-    'linux-x64': 'ultrathink-linux-x64',
-    'win32-x64': 'ultrathink-windows-x64.exe',
-    'win32-arm64': 'ultrathink-windows-x64.exe',
+    'darwin-arm64': 'mycelicmemory-macos-arm64',
+    'darwin-x64': 'mycelicmemory-macos-x64',
+    'linux-arm64': 'mycelicmemory-linux-arm64',
+    'linux-x64': 'mycelicmemory-linux-x64',
+    'win32-x64': 'mycelicmemory-windows-x64.exe',
+    'win32-arm64': 'mycelicmemory-windows-x64.exe',
   };
 
   const key = `${platform}-${arch}`;
@@ -74,7 +74,7 @@ function downloadFile(url, dest, maxRedirects = 10) {
 
     const request = protocol.get(url, {
       headers: {
-        'User-Agent': `ultrathink/${VERSION}`,
+        'User-Agent': `mycelicmemory/${VERSION}`,
         'Accept': 'application/octet-stream'
       }
     }, (response) => {
@@ -155,7 +155,7 @@ async function ensureBinary() {
     return binaryPath;
   }
 
-  console.log(`Downloading ultrathink for ${os.platform()}-${os.arch()}...`);
+  console.log(`Downloading mycelicmemory for ${os.platform()}-${os.arch()}...`);
 
   const binaryName = getBinaryName();
   const urls = [

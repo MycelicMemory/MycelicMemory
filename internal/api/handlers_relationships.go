@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/MycelicMemory/ultrathink/internal/relationships"
+	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 )
 
 // CreateRelationshipRequest represents a relationship creation request

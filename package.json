@@ -1,5 +1,5 @@
 {
-  "name": "ultrathink",
+  "name": "mycelicmemory",
   "version": "1.2.2",
   "description": "AI-powered persistent memory system for Claude and other AI agents",
   "keywords": [
@@ -16,13 +16,13 @@
   ],
   "author": "Mycelic Memory",
   "license": "MIT",
-  "homepage": "https://github.com/MycelicMemory/ultrathink",
+  "homepage": "https://github.com/MycelicMemory/mycelicmemory",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MycelicMemory/ultrathink.git"
+    "url": "git+https://github.com/MycelicMemory/mycelicmemory.git"
   },
   "bugs": {
-    "url": "https://github.com/MycelicMemory/ultrathink/issues"
+    "url": "https://github.com/MycelicMemory/mycelicmemory/issues"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -37,10 +37,10 @@
     "arm64"
   ],
   "bin": {
-    "ultrathink": "bin/ultrathink"
+    "mycelicmemory": "bin/mycelicmemory"
   },
   "files": [
-    "bin/ultrathink",
+    "bin/mycelicmemory",
     "README.md",
     "LICENSE"
   ]

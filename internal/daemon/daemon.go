@@ -10,14 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/internal/logging"
+	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 )
 
 var log = logging.GetLogger("daemon")
 
 const (
-	PIDFileName   = "ultrathink.pid"
-	StateFileName = "ultrathink.state"
+	PIDFileName   = "mycelicmemory.pid"
+	StateFileName = "mycelicmemory.state"
 )
 
 // State represents the daemon state persisted to disk
@@ -43,7 +43,7 @@ type Status struct {
 	MCPEnabled  bool          `json:"mcp_enabled,omitempty"`
 }
 
-// Daemon manages the ultrathink daemon lifecycle
+// Daemon manages the mycelicmemory daemon lifecycle
 type Daemon struct {
 	configDir string
 	version   string
@@ -294,7 +294,7 @@ func (d *Daemon) Daemonize(args []string) (bool, error) {
 	return false, nil // Parent process returns
 }
 
-// ListProcesses returns a list of running ultrathink processes
+// ListProcesses returns a list of running mycelicmemory processes
 func (d *Daemon) ListProcesses() ([]ProcessInfo, error) {
 	var processes []ProcessInfo
 
@@ -320,7 +320,7 @@ type ProcessInfo struct {
 	Version string        `json:"version"`
 }
 
-// KillAll kills all ultrathink processes
+// KillAll kills all mycelicmemory processes
 func (d *Daemon) KillAll() (int, error) {
 	killed := 0
 

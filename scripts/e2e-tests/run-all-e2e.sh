@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BINARY=${ULTRATHINK_BINARY:-"ultrathink"}
+BINARY=${MYCELICMEMORY_BINARY:-"mycelicmemory"}
 API_PORT=${API_PORT:-3099}
 SERVER_PID=""
 OVERALL_PASSED=0
@@ -39,7 +39,7 @@ log_result() {
 cleanup() {
     if [ -n "$SERVER_PID" ]; then
         echo ""
-        echo "Stopping ultrathink server (PID: $SERVER_PID)..."
+        echo "Stopping mycelicmemory server (PID: $SERVER_PID)..."
         kill $SERVER_PID 2>/dev/null || true
         wait $SERVER_PID 2>/dev/null || true
     fi
@@ -47,7 +47,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-log_header "Ultrathink E2E Test Suite"
+log_header "MyclicMemory E2E Test Suite"
 echo ""
 echo "Binary: $BINARY"
 echo "API Port: $API_PORT"
@@ -65,14 +65,14 @@ echo "Version: $($BINARY --version 2>&1 | head -1)"
 echo ""
 
 # ===== Start Server =====
-log_header "Starting Ultrathink Server"
+log_header "Starting MyclicMemory Server"
 
 # Check if server is already running
 if curl -s "http://localhost:$API_PORT/api/v1/health" > /dev/null 2>&1; then
     echo "Server already running on port $API_PORT"
 else
     echo "Starting server..."
-    $BINARY start --port $API_PORT > /tmp/ultrathink-e2e.log 2>&1 &
+    $BINARY start --port $API_PORT > /tmp/mycelicmemory-e2e.log 2>&1 &
     SERVER_PID=$!
     echo "Server started with PID: $SERVER_PID"
 
@@ -85,7 +85,7 @@ else
         fi
         if [ $i -eq $MAX_WAIT ]; then
             echo -e "${RED}Server failed to start within ${MAX_WAIT}s${NC}"
-            cat /tmp/ultrathink-e2e.log
+            cat /tmp/mycelicmemory-e2e.log
             exit 1
         fi
         echo "  Waiting for server... ($i/$MAX_WAIT)"

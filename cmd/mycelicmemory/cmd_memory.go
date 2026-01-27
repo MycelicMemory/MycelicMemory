@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/internal/memory"
-	"github.com/MycelicMemory/ultrathink/internal/search"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/search"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 var (
@@ -44,9 +44,9 @@ var rememberCmd = &cobra.Command{
 	Long: `Store a new memory with the given content.
 
 Examples:
-  ultrathink remember "Go channels are like pipes between goroutines"
-  ultrathink remember "Important meeting notes" --importance 9 --tags meeting,work
-  ultrathink remember "Python tip" --domain programming`,
+  mycelicmemory remember "Go channels are like pipes between goroutines"
+  mycelicmemory remember "Important meeting notes" --importance 9 --tags meeting,work
+  mycelicmemory remember "Python tip" --domain programming`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		content := strings.Join(args, " ")
@@ -61,9 +61,9 @@ var searchCmd = &cobra.Command{
 	Long: `Search through stored memories using keywords or semantic search.
 
 Examples:
-  ultrathink search "concurrency patterns"
-  ultrathink search "golang" --limit 10
-  ultrathink search "api" --domain programming`,
+  mycelicmemory search "concurrency patterns"
+  mycelicmemory search "golang" --limit 10
+  mycelicmemory search "api" --domain programming`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		query := strings.Join(args, " ")
@@ -78,7 +78,7 @@ var getCmd = &cobra.Command{
 	Long: `Retrieve a specific memory by its UUID.
 
 Examples:
-  ultrathink get 550e8400-e29b-41d4-a716-446655440000`,
+  mycelicmemory get 550e8400-e29b-41d4-a716-446655440000`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runGet(args[0])
@@ -92,9 +92,9 @@ var listCmd = &cobra.Command{
 	Long: `List all stored memories with optional filtering.
 
 Examples:
-  ultrathink list
-  ultrathink list --limit 20
-  ultrathink list --domain programming`,
+  mycelicmemory list
+  mycelicmemory list --limit 20
+  mycelicmemory list --domain programming`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runList()
 	},
@@ -107,9 +107,9 @@ var updateCmd = &cobra.Command{
 	Long: `Update an existing memory's content, importance, or tags.
 
 Examples:
-  ultrathink update 550e8400-e29b-41d4-a716-446655440000 --content "Updated content"
-  ultrathink update <id> --importance 8
-  ultrathink update <id> --tags newtag1,newtag2`,
+  mycelicmemory update 550e8400-e29b-41d4-a716-446655440000 --content "Updated content"
+  mycelicmemory update <id> --importance 8
+  mycelicmemory update <id> --tags newtag1,newtag2`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runUpdate(args[0])
@@ -123,7 +123,7 @@ var forgetCmd = &cobra.Command{
 	Long: `Delete a memory by its UUID.
 
 Examples:
-  ultrathink forget 550e8400-e29b-41d4-a716-446655440000`,
+  mycelicmemory forget 550e8400-e29b-41d4-a716-446655440000`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runForget(args[0])
@@ -220,8 +220,8 @@ func runRemember(content string) {
 	}
 	fmt.Println()
 	fmt.Println("💡 Use this memory ID in subsequent commands:")
-	fmt.Printf("   ultrathink update %s --content \"new content\"\n", result.Memory.ID)
-	fmt.Printf("   ultrathink relate %s <other-memory-id>\n", result.Memory.ID)
+	fmt.Printf("   mycelicmemory update %s --content \"new content\"\n", result.Memory.ID)
+	fmt.Printf("   mycelicmemory relate %s <other-memory-id>\n", result.Memory.ID)
 	fmt.Println()
 	fmt.Println("💡 Suggestions:")
 	fmt.Println("   💡 Consider setting higher importance (--importance 8-10) for critical information")
@@ -319,11 +319,11 @@ func runGet(id string) {
 	fmt.Printf("   Updated: %s\n", mem.UpdatedAt.Format("2006-01-02 15:04:05"))
 	fmt.Println()
 	fmt.Println("💡 Suggestions:")
-	fmt.Printf("   💡 Update this memory: ultrathink update %s --content \"new content\"\n", mem.ID)
+	fmt.Printf("   💡 Update this memory: mycelicmemory update %s --content \"new content\"\n", mem.ID)
 	if len(mem.Tags) > 0 {
-		fmt.Printf("   💡 Find related: ultrathink search --tags %s\n", strings.Join(mem.Tags, ","))
+		fmt.Printf("   💡 Find related: mycelicmemory search --tags %s\n", strings.Join(mem.Tags, ","))
 	}
-	fmt.Printf("   💡 Create relationship: ultrathink relate %s <other-memory-id>\n", mem.ID)
+	fmt.Printf("   💡 Create relationship: mycelicmemory relate %s <other-memory-id>\n", mem.ID)
 }
 
 func runList() {
@@ -367,8 +367,8 @@ func runList() {
 	if len(memories) > 0 {
 		fmt.Println()
 		fmt.Println("💡 Suggestions:")
-		fmt.Printf("   💡 View details: ultrathink get %s\n", firstID)
-		fmt.Println("   💡 Filter results: ultrathink list --limit 5 or use search with specific criteria")
+		fmt.Printf("   💡 View details: mycelicmemory get %s\n", firstID)
+		fmt.Println("   💡 Filter results: mycelicmemory list --limit 5 or use search with specific criteria")
 	}
 }
 
@@ -425,9 +425,9 @@ func runUpdate(id string) {
 	fmt.Println("Memory updated and ready for use in subsequent commands.")
 	fmt.Println()
 	fmt.Println("💡 Suggestions:")
-	fmt.Printf("   💡 Next: Search related memories with: ultrathink search \"%s\"\n", truncate(mem.Content, 30))
+	fmt.Printf("   💡 Next: Search related memories with: mycelicmemory search \"%s\"\n", truncate(mem.Content, 30))
 	if len(mem.Tags) > 0 {
-		fmt.Printf("   💡 Find similar: ultrathink search --tags %s\n", strings.Join(mem.Tags, ","))
+		fmt.Printf("   💡 Find similar: mycelicmemory search --tags %s\n", strings.Join(mem.Tags, ","))
 	}
 }
 

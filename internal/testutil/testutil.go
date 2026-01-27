@@ -1,4 +1,4 @@
-// Package testutil provides testing utilities and helpers for Ultrathink
+// Package testutil provides testing utilities and helpers for MyclicMemory
 package testutil
 
 import (

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // SearchType defines the type of search to perform

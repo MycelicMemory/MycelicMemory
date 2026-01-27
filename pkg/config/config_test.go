@@ -249,7 +249,7 @@ func TestConfigPath(t *testing.T) {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	expected := filepath.Join(homeDir, ".ultrathink")
+	expected := filepath.Join(homeDir, ".mycelicmemory")
 	if path != expected {
 		t.Errorf("Expected %s, got %s", expected, path)
 	}

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the comprehensive E2E testing strategy for ultrathink, covering all functionality from installation to usage across all supported platforms.
+This document describes the comprehensive E2E testing strategy for mycelicmemory, covering all functionality from installation to usage across all supported platforms.
 
 ## Test Architecture
 
@@ -39,7 +39,7 @@ scripts/e2e-tests/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ULTRATHINK_BINARY` | `ultrathink` | Path to binary |
+| `MYCELICMEMORY_BINARY` | `mycelicmemory` | Path to binary |
 | `API_BASE` | `http://localhost:3099/api/v1` | API base URL |
 | `API_PORT` | `3099` | Server port |
 | `USE_API` | `false` | Use API mode for memory tests |
@@ -47,7 +47,7 @@ scripts/e2e-tests/
 ## Running Tests Locally
 
 ### Prerequisites
-- ultrathink binary built or installed
+- mycelicmemory binary built or installed
 - `curl` and `jq` installed
 - Bash shell (Git Bash on Windows)
 
@@ -64,7 +64,7 @@ scripts/e2e-tests/
 
 ### Custom Binary Path
 ```bash
-export ULTRATHINK_BINARY=/path/to/ultrathink
+export MYCELICMEMORY_BINARY=/path/to/mycelicmemory
 ./scripts/e2e-tests/run-all-e2e.sh
 ```
 
@@ -139,13 +139,13 @@ docker run --rm -it ubuntu:22.04 bash
 apt-get update && apt-get install -y curl jq ca-certificates
 
 # Download binary
-curl -L -o ultrathink https://github.com/MycelicMemory/ultrathink/releases/latest/download/ultrathink-linux-x64
-chmod +x ultrathink
-mv ultrathink /usr/local/bin/
+curl -L -o mycelicmemory https://github.com/MycelicMemory/mycelicmemory/releases/latest/download/mycelicmemory-linux-x64
+chmod +x mycelicmemory
+mv mycelicmemory /usr/local/bin/
 
 # Clone repo for test scripts
-git clone https://github.com/MycelicMemory/ultrathink.git
-cd ultrathink
+git clone https://github.com/MycelicMemory/mycelicmemory.git
+cd mycelicmemory
 
 # Run tests
 ./scripts/e2e-tests/run-all-e2e.sh
@@ -208,7 +208,7 @@ lsof -i :3099
 netstat -tulpn | grep 3099
 
 # Kill existing process
-pkill ultrathink
+pkill mycelicmemory
 ```
 
 ### Tests Fail on Windows

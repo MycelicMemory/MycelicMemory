@@ -1,4 +1,4 @@
-# Ultrathink Installation Guide
+# MyclicMemory Installation Guide
 
 Complete installation guide for users starting from scratch with no dependencies.
 
@@ -14,16 +14,16 @@ Complete installation guide for users starting from scratch with no dependencies
 
 ## Quick Install (npm)
 
-The fastest way to install Ultrathink. Requires Node.js 16+.
+The fastest way to install MyclicMemory. Requires Node.js 16+.
 
 ```bash
-npm install -g github:MycelicMemory/ultrathink
+npm install -g github:MycelicMemory/mycelicmemory
 ```
 
 Verify installation:
 ```bash
-ultrathink --version
-ultrathink doctor
+mycelicmemory --version
+mycelicmemory doctor
 ```
 
 **Note:** macOS only for npm install. Linux/Windows users should [build from source](#build-from-source).
@@ -38,7 +38,7 @@ For developers or if you don't have Node.js.
 
 ### Prerequisites
 
-Ultrathink requires **Go 1.23+** and a **C compiler** (for SQLite FTS5 full-text search).
+MyclicMemory requires **Go 1.23+** and a **C compiler** (for SQLite FTS5 full-text search).
 
 ### macOS
 
@@ -113,8 +113,8 @@ wsl --install
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/MycelicMemory/ultrathink.git
-cd ultrathink
+git clone https://github.com/MycelicMemory/mycelicmemory.git
+cd mycelicmemory
 ```
 
 ### Step 2: Download Dependencies
@@ -135,11 +135,11 @@ go mod tidy
 make build
 ```
 
-This creates the `./ultrathink` binary in the project root.
+This creates the `./mycelicmemory` binary in the project root.
 
 Or manually:
 ```bash
-CGO_ENABLED=1 go build -tags "fts5" -o ultrathink ./cmd/ultrathink
+CGO_ENABLED=1 go build -tags "fts5" -o mycelicmemory ./cmd/mycelicmemory
 ```
 
 ### Step 4: Install Binary
@@ -149,13 +149,13 @@ Choose one installation method:
 **Option A: System-wide install (recommended)**
 ```bash
 sudo make dev-install
-# Installs to /usr/local/bin/ultrathink
+# Installs to /usr/local/bin/mycelicmemory
 ```
 
 **Option B: User install (no sudo)**
 ```bash
 make install
-# Installs to $(go env GOPATH)/bin/ultrathink
+# Installs to $(go env GOPATH)/bin/mycelicmemory
 # Ensure $GOPATH/bin is in your PATH:
 echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
 source ~/.bashrc
@@ -170,8 +170,8 @@ make link
 ### Step 5: Verify Installation
 
 ```bash
-ultrathink --version
-ultrathink doctor
+mycelicmemory --version
+mycelicmemory doctor
 ```
 
 ---
@@ -180,7 +180,7 @@ ultrathink doctor
 
 ### Configure Claude Code
 
-Add Ultrathink as an MCP server to give Claude persistent memory.
+Add MyclicMemory as an MCP server to give Claude persistent memory.
 
 **1. Create/edit the MCP configuration file:**
 
@@ -192,13 +192,13 @@ mkdir -p ~/.claude
 nano ~/.claude/mcp.json
 ```
 
-**2. Add the Ultrathink server:**
+**2. Add the MyclicMemory server:**
 
 ```json
 {
   "mcpServers": {
     "local-memory": {
-      "command": "ultrathink",
+      "command": "mycelicmemory",
       "args": ["--mcp"]
     }
   }
@@ -210,7 +210,7 @@ nano ~/.claude/mcp.json
 **4. Verify connection:**
 ```bash
 # Test MCP mode directly
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | mycelicmemory --mcp
 ```
 
 ### Configure Claude Desktop
@@ -220,13 +220,13 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
-**2. Add Ultrathink:**
+**2. Add MyclicMemory:**
 
 ```json
 {
   "mcpServers": {
     "local-memory": {
-      "command": "ultrathink",
+      "command": "mycelicmemory",
       "args": ["--mcp"]
     }
   }
@@ -239,33 +239,33 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
 
 ```bash
 # Create config directory
-mkdir -p ~/.ultrathink
+mkdir -p ~/.mycelicmemory
 
 # Copy example configuration
-cp config.example.yaml ~/.ultrathink/config.yaml
+cp config.example.yaml ~/.mycelicmemory/config.yaml
 
 # Edit as needed
-nano ~/.ultrathink/config.yaml
+nano ~/.mycelicmemory/config.yaml
 ```
 
 ### Verify Everything Works
 
 ```bash
 # Full system diagnostics
-ultrathink doctor
+mycelicmemory doctor
 
 # Store a test memory
-ultrathink remember "Installation complete!"
+mycelicmemory remember "Installation complete!"
 
 # Search for it
-ultrathink search "installation"
+mycelicmemory search "installation"
 ```
 
 ---
 
 ## Optional Features
 
-These features enhance Ultrathink but are not required for basic operation.
+These features enhance MyclicMemory but are not required for basic operation.
 
 ### Ollama (AI-Powered Features)
 
@@ -299,7 +299,7 @@ ollama pull qwen2.5:3b
 
 **Verify:**
 ```bash
-ultrathink doctor
+mycelicmemory doctor
 # Should show: Ollama: Available
 ```
 
@@ -314,7 +314,7 @@ docker run -d -p 6333:6333 qdrant/qdrant
 
 **Verify:**
 ```bash
-ultrathink doctor
+mycelicmemory doctor
 # Should show: Qdrant: Available
 ```
 
@@ -329,11 +329,11 @@ mkdir -p ~/.claude/hooks
 
 **2. Download hook scripts:**
 ```bash
-curl -o ~/.claude/hooks/ultrathink-memory-capture.py \
-  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-memory-capture.py
+curl -o ~/.claude/hooks/mycelicmemory-memory-capture.py \
+  https://raw.githubusercontent.com/MycelicMemory/mycelicmemory/main/hooks/mycelicmemory-memory-capture.py
 
-curl -o ~/.claude/hooks/ultrathink-context-loader.py \
-  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-context-loader.py
+curl -o ~/.claude/hooks/mycelicmemory-context-loader.py \
+  https://raw.githubusercontent.com/MycelicMemory/mycelicmemory/main/hooks/mycelicmemory-context-loader.py
 
 chmod +x ~/.claude/hooks/*.py
 ```
@@ -345,13 +345,13 @@ chmod +x ~/.claude/hooks/*.py
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py"}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/mycelicmemory-memory-capture.py"}]
       }
     ],
     "Stop": [
       {
         "matcher": "",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py"}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/mycelicmemory-memory-capture.py"}]
       }
     ]
   }
@@ -362,16 +362,16 @@ chmod +x ~/.claude/hooks/*.py
 
 ## Troubleshooting
 
-### "command not found: ultrathink"
+### "command not found: mycelicmemory"
 
 **Cause:** Binary not in PATH.
 
 **Solutions:**
 ```bash
 # Check where it's installed
-which ultrathink
-ls -la /usr/local/bin/ultrathink
-ls -la $(go env GOPATH)/bin/ultrathink
+which mycelicmemory
+ls -la /usr/local/bin/mycelicmemory
+ls -la $(go env GOPATH)/bin/mycelicmemory
 
 # If using GOPATH, add to PATH
 echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
@@ -409,16 +409,16 @@ go env CGO_ENABLED  # Should be 1
 cat ~/.claude/mcp.json | python3 -m json.tool
 
 # Test MCP mode directly
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | mycelicmemory --mcp
 
-# Check if ultrathink is in PATH
-which ultrathink
+# Check if mycelicmemory is in PATH
+which mycelicmemory
 
 # Use absolute path in config if needed
 {
   "mcpServers": {
     "local-memory": {
-      "command": "/usr/local/bin/ultrathink",
+      "command": "/usr/local/bin/mycelicmemory",
       "args": ["--mcp"]
     }
   }
@@ -452,15 +452,15 @@ curl http://localhost:11434/api/tags
 **Solutions:**
 ```bash
 # Check database location
-ls -la ~/.ultrathink/
+ls -la ~/.mycelicmemory/
 
 # Reset database (WARNING: deletes all memories)
-rm ~/.ultrathink/memories.db
-ultrathink doctor  # Recreates database
+rm ~/.mycelicmemory/memories.db
+mycelicmemory doctor  # Recreates database
 ```
 
 ---
 
 ## Next Steps
 
-See the [Quickstart Guide](QUICKSTART.md) to learn how to use Ultrathink effectively.
+See the [Quickstart Guide](QUICKSTART.md) to learn how to use MyclicMemory effectively.

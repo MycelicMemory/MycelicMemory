@@ -22,9 +22,9 @@ jobs:
       matrix:
         include:
           - goarch: arm64
-            name: ultrathink-macos-arm64
+            name: mycelicmemory-macos-arm64
           - goarch: amd64
-            name: ultrathink-macos-x64
+            name: mycelicmemory-macos-x64
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +38,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOOS: darwin
         run: |
-          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
           chmod +x ${{ matrix.name }}
 
       - name: Upload artifact
@@ -53,9 +53,9 @@ jobs:
       matrix:
         include:
           - goarch: amd64
-            name: ultrathink-linux-x64
+            name: mycelicmemory-linux-x64
           - goarch: arm64
-            name: ultrathink-linux-arm64
+            name: mycelicmemory-linux-arm64
             cc: aarch64-linux-gnu-gcc
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
           GOOS: linux
           CC: ${{ matrix.cc || 'gcc' }}
         run: |
-          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
           chmod +x ${{ matrix.name }}
 
       - name: Upload artifact
@@ -90,7 +90,7 @@ jobs:
       matrix:
         include:
           - goarch: amd64
-            name: ultrathink-windows-x64.exe
+            name: mycelicmemory-windows-x64.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -104,7 +104,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOOS: windows
         run: |
-          go build -tags "${{ env.BUILD_TAGS }}" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+          go build -tags "${{ env.BUILD_TAGS }}" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -147,9 +147,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          name: Ultrathink ${{ steps.version.outputs.version }}
+          name: MyclicMemory ${{ steps.version.outputs.version }}
           body: |
-            ## Ultrathink ${{ steps.version.outputs.version }}
+            ## MyclicMemory ${{ steps.version.outputs.version }}
 
             AI-powered persistent memory system for Claude and other AI agents.
 
@@ -157,7 +157,7 @@ jobs:
 
             **Via npm (recommended):**
             ```bash
-            npm install -g github:MycelicMemory/ultrathink
+            npm install -g github:MycelicMemory/mycelicmemory
             ```
 
             **Direct download:**
@@ -167,11 +167,11 @@ jobs:
 
             | Platform | Architecture | Binary |
             |----------|--------------|--------|
-            | macOS | Apple Silicon (M1/M2/M3) | `ultrathink-macos-arm64` |
-            | macOS | Intel | `ultrathink-macos-x64` |
-            | Linux | x64 | `ultrathink-linux-x64` |
-            | Linux | ARM64 | `ultrathink-linux-arm64` |
-            | Windows | x64 | `ultrathink-windows-x64.exe` |
+            | macOS | Apple Silicon (M1/M2/M3) | `mycelicmemory-macos-arm64` |
+            | macOS | Intel | `mycelicmemory-macos-x64` |
+            | Linux | x64 | `mycelicmemory-linux-x64` |
+            | Linux | ARM64 | `mycelicmemory-linux-arm64` |
+            | Windows | x64 | `mycelicmemory-windows-x64.exe` |
           files: release/*
           draft: false
           prerelease: false

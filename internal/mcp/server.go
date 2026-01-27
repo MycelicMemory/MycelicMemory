@@ -10,19 +10,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
-	"github.com/MycelicMemory/ultrathink/internal/benchmark"
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/internal/logging"
-	"github.com/MycelicMemory/ultrathink/internal/memory"
-	"github.com/MycelicMemory/ultrathink/internal/relationships"
-	"github.com/MycelicMemory/ultrathink/internal/search"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/benchmark"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/logging"
+	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
+	"github.com/MycelicMemory/mycelicmemory/internal/search"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 const (
 	ProtocolVersion = "2024-11-05"
-	ServerName      = "ultrathink"
+	ServerName      = "mycelicmemory"
 	ServerVersion   = "1.2.0"
 )
 
@@ -76,9 +76,9 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 
 // findRepoRoot attempts to find the git repository root
 func findRepoRoot(startPath string) string {
-	// For now, return the ultrathink directory
+	// For now, return the mycelicmemory directory
 	// In production, we'd walk up looking for .git
-	return os.Getenv("ULTRATHINK_REPO_PATH")
+	return os.Getenv("MYCELICMEMORY_REPO_PATH")
 }
 
 // Run starts the MCP server main loop
@@ -264,7 +264,7 @@ func (s *Server) handlePromptsGet(req Request) *Response {
 		}
 	}
 
-	promptContent := `# Ultrathink Automatic Memory System
+	promptContent := `# MyclicMemory Automatic Memory System
 
 You have access to persistent memory. Use it proactively to build and leverage a knowledge base.
 

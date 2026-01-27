@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
 )
 
 var (
@@ -32,10 +32,10 @@ Analysis Types:
   temporal  - Analyze learning progression over time
 
 Examples:
-  ultrathink analyze "What have I learned about Go?"
-  ultrathink analyze --type summarize --timeframe week
-  ultrathink analyze "concurrency" --type patterns
-  ultrathink analyze --type temporal --timeframe month`,
+  mycelicmemory analyze "What have I learned about Go?"
+  mycelicmemory analyze --type summarize --timeframe week
+  mycelicmemory analyze "concurrency" --type patterns
+  mycelicmemory analyze --type temporal --timeframe month`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		query := ""
@@ -80,7 +80,7 @@ func runAnalyze(query string) {
 		fmt.Printf("   ollama pull %s\n", cfg.Ollama.ChatModel)
 		fmt.Printf("   ollama pull %s\n", cfg.Ollama.EmbeddingModel)
 		fmt.Println()
-		fmt.Println("Run 'ultrathink doctor' to check system status.")
+		fmt.Println("Run 'mycelicmemory doctor' to check system status.")
 		os.Exit(1)
 	}
 
@@ -100,7 +100,7 @@ func runAnalyze(query string) {
 	// For question type, query is required
 	if analyzeType == "question" && query == "" {
 		fmt.Println("Error: Question is required for 'question' analysis type")
-		fmt.Println("Example: ultrathink analyze \"What have I learned about Go?\"")
+		fmt.Println("Example: mycelicmemory analyze \"What have I learned about Go?\"")
 		os.Exit(1)
 	}
 

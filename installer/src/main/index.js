@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { checkDependencies, installUltrathink } = require('./dependencies');
+const { checkDependencies, installMyclicMemory } = require('./dependencies');
 
 let mainWindow;
 const isDashboardMode = process.argv.includes('--dashboard');
@@ -97,8 +97,8 @@ ipcMain.handle('check-dependencies', async () => {
   return await checkDependencies();
 });
 
-ipcMain.handle('install-ultrathink', async (event) => {
-  return await installUltrathink((progress) => {
+ipcMain.handle('install-mycelicmemory', async (event) => {
+  return await installMyclicMemory((progress) => {
     event.sender.send('install-progress', progress);
   });
 });
@@ -108,9 +108,9 @@ ipcMain.handle('open-external', async (event, url) => {
   return true;
 });
 
-ipcMain.handle('launch-ultrathink', async () => {
+ipcMain.handle('launch-mycelicmemory', async () => {
   const { exec } = require('child_process');
-  exec('ultrathink doctor', (error, stdout, stderr) => {
+  exec('mycelicmemory doctor', (error, stdout, stderr) => {
     if (error) {
       console.error('Launch error:', error);
     }

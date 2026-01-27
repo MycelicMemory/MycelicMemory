@@ -25,15 +25,15 @@ jobs:
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            name: ultrathink-macos-arm64
+            name: mycelicmemory-macos-arm64
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            name: ultrathink-linux-x64
+            name: mycelicmemory-linux-x64
           - os: windows-latest
             goos: windows
             goarch: amd64
-            name: ultrathink-windows-x64.exe
+            name: mycelicmemory-windows-x64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
 
       - name: Make executable
         if: matrix.goos != 'windows'
@@ -71,13 +71,13 @@ jobs:
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
-          name: ultrathink-linux-x64
+          name: mycelicmemory-linux-x64
           path: ./
 
       - name: Setup binary
         run: |
-          chmod +x ultrathink-linux-x64
-          sudo mv ultrathink-linux-x64 /usr/local/bin/ultrathink
+          chmod +x mycelicmemory-linux-x64
+          sudo mv mycelicmemory-linux-x64 /usr/local/bin/mycelicmemory
 
       - name: Install test dependencies
         run: |
@@ -89,12 +89,12 @@ jobs:
 
       - name: Run CLI tests
         run: |
-          export ULTRATHINK_BINARY=ultrathink
+          export ULTRATHINK_BINARY=mycelicmemory
           bash scripts/e2e-tests/test-cli.sh
 
       - name: Start server for API tests
         run: |
-          ultrathink start --port 3099 > /tmp/server.log 2>&1 &
+          mycelicmemory start --port 3099 > /tmp/server.log 2>&1 &
           echo "Waiting for server..."
           for i in {1..30}; do
             if curl -s http://localhost:3099/api/v1/health > /dev/null; then
@@ -111,7 +111,7 @@ jobs:
 
       - name: Run Memory Operations tests (CLI)
         run: |
-          export ULTRATHINK_BINARY=ultrathink
+          export ULTRATHINK_BINARY=mycelicmemory
           export USE_API=false
           bash scripts/e2e-tests/test-memory-ops.sh
 
@@ -138,13 +138,13 @@ jobs:
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
-          name: ultrathink-macos-arm64
+          name: mycelicmemory-macos-arm64
           path: ./
 
       - name: Setup binary
         run: |
-          chmod +x ultrathink-macos-arm64
-          sudo mv ultrathink-macos-arm64 /usr/local/bin/ultrathink
+          chmod +x mycelicmemory-macos-arm64
+          sudo mv mycelicmemory-macos-arm64 /usr/local/bin/mycelicmemory
 
       - name: Install test dependencies
         run: brew install jq
@@ -154,12 +154,12 @@ jobs:
 
       - name: Run CLI tests
         run: |
-          export ULTRATHINK_BINARY=ultrathink
+          export ULTRATHINK_BINARY=mycelicmemory
           bash scripts/e2e-tests/test-cli.sh
 
       - name: Start server for API tests
         run: |
-          ultrathink start --port 3099 > /tmp/server.log 2>&1 &
+          mycelicmemory start --port 3099 > /tmp/server.log 2>&1 &
           echo "Waiting for server..."
           for i in {1..30}; do
             if curl -s http://localhost:3099/api/v1/health > /dev/null; then
@@ -176,7 +176,7 @@ jobs:
 
       - name: Run Memory Operations tests
         run: |
-          export ULTRATHINK_BINARY=ultrathink
+          export ULTRATHINK_BINARY=mycelicmemory
           export API_BASE=http://localhost:3099/api/v1
           export USE_API=false
           bash scripts/e2e-tests/test-memory-ops.sh
@@ -191,14 +191,14 @@ jobs:
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
-          name: ultrathink-windows-x64.exe
+          name: mycelicmemory-windows-x64.exe
           path: ./
 
       - name: Setup binary
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path C:\tools
-          Move-Item ultrathink-windows-x64.exe C:\tools\ultrathink.exe
+          Move-Item mycelicmemory-windows-x64.exe C:\tools\mycelicmemory.exe
           echo "C:\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Git Bash dependencies
@@ -209,7 +209,7 @@ jobs:
       - name: Run CLI tests
         shell: bash
         run: |
-          export ULTRATHINK_BINARY="C:/tools/ultrathink.exe"
+          export ULTRATHINK_BINARY="C:/tools/mycelicmemory.exe"
           chmod +x scripts/e2e-tests/*.sh
           bash scripts/e2e-tests/test-cli.sh
         continue-on-error: true
@@ -217,7 +217,7 @@ jobs:
       - name: Start server for API tests
         shell: pwsh
         run: |
-          Start-Process -FilePath "C:\tools\ultrathink.exe" -ArgumentList "start", "--port", "3099" -NoNewWindow -RedirectStandardOutput "server.log"
+          Start-Process -FilePath "C:\tools\mycelicmemory.exe" -ArgumentList "start", "--port", "3099" -NoNewWindow -RedirectStandardOutput "server.log"
           Start-Sleep -Seconds 10
 
       - name: Run REST API tests
@@ -230,7 +230,7 @@ jobs:
       - name: Run Memory Operations tests
         shell: bash
         run: |
-          export ULTRATHINK_BINARY="C:/tools/ultrathink.exe"
+          export ULTRATHINK_BINARY="C:/tools/mycelicmemory.exe"
           export API_BASE=http://localhost:3099/api/v1
           export USE_API=true
           bash scripts/e2e-tests/test-memory-ops.sh
@@ -246,12 +246,12 @@ jobs:
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
-          name: ultrathink-linux-x64
+          name: mycelicmemory-linux-x64
           path: ./
 
       - name: Run E2E tests in isolated Docker container
         run: |
-          chmod +x ultrathink-linux-x64
+          chmod +x mycelicmemory-linux-x64
           docker run --rm \
             -v $(pwd):/app \
             -w /app \
@@ -260,22 +260,22 @@ jobs:
               apt-get update && apt-get install -y curl jq ca-certificates
 
               # Setup binary
-              chmod +x ultrathink-linux-x64
-              mv ultrathink-linux-x64 /usr/local/bin/ultrathink
+              chmod +x mycelicmemory-linux-x64
+              mv mycelicmemory-linux-x64 /usr/local/bin/mycelicmemory
 
               # Verify binary
-              ultrathink --version
-              ultrathink doctor || true
+              mycelicmemory --version
+              mycelicmemory doctor || true
 
               # Make scripts executable
               chmod +x scripts/e2e-tests/*.sh
 
               # Run CLI tests
-              export ULTRATHINK_BINARY=ultrathink
+              export ULTRATHINK_BINARY=mycelicmemory
               bash scripts/e2e-tests/test-cli.sh
 
               # Start server
-              ultrathink start --port 3099 &
+              mycelicmemory start --port 3099 &
               sleep 5
 
               # Run API tests

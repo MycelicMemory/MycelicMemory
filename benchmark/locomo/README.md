@@ -1,6 +1,6 @@
 # LoCoMo Benchmarks
 
-Memory-augmented benchmarks for evaluating Ultrathink's long-term conversational memory capabilities using the LoCoMo dataset.
+Memory-augmented benchmarks for evaluating MyclicMemory's long-term conversational memory capabilities using the LoCoMo dataset.
 
 ---
 
@@ -29,7 +29,7 @@ Both test 5 conversation memory abilities:
 
 ### Required
 
-- **Ultrathink** installed and built ([see Quick Start](../../docs/QUICKSTART.md))
+- **MyclicMemory** installed and built ([see Quick Start](../../docs/QUICKSTART.md))
 - **Python 3.8+** with pip
 - **API Key** for an OpenAI-compatible LLM (default: DeepSeek)
 
@@ -43,11 +43,11 @@ Both test 5 conversation memory abilities:
 
 ## Quick Start
 
-### Step 1: Start Ultrathink Server
+### Step 1: Start MyclicMemory Server
 
 ```bash
 # In one terminal
-ultrathink start --port 3099
+mycelicmemory start --port 3099
 
 # Verify it's running
 curl http://localhost:3099/api/v1/health
@@ -264,13 +264,13 @@ python -m locomo10.main \
   --seed 42
 ```
 
-### Custom Ultrathink URL
+### Custom MyclicMemory URL
 
 ```bash
 python -m locomo10.main \
   --dataset data/locomo10.json \
   --output results/results.json \
-  --ultrathink-url http://localhost:9999/api/v1
+  --mycelicmemory-url http://localhost:9999/api/v1
 ```
 
 ---
@@ -281,7 +281,7 @@ python -m locomo10.main \
 benchmark/locomo/
 ├── shared/                    # Common modules
 │   ├── config.py             # Configuration & env loading
-│   ├── ultrathink_client.py  # Ultrathink API client
+│   ├── mycelicmemory_client.py  # MyclicMemory API client
 │   ├── llm_call_tracker.py   # LLM API tracking
 │   ├── logging_system.py     # Benchmark logging
 │   └── prompts.py            # Shared prompts
@@ -314,14 +314,14 @@ benchmark/locomo/
 
 For each question in the dataset:
 
-1. **Ingest**: Store the conversation history as memories in Ultrathink
+1. **Ingest**: Store the conversation history as memories in MyclicMemory
 2. **Retrieve**: Search for relevant memories using semantic search (top-k)
 3. **Generate**: Call LLM with retrieved context to answer the question
 4. **Evaluate**: Compare generated answer to gold answer (F1 or accuracy)
 5. **Track**: Record latency, tokens, and cost
 6. **Cleanup**: Delete memories to prepare for next question
 
-This tests Ultrathink's ability to:
+This tests MyclicMemory's ability to:
 - Store conversational information correctly
 - Retrieve relevant context for questions
 - Support accurate answer generation
@@ -330,11 +330,11 @@ This tests Ultrathink's ability to:
 
 ## Troubleshooting
 
-### "Connection refused" to Ultrathink
+### "Connection refused" to MyclicMemory
 
 ```bash
 # Start the server
-ultrathink start --port 3099
+mycelicmemory start --port 3099
 
 # Verify
 curl http://localhost:3099/api/v1/health

@@ -1,10 +1,10 @@
 #!/bin/bash
 # E2E Test: CLI Commands
-# Tests all ultrathink CLI functionality
+# Tests all mycelicmemory CLI functionality
 
 set -e
 
-BINARY=${ULTRATHINK_BINARY:-"ultrathink"}
+BINARY=${MYCELICMEMORY_BINARY:-"mycelicmemory"}
 PASSED=0
 FAILED=0
 
@@ -36,7 +36,7 @@ echo ""
 
 # Test 1: Version command
 log_info "Testing --version command"
-if $BINARY --version 2>&1 | grep -q "ultrathink"; then
+if $BINARY --version 2>&1 | grep -q "mycelicmemory"; then
     log_pass "--version returns version string"
 else
     log_fail "--version failed"

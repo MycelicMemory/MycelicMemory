@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
 )
 
 // LoopManager manages autonomous improvement loops

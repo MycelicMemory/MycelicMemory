@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/internal/logging"
-	"github.com/MycelicMemory/ultrathink/internal/vector"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/logging"
+	"github.com/MycelicMemory/mycelicmemory/internal/vector"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 var log = logging.GetLogger("ai")

@@ -10,13 +10,13 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/internal/logging"
-	"github.com/MycelicMemory/ultrathink/internal/memory"
-	"github.com/MycelicMemory/ultrathink/internal/relationships"
-	"github.com/MycelicMemory/ultrathink/internal/search"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/logging"
+	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
+	"github.com/MycelicMemory/mycelicmemory/internal/search"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // Server represents the REST API server

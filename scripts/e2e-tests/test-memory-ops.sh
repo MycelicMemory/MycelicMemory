@@ -4,7 +4,7 @@
 
 set -e
 
-BINARY=${ULTRATHINK_BINARY:-"ultrathink"}
+BINARY=${MYCELICMEMORY_BINARY:-"mycelicmemory"}
 API_BASE=${API_BASE:-"http://localhost:3099/api/v1"}
 USE_API=${USE_API:-"false"}  # Set to "true" to test via API instead of CLI
 PASSED=0
