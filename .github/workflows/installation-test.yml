@@ -19,6 +19,7 @@ jobs:
   # Build binaries for all platforms first
   build-binaries:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
