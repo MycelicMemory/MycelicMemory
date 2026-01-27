@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/benchmark"
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/benchmark"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 var benchmarkCmd = &cobra.Command{
 	Use:   "benchmark",
 	Short: "Run and manage LoCoMo benchmark evaluations",
-	Long: `Run benchmarks to evaluate Ultrathink's memory retrieval and QA capabilities.
+	Long: `Run benchmarks to evaluate MyclicMemory's memory retrieval and QA capabilities.
 
 The benchmark uses the LoCoMo-MC10 dataset with ~2000 questions across categories:
   - Single-Hop:   Direct fact retrieval
@@ -40,11 +40,11 @@ IMPORTANT: The Python bridge server must be running for benchmarks.
 Start it with: make server  (in benchmark/locomo/ directory)
 
 Examples:
-  ultrathink benchmark run --quick 20       # Quick test with 20 questions
-  ultrathink benchmark run                  # Full benchmark (all questions)
-  ultrathink benchmark status               # Check recent runs and status
-  ultrathink benchmark results              # View historical results
-  ultrathink benchmark compare <id1> <id2>  # Compare two runs`,
+  mycelicmemory benchmark run --quick 20       # Quick test with 20 questions
+  mycelicmemory benchmark run                  # Full benchmark (all questions)
+  mycelicmemory benchmark status               # Check recent runs and status
+  mycelicmemory benchmark results              # View historical results
+  mycelicmemory benchmark compare <id1> <id2>  # Compare two runs`,
 }
 
 // benchmarkRunCmd represents the benchmark run command
@@ -58,7 +58,7 @@ The benchmark connects to the Python bridge server (port 9876) which handles:
 - Generating answers using DeepSeek
 - Evaluating with LLM judge, F1, and BLEU-1 metrics
 
-Results are stored in the database and cataloged to ~/.ultrathink/benchmark_results/`,
+Results are stored in the database and cataloged to ~/.mycelicmemory/benchmark_results/`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runBenchmark()
 	},
@@ -125,7 +125,7 @@ func getBenchmarkService() (*benchmark.Service, *database.Database, error) {
 	}
 
 	// Get repo path from environment or default
-	repoPath := os.Getenv("ULTRATHINK_REPO_PATH")
+	repoPath := os.Getenv("MYCELICMEMORY_REPO_PATH")
 
 	svc := benchmark.NewService(db, repoPath)
 	return svc, db, nil
@@ -356,7 +356,7 @@ func showBenchmarkStatus() {
 
 	if len(runs) == 0 {
 		fmt.Println("No benchmark runs found.")
-		fmt.Println("Run 'ultrathink benchmark run --quick 20' to start.")
+		fmt.Println("Run 'mycelicmemory benchmark run --quick 20' to start.")
 		return
 	}
 

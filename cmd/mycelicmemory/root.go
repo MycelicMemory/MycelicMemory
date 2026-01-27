@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/internal/mcp"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/mcp"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 var (
@@ -26,24 +26,24 @@ var (
 
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
-	Use:   "ultrathink",
+	Use:   "mycelicmemory",
 	Short: "AI-powered persistent memory system (open source)",
-	Long: `Ultrathink provides persistent memory capabilities through natural language commands.
+	Long: `MyclicMemory provides persistent memory capabilities through natural language commands.
 Works as both a standalone CLI tool and MCP server for AI agents.
 
 Examples:
-  ultrathink remember "Go channels are like pipes between goroutines"
-  ultrathink search "concurrency patterns"
-  ultrathink relate <id1> <id2> --type similar
-  ultrathink forget <memory-id>
+  mycelicmemory remember "Go channels are like pipes between goroutines"
+  mycelicmemory search "concurrency patterns"
+  mycelicmemory relate <id1> <id2> --type similar
+  mycelicmemory forget <memory-id>
 
-  ultrathink start     # Start daemon
-  ultrathink status    # Check daemon status
+  mycelicmemory start     # Start daemon
+  mycelicmemory status    # Check daemon status
 
 Parameter Help:
   Add --help_parameters to any command for detailed parameter documentation:
-  ultrathink remember --help_parameters             # Smart parameter selection
-  ultrathink search --help_parameters --show_all    # Show all parameters
+  mycelicmemory remember --help_parameters             # Smart parameter selection
+  mycelicmemory search --help_parameters --show_all    # Show all parameters
 
 Progressive Discovery:
   --basic_only     Show only essential parameters (beginner-friendly)

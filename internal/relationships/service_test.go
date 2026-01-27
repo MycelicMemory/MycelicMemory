@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // TestRelationshipService tests the relationship service functionality

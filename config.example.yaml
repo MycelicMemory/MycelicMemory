@@ -1,5 +1,5 @@
-# Ultrathink Configuration Example
-# Copy to ~/.ultrathink/config.yaml or ./config.yaml
+# MyclicMemory Configuration Example
+# Copy to ~/.mycelicmemory/config.yaml or ./config.yaml
 #
 # All settings shown with their default values.
 # Verified configuration structure from Local Memory v1.2.0 reverse-engineering.
@@ -9,7 +9,7 @@ profile: default
 # Database Configuration
 database:
   # Path to SQLite database file
-  path: ~/.ultrathink/memories.db
+  path: ~/.mycelicmemory/memories.db
 
   # Automatic backup interval (Go duration format: 24h, 12h, etc.)
   backup_interval: 24h

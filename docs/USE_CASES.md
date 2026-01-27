@@ -1,6 +1,6 @@
-# Ultrathink Use Cases
+# MyclicMemory Use Cases
 
-15 detailed examples showing how to use Ultrathink for different workflows.
+15 detailed examples showing how to use MyclicMemory for different workflows.
 
 ---
 
@@ -386,7 +386,7 @@ You: "What did Clean Code say about functions?"
 
 **Problem:** Knowledge scattered across notes, bookmarks, and memory.
 
-**Solution:** Use Ultrathink as your searchable external brain.
+**Solution:** Use MyclicMemory as your searchable external brain.
 
 ```
 You: "Whenever I learn something interesting, store it. For example:

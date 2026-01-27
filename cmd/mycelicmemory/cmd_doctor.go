@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // doctorCmd represents the doctor command
@@ -26,7 +26,7 @@ func init() {
 }
 
 func runDoctor() {
-	fmt.Println("Ultrathink System Check")
+	fmt.Println("MyclicMemory System Check")
 	fmt.Println("=======================")
 	fmt.Println()
 

@@ -1,12 +1,12 @@
-# Ultrathink Quick Start Guide
+# MyclicMemory Quick Start Guide
 
-Get Ultrathink running with Claude in under 5 minutes.
+Get MyclicMemory running with Claude in under 5 minutes.
 
 ---
 
 ## Step 1: Install Node.js (if needed)
 
-Ultrathink requires Node.js 16 or higher.
+MyclicMemory requires Node.js 16 or higher.
 
 **Check if installed:**
 ```bash
@@ -21,17 +21,17 @@ node --version
 
 ---
 
-## Step 2: Install Ultrathink
+## Step 2: Install MyclicMemory
 
 ```bash
-npm install -g ultrathink
+npm install -g mycelicmemory
 ```
 
 The installer automatically downloads the correct binary for your platform (macOS, Linux, or Windows).
 
 **Verify:**
 ```bash
-ultrathink --version
+mycelicmemory --version
 ```
 
 ---
@@ -43,8 +43,8 @@ Edit `~/.claude/mcp.json` (create if it doesn't exist):
 ```json
 {
   "mcpServers": {
-    "ultrathink": {
-      "command": "ultrathink",
+    "mycelicmemory": {
+      "command": "mycelicmemory",
       "args": ["--mcp"]
     }
   }
@@ -64,10 +64,10 @@ claude
 Ask Claude:
 
 ```
-"Remember that ultrathink is now set up and working"
+"Remember that mycelicmemory is now set up and working"
 ```
 
-You should see Claude using `mcp__ultrathink__store_memory`.
+You should see Claude using `mcp__mycelicmemory__store_memory`.
 
 Then ask:
 
@@ -75,7 +75,7 @@ Then ask:
 "What memories do I have?"
 ```
 
-You should see Claude using `mcp__ultrathink__search`.
+You should see Claude using `mcp__mycelicmemory__search`.
 
 ---
 
@@ -104,7 +104,7 @@ Download from [ollama.ai/download](https://ollama.ai/download)
 
 Verify with:
 ```bash
-ultrathink doctor
+mycelicmemory doctor
 ```
 
 ---
@@ -127,7 +127,7 @@ ultrathink doctor
 
 ## Troubleshooting
 
-### "command not found: ultrathink"
+### "command not found: mycelicmemory"
 
 Ensure npm global bin is in your PATH:
 
@@ -140,17 +140,17 @@ npm bin -g
 
 ```bash
 # Verify
-which ultrathink
-ultrathink --version
+which mycelicmemory
+mycelicmemory --version
 
 # Test MCP
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | mycelicmemory --mcp
 ```
 
 ### Full Diagnostics
 
 ```bash
-ultrathink doctor
+mycelicmemory doctor
 ```
 
 ---

@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/relationships"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
-	"github.com/MycelicMemory/ultrathink/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
 )
 
 var (
@@ -36,9 +36,9 @@ var relateCmd = &cobra.Command{
 Relationship types: references, contradicts, expands, similar, sequential, causes, enables
 
 Examples:
-  ultrathink relate <id1> <id2> --type similar
-  ultrathink relate <id1> <id2> --type references --strength 0.9
-  ultrathink relate <id1> <id2> --type causes --context "Root cause analysis"`,
+  mycelicmemory relate <id1> <id2> --type similar
+  mycelicmemory relate <id1> <id2> --type references --strength 0.9
+  mycelicmemory relate <id1> <id2> --type causes --context "Root cause analysis"`,
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		runRelate(args[0], args[1])
@@ -52,9 +52,9 @@ var findRelatedCmd = &cobra.Command{
 	Long: `Find all memories that are related to the specified memory.
 
 Examples:
-  ultrathink find_related <id>
-  ultrathink find_related <id> --limit 20
-  ultrathink find_related <id> --type similar`,
+  mycelicmemory find_related <id>
+  mycelicmemory find_related <id> --limit 20
+  mycelicmemory find_related <id> --type similar`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runFindRelated(args[0])
@@ -68,9 +68,9 @@ var mapGraphCmd = &cobra.Command{
 	Long: `Generate a relationship graph starting from a specific memory.
 
 Examples:
-  ultrathink map_graph <id>
-  ultrathink map_graph <id> --depth 3
-  ultrathink map_graph <id> --min-strength 0.5`,
+  mycelicmemory map_graph <id>
+  mycelicmemory map_graph <id> --depth 3
+  mycelicmemory map_graph <id> --min-strength 0.5`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runMapGraph(args[0])
@@ -84,12 +84,12 @@ var discoverCmd = &cobra.Command{
 	Long: `Use AI to discover potential relationships between memories.
 
 Examples:
-  ultrathink discover
-  ultrathink discover --limit 10`,
+  mycelicmemory discover
+  mycelicmemory discover --limit 10`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Discovering relationships...")
 		fmt.Println("Note: This feature requires Ollama to be running.")
-		fmt.Println("Use 'ultrathink doctor' to check AI availability.")
+		fmt.Println("Use 'mycelicmemory doctor' to check AI availability.")
 	},
 }
 

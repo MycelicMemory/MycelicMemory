@@ -1,4 +1,4 @@
-# Ultrathink
+# MyclicMemory
 
 <p align="center">
   <strong>AI-powered persistent memory system for Claude and other AI agents</strong>
@@ -13,7 +13,7 @@
 
 ---
 
-Ultrathink gives Claude persistent memory across conversations. Store knowledge, search semantically, and get AI-powered insights from your memories.
+MyclicMemory gives Claude persistent memory across conversations. Store knowledge, search semantically, and get AI-powered insights from your memories.
 
 **Free and open source** - no license keys, no subscriptions.
 
@@ -32,13 +32,13 @@ Ultrathink gives Claude persistent memory across conversations. Store knowledge,
 ### Install via npm
 
 ```bash
-npm install -g ultrathink
+npm install -g mycelicmemory
 ```
 
-**Important:** After installation, run `ultrathink` once to download the platform-specific binary:
+**Important:** After installation, run `mycelicmemory` once to download the platform-specific binary:
 
 ```bash
-ultrathink --version
+mycelicmemory --version
 ```
 
 The first run automatically downloads and caches the binary for your system (macOS, Linux, or Windows).
@@ -46,14 +46,14 @@ The first run automatically downloads and caches the binary for your system (mac
 ### Alternative: Install from GitHub
 
 ```bash
-npm install -g github:MycelicMemory/ultrathink
+npm install -g github:MycelicMemory/mycelicmemory
 ```
 
 ### Verify Installation
 
 ```bash
-ultrathink --version    # Should show version
-ultrathink doctor       # Check system dependencies
+mycelicmemory --version    # Should show version
+mycelicmemory doctor       # Check system dependencies
 ```
 
 ---
@@ -67,8 +67,8 @@ Edit `~/.claude/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "ultrathink": {
-      "command": "ultrathink",
+    "mycelicmemory": {
+      "command": "mycelicmemory",
       "args": ["--mcp"]
     }
   }
@@ -96,8 +96,8 @@ Add:
 ```json
 {
   "mcpServers": {
-    "ultrathink": {
-      "command": "ultrathink",
+    "mycelicmemory": {
+      "command": "mycelicmemory",
       "args": ["--mcp"]
     }
   }
@@ -109,7 +109,7 @@ Restart Claude Desktop.
 ### Test It Works
 
 Ask Claude:
-- "Remember that ultrathink is now working"
+- "Remember that mycelicmemory is now working"
 - "What memories do I have?"
 
 ---
@@ -147,7 +147,7 @@ Ask Claude:
 
 ## Optional: AI Features
 
-Ultrathink works without AI services, but semantic search and AI-powered analysis require **Ollama**.
+MyclicMemory works without AI services, but semantic search and AI-powered analysis require **Ollama**.
 
 ### Install Ollama
 
@@ -176,7 +176,7 @@ ollama pull qwen2.5:3b         # For AI analysis
 ### Verify
 
 ```bash
-ultrathink doctor
+mycelicmemory doctor
 # Should show: Ollama: Available
 ```
 
@@ -184,34 +184,34 @@ ultrathink doctor
 
 ## CLI Usage
 
-Ultrathink also works as a standalone CLI:
+MyclicMemory also works as a standalone CLI:
 
 ```bash
 # Store memories
-ultrathink remember "Go interfaces are satisfied implicitly"
-ultrathink remember "Important!" --importance 9 --tags learning,go
+mycelicmemory remember "Go interfaces are satisfied implicitly"
+mycelicmemory remember "Important!" --importance 9 --tags learning,go
 
 # Search
-ultrathink search "concurrency patterns"
+mycelicmemory search "concurrency patterns"
 
 # AI analysis (requires Ollama)
-ultrathink analyze "What have I learned about testing?"
+mycelicmemory analyze "What have I learned about testing?"
 
 # Service management
-ultrathink start    # Start REST API daemon
-ultrathink stop     # Stop daemon
-ultrathink doctor   # Health check
+mycelicmemory start    # Start REST API daemon
+mycelicmemory stop     # Stop daemon
+mycelicmemory doctor   # Health check
 ```
 
 ---
 
 ## Configuration
 
-Config file: `~/.ultrathink/config.yaml`
+Config file: `~/.mycelicmemory/config.yaml`
 
 ```yaml
 database:
-  path: ~/.ultrathink/memories.db
+  path: ~/.mycelicmemory/memories.db
 
 rest_api:
   port: 3099
@@ -231,8 +231,8 @@ ollama:
 If you prefer to build from source (requires Go 1.23+ and a C compiler):
 
 ```bash
-git clone https://github.com/MycelicMemory/ultrathink.git
-cd ultrathink
+git clone https://github.com/MycelicMemory/mycelicmemory.git
+cd mycelicmemory
 make deps && make build && make install
 ```
 
@@ -242,7 +242,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
 
 ## Troubleshooting
 
-### "command not found: ultrathink"
+### "command not found: mycelicmemory"
 
 Ensure npm global bin is in your PATH:
 
@@ -255,11 +255,11 @@ npm bin -g
 
 ```bash
 # Verify installation
-which ultrathink
-ultrathink --version
+which mycelicmemory
+mycelicmemory --version
 
 # Test MCP mode
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | ultrathink --mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | mycelicmemory --mcp
 
 # Validate config
 cat ~/.claude/mcp.json | python3 -m json.tool
@@ -269,12 +269,12 @@ cat ~/.claude/mcp.json | python3 -m json.tool
 
 If macOS blocks the binary:
 1. Go to System Preferences > Security & Privacy > General
-2. Click "Allow Anyway" next to the ultrathink message
+2. Click "Allow Anyway" next to the mycelicmemory message
 
 ### Full Diagnostics
 
 ```bash
-ultrathink doctor
+mycelicmemory doctor
 ```
 
 ---
@@ -296,6 +296,6 @@ MIT License - Free and open source.
 
 ## Links
 
-- **Repository**: [github.com/MycelicMemory/ultrathink](https://github.com/MycelicMemory/ultrathink)
-- **Issues**: [GitHub Issues](https://github.com/MycelicMemory/ultrathink/issues)
-- **npm**: [npmjs.com/package/ultrathink](https://npmjs.com/package/ultrathink)
+- **Repository**: [github.com/MycelicMemory/mycelicmemory](https://github.com/MycelicMemory/mycelicmemory)
+- **Issues**: [GitHub Issues](https://github.com/MycelicMemory/mycelicmemory/issues)
+- **npm**: [npmjs.com/package/mycelicmemory](https://npmjs.com/package/mycelicmemory)

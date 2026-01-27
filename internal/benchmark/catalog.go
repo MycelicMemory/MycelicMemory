@@ -23,7 +23,7 @@ func NewCatalog(baseDir string) *Catalog {
 // DefaultCatalogDir returns the default catalog directory
 func DefaultCatalogDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".ultrathink", "benchmark_results")
+	return filepath.Join(home, ".mycelicmemory", "benchmark_results")
 }
 
 // EnsureDirectories creates the catalog directory structure

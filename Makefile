@@ -1,7 +1,7 @@
 .PHONY: help build test clean install dev-install link lint fmt vet run dev
 
 # Variables
-BINARY_NAME=ultrathink
+BINARY_NAME=mycelicmemory
 VERSION?=1.2.0
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
@@ -11,14 +11,14 @@ CGO_ENABLED=CGO_ENABLED=1
 
 # Default target
 help:
-	@echo "Ultrathink - AI-Powered Memory System"
+	@echo "MyclicMemory - AI-Powered Memory System"
 	@echo ""
 	@echo "Quick Start (Development):"
 	@echo "  make dev-install   - Build and install globally for development"
-	@echo "  make link          - Create symlink to ./ultrathink (alternative)"
+	@echo "  make link          - Create symlink to ./mycelicmemory (alternative)"
 	@echo ""
 	@echo "Build Targets:"
-	@echo "  make build         - Build the binary (./ultrathink)"
+	@echo "  make build         - Build the binary (./mycelicmemory)"
 	@echo "  make build-all     - Build for all platforms"
 	@echo "  make install       - Install binary to GOPATH/bin"
 	@echo ""
@@ -47,15 +47,15 @@ help:
 # Build the binary (requires CGO for SQLite)
 build:
 	@echo "Building $(BINARY_NAME)..."
-	$(CGO_ENABLED) go build $(BUILD_TAGS) $(LDFLAGS) -o $(BINARY_NAME) ./cmd/ultrathink
+	$(CGO_ENABLED) go build $(BUILD_TAGS) $(LDFLAGS) -o $(BINARY_NAME) ./cmd/mycelicmemory
 	@echo "✅ Build complete: ./$(BINARY_NAME)"
 
 # Build for all platforms (requires cross-compilation CGO setup)
 build-all:
 	@echo "Building for all platforms..."
 	@mkdir -p dist
-	$(CGO_ENABLED) GOOS=darwin GOARCH=arm64 go build $(BUILD_TAGS) $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 ./cmd/ultrathink
-	$(CGO_ENABLED) GOOS=darwin GOARCH=amd64 go build $(BUILD_TAGS) $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 ./cmd/ultrathink
+	$(CGO_ENABLED) GOOS=darwin GOARCH=arm64 go build $(BUILD_TAGS) $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 ./cmd/mycelicmemory
+	$(CGO_ENABLED) GOOS=darwin GOARCH=amd64 go build $(BUILD_TAGS) $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 ./cmd/mycelicmemory
 	@echo "✅ Multi-platform build complete in dist/"
 	@echo "Note: Linux/Windows builds require cross-compilation CGO setup"
 	@ls -lh dist/
@@ -89,20 +89,20 @@ clean:
 # Install binary to GOPATH/bin
 install:
 	@echo "Installing $(BINARY_NAME)..."
-	$(CGO_ENABLED) go install $(BUILD_TAGS) $(LDFLAGS) ./cmd/ultrathink
+	$(CGO_ENABLED) go install $(BUILD_TAGS) $(LDFLAGS) ./cmd/mycelicmemory
 	@echo "✅ Installed to $$(go env GOPATH)/bin/$(BINARY_NAME)"
 
 # Development install - builds and installs globally
-# Use this during development to make 'ultrathink' available everywhere
+# Use this during development to make 'mycelicmemory' available everywhere
 dev-install: build
 	@echo "Installing $(BINARY_NAME) to /usr/local/bin..."
 	@sudo cp $(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
-	@echo "✅ Installed! Run 'ultrathink --help' to get started"
+	@echo "✅ Installed! Run 'mycelicmemory --help' to get started"
 	@echo ""
 	@echo "Quick test:"
-	@echo "  ultrathink doctor"
-	@echo "  ultrathink remember \"Hello, Ultrathink!\""
-	@echo "  ultrathink search hello"
+	@echo "  mycelicmemory doctor"
+	@echo "  mycelicmemory remember \"Hello, MyclicMemory!\""
+	@echo "  mycelicmemory search hello"
 
 # Alternative: Create symlink (no sudo required if you own /usr/local/bin)
 link: build
@@ -173,23 +173,23 @@ benchmark-setup:
 # Free Response (locomo10) benchmarks
 benchmark-fr-quick: build
 	@echo "Running quick FR benchmark (20 questions)..."
-	@echo "Make sure ultrathink server is running on port 3099"
+	@echo "Make sure mycelicmemory server is running on port 3099"
 	cd benchmark/locomo && $(MAKE) run-fr-quick
 
 benchmark-fr: build
 	@echo "Running full FR benchmark (1986 questions)..."
-	@echo "Make sure ultrathink server is running on port 3099"
+	@echo "Make sure mycelicmemory server is running on port 3099"
 	cd benchmark/locomo && $(MAKE) run-fr
 
 # Multiple Choice (locomo_mc10) benchmarks
 benchmark-mc-quick: build
 	@echo "Running quick MC benchmark (10 questions)..."
-	@echo "Make sure ultrathink server is running on port 3099"
+	@echo "Make sure mycelicmemory server is running on port 3099"
 	cd benchmark/locomo && $(MAKE) run-mc-quick
 
 benchmark-mc: build
 	@echo "Running full MC benchmark..."
-	@echo "Make sure ultrathink server is running on port 3099"
+	@echo "Make sure mycelicmemory server is running on port 3099"
 	cd benchmark/locomo && $(MAKE) run-mc
 
 # Evaluate MC benchmark results

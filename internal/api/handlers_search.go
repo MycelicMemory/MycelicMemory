@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/MycelicMemory/ultrathink/internal/search"
+	"github.com/MycelicMemory/mycelicmemory/internal/search"
 )
 
 // SearchResultItem matches local-memory's search result format

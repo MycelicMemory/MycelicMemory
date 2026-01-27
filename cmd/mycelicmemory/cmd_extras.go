@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 var (
@@ -24,9 +24,9 @@ var categorizeCmd = &cobra.Command{
 	Long: `Categorize a memory using AI analysis.
 
 Examples:
-  ultrathink categorize 550e8400-e29b-41d4-a716-446655440000
-  ultrathink categorize <id> --auto-create
-  ultrathink categorize <id> --confidence 0.8`,
+  mycelicmemory categorize 550e8400-e29b-41d4-a716-446655440000
+  mycelicmemory categorize <id> --auto-create
+  mycelicmemory categorize <id> --confidence 0.8`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runCategorize(args[0])
@@ -37,7 +37,7 @@ Examples:
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Run setup wizard",
-	Long:  `Run the setup wizard to configure Ultrathink.`,
+	Long:  `Run the setup wizard to configure MyclicMemory.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runSetup()
 	},
@@ -47,7 +47,7 @@ var setupCmd = &cobra.Command{
 var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate installation",
-	Long:  `Validate the Ultrathink installation and configuration.`,
+	Long:  `Validate the MyclicMemory installation and configuration.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runValidate()
 	},
@@ -56,12 +56,12 @@ var validateCmd = &cobra.Command{
 // installCmd represents the install command
 var installCmd = &cobra.Command{
 	Use:   "install [component]",
-	Short: "Install Ultrathink integration",
-	Long: `Install Ultrathink integrations.
+	Short: "Install MyclicMemory integration",
+	Long: `Install MyclicMemory integrations.
 
 Examples:
-  ultrathink install mcp     # Install MCP for Claude Desktop
-  ultrathink install shell   # Install shell completion`,
+  mycelicmemory install mcp     # Install MCP for Claude Desktop
+  mycelicmemory install shell   # Install shell completion`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			fmt.Println("Available installations:")
@@ -76,11 +76,11 @@ Examples:
 // killCmd represents the kill command
 var killCmd = &cobra.Command{
 	Use:   "kill <pid>",
-	Short: "Kill specific ultrathink process",
-	Long: `Kill a specific ultrathink process by PID.
+	Short: "Kill specific mycelicmemory process",
+	Long: `Kill a specific mycelicmemory process by PID.
 
 Examples:
-  ultrathink kill 12345`,
+  mycelicmemory kill 12345`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runKill(args[0])
@@ -122,7 +122,7 @@ func runCategorize(memoryID string) {
 		fmt.Println("1. Install Ollama: https://ollama.ai")
 		fmt.Println("2. Start Ollama: ollama serve")
 		fmt.Println()
-		fmt.Println("Run 'ultrathink doctor' to check system status.")
+		fmt.Println("Run 'mycelicmemory doctor' to check system status.")
 		os.Exit(1)
 	}
 
@@ -135,11 +135,11 @@ func runCategorize(memoryID string) {
 	fmt.Printf("Confidence threshold: %.2f\n", categorizeConfidenceThreshold)
 	fmt.Println()
 	fmt.Println("AI-based categorization is not yet fully implemented.")
-	fmt.Println("Use 'ultrathink analyze' for AI analysis features.")
+	fmt.Println("Use 'mycelicmemory analyze' for AI analysis features.")
 }
 
 func runSetup() {
-	fmt.Println("Ultrathink Setup Wizard")
+	fmt.Println("MyclicMemory Setup Wizard")
 	fmt.Println("======================")
 	fmt.Println()
 
@@ -158,11 +158,11 @@ func runSetup() {
 	fmt.Println()
 	fmt.Println("Setup complete!")
 	fmt.Println()
-	fmt.Println("Run 'ultrathink doctor' to verify all components.")
+	fmt.Println("Run 'mycelicmemory doctor' to verify all components.")
 }
 
 func runValidate() {
-	fmt.Println("Ultrathink Installation Validation")
+	fmt.Println("MyclicMemory Installation Validation")
 	fmt.Println("==================================")
 	fmt.Println()
 
@@ -201,7 +201,7 @@ func runValidate() {
 	if allOk {
 		fmt.Println("Installation validated successfully!")
 	} else {
-		fmt.Println("Some issues found. Run 'ultrathink doctor' for more details.")
+		fmt.Println("Some issues found. Run 'mycelicmemory doctor' for more details.")
 	}
 }
 
@@ -211,9 +211,9 @@ func runInstall(component string) {
 		fmt.Println("Installing MCP for Claude Desktop...")
 		fmt.Println()
 		fmt.Println("MCP installation is not yet implemented.")
-		fmt.Println("Please add ultrathink to your Claude Desktop config manually:")
+		fmt.Println("Please add mycelicmemory to your Claude Desktop config manually:")
 		fmt.Println()
-		fmt.Printf("  \"ultrathink\": {\n")
+		fmt.Printf("  \"mycelicmemory\": {\n")
 		fmt.Printf("    \"command\": \"%s\",\n", os.Args[0])
 		fmt.Printf("    \"args\": [\"--mcp\"]\n")
 		fmt.Printf("  }\n")
@@ -222,13 +222,13 @@ func runInstall(component string) {
 		fmt.Println("To install shell completion, run one of:")
 		fmt.Println()
 		fmt.Println("  # Bash")
-		fmt.Println("  ultrathink completion bash > /etc/bash_completion.d/ultrathink")
+		fmt.Println("  mycelicmemory completion bash > /etc/bash_completion.d/mycelicmemory")
 		fmt.Println()
 		fmt.Println("  # Zsh")
-		fmt.Println("  ultrathink completion zsh > \"${fpath[1]}/_ultrathink\"")
+		fmt.Println("  mycelicmemory completion zsh > \"${fpath[1]}/_mycelicmemory\"")
 		fmt.Println()
 		fmt.Println("  # Fish")
-		fmt.Println("  ultrathink completion fish > ~/.config/fish/completions/ultrathink.fish")
+		fmt.Println("  mycelicmemory completion fish > ~/.config/fish/completions/mycelicmemory.fish")
 
 	default:
 		fmt.Printf("Unknown component: %s\n", component)

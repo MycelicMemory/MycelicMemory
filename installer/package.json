@@ -1,7 +1,7 @@
 {
-  "name": "ultrathink-installer",
+  "name": "mycelicmemory-installer",
   "version": "1.0.0",
-  "description": "Desktop installer for Ultrathink AI memory system",
+  "description": "Desktop installer for MyclicMemory AI memory system",
   "main": "src/main/index.js",
   "author": "Mycelic Memory",
   "license": "MIT",
@@ -21,8 +21,8 @@
     "electron-builder": "^24.9.1"
   },
   "build": {
-    "appId": "com.mycelicmemory.ultrathink-installer",
-    "productName": "Ultrathink",
+    "appId": "com.mycelicmemory.mycelicmemory-installer",
+    "productName": "MyclicMemory",
     "directories": {
       "output": "dist",
       "buildResources": "build"

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
 )
 
 // HealthResponse represents health check response

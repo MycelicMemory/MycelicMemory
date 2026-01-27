@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // TestOllamaClient tests the Ollama client functionality

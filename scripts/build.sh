@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-# Build script for ultrathink
+# Build script for mycelicmemory
 # Creates binaries for all supported platforms for GitHub releases
 
 VERSION="${VERSION:-$(node -p "require('./package.json').version")}"
 OUTPUT_DIR="${OUTPUT_DIR:-dist}"
 
-echo "Building ultrathink v${VERSION}"
+echo "Building mycelicmemory v${VERSION}"
 echo "================================"
 echo ""
 
@@ -31,7 +31,7 @@ build_platform() {
         -tags "$BUILD_TAGS" \
         -ldflags "$LDFLAGS" \
         -o "${OUTPUT_DIR}/${output_name}" \
-        ./cmd/ultrathink
+        ./cmd/mycelicmemory
 
     if [ $? -eq 0 ]; then
         local size=$(ls -lh "${OUTPUT_DIR}/${output_name}" | awk '{print $5}')
@@ -42,15 +42,15 @@ build_platform() {
 }
 
 # macOS
-build_platform darwin arm64 ultrathink-macos-arm64
-build_platform darwin amd64 ultrathink-macos-x64
+build_platform darwin arm64 mycelicmemory-macos-arm64
+build_platform darwin amd64 mycelicmemory-macos-x64
 
 # Linux
-build_platform linux amd64 ultrathink-linux-x64
-build_platform linux arm64 ultrathink-linux-arm64
+build_platform linux amd64 mycelicmemory-linux-x64
+build_platform linux arm64 mycelicmemory-linux-arm64
 
 # Windows
-build_platform windows amd64 ultrathink-windows-x64.exe
+build_platform windows amd64 mycelicmemory-windows-x64.exe
 
 echo ""
 echo "Build complete!"

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
-	"github.com/MycelicMemory/ultrathink/internal/benchmark"
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/internal/memory"
-	"github.com/MycelicMemory/ultrathink/internal/relationships"
-	"github.com/MycelicMemory/ultrathink/internal/search"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/benchmark"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
+	"github.com/MycelicMemory/mycelicmemory/internal/search"
 )
 
 // Response types for tool handlers

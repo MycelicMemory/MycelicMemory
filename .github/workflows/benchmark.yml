@@ -74,7 +74,7 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          ./ultrathink start --port 3099 --background
+          ./mycelicmemory start --port 3099 --background
           sleep 3
           curl -sf http://localhost:3099/api/v1/health || (echo "Server failed to start" && exit 1)
 
@@ -100,14 +100,14 @@ jobs:
               --dataset data/locomo10.json \
               --output results/locomo10_results.json \
               --max-questions $QUESTIONS \
-              --ultrathink-url http://localhost:3099/api/v1 \
+              --mycelicmemory-url http://localhost:3099/api/v1 \
               $EXTRA_ARGS
           else
             python3 -m locomo_mc10.main \
               --dataset data/locomo-mc10-full.jsonl \
               --output results/locomo_mc10_results.json \
               --max-questions $QUESTIONS \
-              --ultrathink-url http://localhost:3099/api/v1 \
+              --mycelicmemory-url http://localhost:3099/api/v1 \
               $EXTRA_ARGS
           fi
 
@@ -217,7 +217,7 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          ./ultrathink start --port 3099 --background
+          ./mycelicmemory start --port 3099 --background
           sleep 3
           curl -sf http://localhost:3099/api/v1/health || (echo "Server failed to start" && exit 1)
 
@@ -227,7 +227,7 @@ jobs:
           python3 -m locomo10.main \
             --dataset data/locomo10.json \
             --output results/locomo10_full_results.json \
-            --ultrathink-url http://localhost:3099/api/v1
+            --mycelicmemory-url http://localhost:3099/api/v1
 
       - uses: actions/upload-artifact@v4
         if: always()

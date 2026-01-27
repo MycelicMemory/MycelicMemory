@@ -1,7 +1,7 @@
 # SOP: Installation Testing in Isolated Environments
 
 ## Purpose
-This document provides reproducible steps for testing ultrathink installation in clean environments with no pre-existing dependencies.
+This document provides reproducible steps for testing mycelicmemory installation in clean environments with no pre-existing dependencies.
 
 ## Automated Testing
 Installation tests run automatically via GitHub Actions when:
@@ -27,11 +27,11 @@ docker run --rm -it ubuntu:22.04 bash
 apt-get update && apt-get install -y curl ca-certificates
 
 # Download binary directly
-curl -L -o ultrathink https://github.com/MycelicMemory/ultrathink/releases/latest/download/ultrathink-linux-x64
-chmod +x ultrathink
-./ultrathink --version
-./ultrathink --help
-./ultrathink doctor
+curl -L -o mycelicmemory https://github.com/MycelicMemory/mycelicmemory/releases/latest/download/mycelicmemory-linux-x64
+chmod +x mycelicmemory
+./mycelicmemory --version
+./mycelicmemory --help
+./mycelicmemory doctor
 ```
 
 **With Node.js (npm installation):**
@@ -39,9 +39,9 @@ chmod +x ultrathink
 docker run --rm -it node:20 bash
 
 # Inside container:
-npm install -g github:MycelicMemory/ultrathink
-ultrathink --version
-ultrathink doctor
+npm install -g github:MycelicMemory/mycelicmemory
+mycelicmemory --version
+mycelicmemory doctor
 ```
 
 ### Option 2: Fresh VM (Windows/macOS/Linux)
@@ -56,37 +56,37 @@ ultrathink doctor
 2. **Test binary installation:**
    ```bash
    # Download appropriate binary from releases
-   # https://github.com/MycelicMemory/ultrathink/releases
+   # https://github.com/MycelicMemory/mycelicmemory/releases
 
    # macOS/Linux:
-   curl -L -o ultrathink https://github.com/MycelicMemory/ultrathink/releases/latest/download/ultrathink-<platform>
-   chmod +x ultrathink
-   ./ultrathink --version
+   curl -L -o mycelicmemory https://github.com/MycelicMemory/mycelicmemory/releases/latest/download/mycelicmemory-<platform>
+   chmod +x mycelicmemory
+   ./mycelicmemory --version
 
    # Windows (PowerShell):
-   Invoke-WebRequest -Uri "https://github.com/MycelicMemory/ultrathink/releases/latest/download/ultrathink-windows-x64.exe" -OutFile "ultrathink.exe"
-   .\ultrathink.exe --version
+   Invoke-WebRequest -Uri "https://github.com/MycelicMemory/mycelicmemory/releases/latest/download/mycelicmemory-windows-x64.exe" -OutFile "mycelicmemory.exe"
+   .\mycelicmemory.exe --version
    ```
 
 3. **Test npm installation:**
    ```bash
    # Install Node.js first if not present
-   npm install -g github:MycelicMemory/ultrathink
-   ultrathink --version
+   npm install -g github:MycelicMemory/mycelicmemory
+   mycelicmemory --version
    ```
 
 ### Option 3: GitHub Codespaces
 
-1. Create new codespace from ultrathink repo
+1. Create new codespace from mycelicmemory repo
 2. In terminal:
    ```bash
    # Build from source
-   go build -tags fts5 -o ultrathink ./cmd/ultrathink
-   ./ultrathink --version
+   go build -tags fts5 -o mycelicmemory ./cmd/mycelicmemory
+   ./mycelicmemory --version
 
    # Or test npm install
-   npm install -g github:MycelicMemory/ultrathink
-   ultrathink --version
+   npm install -g github:MycelicMemory/mycelicmemory
+   mycelicmemory --version
    ```
 
 ### Option 4: Windows Sandbox
@@ -108,7 +108,7 @@ ultrathink doctor
 - [ ] `doctor` command runs (may show missing optional deps)
 
 ### Database Initialization
-- [ ] Config directory created (`~/.ultrathink/`)
+- [ ] Config directory created (`~/.mycelicmemory/`)
 - [ ] SQLite database initializes on first use
 - [ ] FTS5 full-text search works
 
@@ -118,8 +118,8 @@ ultrathink doctor
 - [ ] Server responds with capabilities
 
 ### npm Package
-- [ ] `npm install -g github:MycelicMemory/ultrathink` succeeds
-- [ ] `ultrathink` command available in PATH
+- [ ] `npm install -g github:MycelicMemory/mycelicmemory` succeeds
+- [ ] `mycelicmemory` command available in PATH
 - [ ] Binary downloads on first run (correct platform detected)
 
 ### Optional Dependencies (informational only)
@@ -132,39 +132,39 @@ ultrathink doctor
 
 ### macOS (arm64/x64)
 ```
-$ ultrathink --version
-ultrathink version 1.2.x
+$ mycelicmemory --version
+mycelicmemory version 1.2.x
 
-$ ultrathink doctor
+$ mycelicmemory doctor
 Checking system dependencies...
 ✓ SQLite with FTS5: Available
-✓ Configuration directory: ~/.ultrathink
+✓ Configuration directory: ~/.mycelicmemory
 ⚠ Ollama: Not found (optional - install from https://ollama.ai)
 ⚠ Qdrant: Not found (optional - install from https://qdrant.tech)
 ```
 
 ### Linux (x64/arm64)
 ```
-$ ultrathink --version
-ultrathink version 1.2.x
+$ mycelicmemory --version
+mycelicmemory version 1.2.x
 
-$ ultrathink doctor
+$ mycelicmemory doctor
 Checking system dependencies...
 ✓ SQLite with FTS5: Available
-✓ Configuration directory: ~/.ultrathink
+✓ Configuration directory: ~/.mycelicmemory
 ⚠ Ollama: Not found (optional)
 ⚠ Qdrant: Not found (optional)
 ```
 
 ### Windows (x64)
 ```
-PS> .\ultrathink.exe --version
-ultrathink version 1.2.x
+PS> .\mycelicmemory.exe --version
+mycelicmemory version 1.2.x
 
-PS> .\ultrathink.exe doctor
+PS> .\mycelicmemory.exe doctor
 Checking system dependencies...
 ✓ SQLite with FTS5: Available
-✓ Configuration directory: C:\Users\<user>\.ultrathink
+✓ Configuration directory: C:\Users\<user>\.mycelicmemory
 ⚠ Ollama: Not found (optional)
 ⚠ Qdrant: Not found (optional)
 ```
@@ -176,7 +176,7 @@ Checking system dependencies...
 ### Binary won't execute (macOS)
 ```bash
 # Remove quarantine attribute
-xattr -d com.apple.quarantine ultrathink
+xattr -d com.apple.quarantine mycelicmemory
 ```
 
 ### npm install fails with MODULE_NOT_FOUND
@@ -189,7 +189,7 @@ xattr -d com.apple.quarantine ultrathink
 
 ### Permission denied
 ```bash
-chmod +x ultrathink  # Unix
+chmod +x mycelicmemory  # Unix
 # Windows: Run as Administrator if needed
 ```
 

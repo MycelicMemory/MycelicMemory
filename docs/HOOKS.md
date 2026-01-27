@@ -1,4 +1,4 @@
-# Ultrathink Auto-Memory Hooks
+# MyclicMemory Auto-Memory Hooks
 
 Automatically capture knowledge from Claude Code sessions using hooks.
 
@@ -6,7 +6,7 @@ Automatically capture knowledge from Claude Code sessions using hooks.
 
 ## Overview
 
-Ultrathink hooks integrate with Claude Code's hook system to:
+MyclicMemory hooks integrate with Claude Code's hook system to:
 
 1. **Capture memories automatically** when you make decisions or solve problems
 2. **Load relevant context** when starting new sessions
@@ -29,11 +29,11 @@ mkdir -p ~/.claude/hooks
 **Option A: Download from GitHub**
 
 ```bash
-curl -o ~/.claude/hooks/ultrathink-memory-capture.py \
-  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-memory-capture.py
+curl -o ~/.claude/hooks/mycelicmemory-memory-capture.py \
+  https://raw.githubusercontent.com/MycelicMemory/mycelicmemory/main/hooks/mycelicmemory-memory-capture.py
 
-curl -o ~/.claude/hooks/ultrathink-context-loader.py \
-  https://raw.githubusercontent.com/MycelicMemory/ultrathink/main/hooks/ultrathink-context-loader.py
+curl -o ~/.claude/hooks/mycelicmemory-context-loader.py \
+  https://raw.githubusercontent.com/MycelicMemory/mycelicmemory/main/hooks/mycelicmemory-context-loader.py
 
 chmod +x ~/.claude/hooks/*.py
 ```
@@ -41,7 +41,7 @@ chmod +x ~/.claude/hooks/*.py
 **Option B: Copy from local install**
 
 ```bash
-cp /path/to/ultrathink/hooks/*.py ~/.claude/hooks/
+cp /path/to/mycelicmemory/hooks/*.py ~/.claude/hooks/
 chmod +x ~/.claude/hooks/*.py
 ```
 
@@ -58,7 +58,7 @@ Edit `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py",
+            "command": "python3 ~/.claude/hooks/mycelicmemory-memory-capture.py",
             "timeout": 10
           }
         ]
@@ -70,7 +70,7 @@ Edit `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/ultrathink-memory-capture.py",
+            "command": "python3 ~/.claude/hooks/mycelicmemory-memory-capture.py",
             "timeout": 15
           }
         ]
@@ -82,7 +82,7 @@ Edit `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ~/.claude/hooks/ultrathink-context-loader.py",
+            "command": "python3 ~/.claude/hooks/mycelicmemory-context-loader.py",
             "timeout": 10
           }
         ]
@@ -156,7 +156,7 @@ claude
 
 ### Memory Capture Settings
 
-Edit the top of `ultrathink-memory-capture.py`:
+Edit the top of `mycelicmemory-memory-capture.py`:
 
 ```python
 # Rate limiting: minimum seconds between memory stores
@@ -171,7 +171,7 @@ MIN_CONTENT_LENGTH = 40
 
 ### Context Loader Settings
 
-Edit the top of `ultrathink-context-loader.py`:
+Edit the top of `mycelicmemory-context-loader.py`:
 
 ```python
 # Minimum importance for memories to be loaded as context
@@ -264,10 +264,10 @@ Log format:
 
 ### Memories Not Being Stored
 
-1. Check ultrathink is installed:
+1. Check mycelicmemory is installed:
    ```bash
-   which ultrathink
-   ultrathink --version
+   which mycelicmemory
+   mycelicmemory --version
    ```
 
 2. Verify rate limiting isn't blocking:
@@ -282,7 +282,7 @@ Log format:
 1. Verify SessionStart hook is configured
 2. Check if memories exist with project tags:
    ```bash
-   ultrathink search --tags "project:myproject"
+   mycelicmemory search --tags "project:myproject"
    ```
 
 3. Check minimum importance threshold (default: 6)
@@ -293,7 +293,7 @@ Log format:
 
 ### Adding Custom Patterns
 
-Edit `DECISION_PATTERNS` in `ultrathink-memory-capture.py`:
+Edit `DECISION_PATTERNS` in `mycelicmemory-memory-capture.py`:
 
 ```python
 DECISION_PATTERNS = [
@@ -307,7 +307,7 @@ DECISION_PATTERNS = [
 
 ### Adding Custom File Tracking
 
-Edit `IMPORTANT_FILES` in `ultrathink-memory-capture.py`:
+Edit `IMPORTANT_FILES` in `mycelicmemory-memory-capture.py`:
 
 ```python
 IMPORTANT_FILES = {
@@ -321,7 +321,7 @@ IMPORTANT_FILES = {
 
 ### Adding Project Detection
 
-Edit `PROJECT_MARKERS` in `ultrathink-context-loader.py`:
+Edit `PROJECT_MARKERS` in `mycelicmemory-context-loader.py`:
 
 ```python
 PROJECT_MARKERS = {
@@ -341,7 +341,7 @@ PROJECT_MARKERS = {
 | `SessionStart` | Session begins | Load relevant context |
 | `PostToolUse` | After tool executes | Capture file changes |
 | `Stop` | Claude stops responding | Analyze session for insights |
-| `PreToolUse` | Before tool executes | (Not used by ultrathink) |
+| `PreToolUse` | Before tool executes | (Not used by mycelicmemory) |
 
 ---
 
@@ -359,7 +359,7 @@ PROJECT_MARKERS = {
 Remove the hook entries from `~/.claude/settings.json` or delete the hook files:
 
 ```bash
-rm ~/.claude/hooks/ultrathink-*.py
+rm ~/.claude/hooks/mycelicmemory-*.py
 ```
 
 ---

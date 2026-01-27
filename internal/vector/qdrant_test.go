@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // TestQdrantClient tests the Qdrant client functionality
@@ -25,8 +25,8 @@ func TestQdrantClient(t *testing.T) {
 		if !client.IsEnabled() {
 			t.Error("Client should be enabled")
 		}
-		if client.CollectionName() != "ultrathink-memories" {
-			t.Errorf("Expected collection name 'ultrathink-memories', got %s", client.CollectionName())
+		if client.CollectionName() != "mycelicmemory-memories" {
+			t.Errorf("Expected collection name 'mycelicmemory-memories', got %s", client.CollectionName())
 		}
 		if client.Dimension() != 768 {
 			t.Errorf("Expected dimension 768, got %d", client.Dimension())
@@ -35,8 +35,8 @@ func TestQdrantClient(t *testing.T) {
 
 	t.Run("DefaultValues", func(t *testing.T) {
 		emptyClient := NewQdrantClient(&config.QdrantConfig{Enabled: true})
-		if emptyClient.CollectionName() != "ultrathink-memories" {
-			t.Errorf("Default collection should be 'ultrathink-memories', got %s", emptyClient.CollectionName())
+		if emptyClient.CollectionName() != "mycelicmemory-memories" {
+			t.Errorf("Default collection should be 'mycelicmemory-memories', got %s", emptyClient.CollectionName())
 		}
 		if emptyClient.Dimension() != 768 {
 			t.Errorf("Default dimension should be 768, got %d", emptyClient.Dimension())

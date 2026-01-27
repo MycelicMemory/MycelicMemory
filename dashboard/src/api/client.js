@@ -1,6 +1,6 @@
 const API_BASE = '/api/v1';
 
-class UltrathinkAPI {
+class MyclicMemoryAPI {
   async request(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
     const response = await fetch(url, {
@@ -85,5 +85,5 @@ class UltrathinkAPI {
   }
 }
 
-export const api = new UltrathinkAPI();
+export const api = new MyclicMemoryAPI();
 export default api;

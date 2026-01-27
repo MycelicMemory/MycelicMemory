@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // QdrantClient provides vector storage capabilities via Qdrant
@@ -26,7 +26,7 @@ type QdrantClient struct {
 func NewQdrantClient(cfg *config.QdrantConfig) *QdrantClient {
 	client := &QdrantClient{
 		baseURL:        cfg.URL,
-		collectionName: "ultrathink-memories",
+		collectionName: "mycelicmemory-memories",
 		enabled:        cfg.Enabled,
 		dimension:      768, // nomic-embed-text dimension
 		httpClient: &http.Client{

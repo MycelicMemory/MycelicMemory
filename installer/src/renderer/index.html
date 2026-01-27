@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
-  <title>Ultrathink Installer</title>
+  <title>MyclicMemory Installer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
           <path d="M12 6v6l4 2"/>
         </svg>
       </div>
-      <h1>Ultrathink</h1>
+      <h1>MyclicMemory</h1>
       <p class="subtitle">AI-Powered Memory System</p>
     </header>
 
@@ -26,7 +26,7 @@
       <!-- Welcome Screen -->
       <section id="screen-welcome" class="screen active">
         <h2>Welcome</h2>
-        <p>This installer will set up Ultrathink on your computer and help you configure optional AI features.</p>
+        <p>This installer will set up MyclicMemory on your computer and help you configure optional AI features.</p>
         <div class="features">
           <div class="feature">
             <span class="icon">🧠</span>
@@ -54,9 +54,9 @@
             <span class="dep-name">Node.js</span>
             <span class="dep-status">Checking...</span>
           </div>
-          <div class="dep-item" data-dep="ultrathink">
+          <div class="dep-item" data-dep="mycelicmemory">
             <span class="dep-icon">⏳</span>
-            <span class="dep-name">Ultrathink</span>
+            <span class="dep-name">MyclicMemory</span>
             <span class="dep-status">Checking...</span>
           </div>
           <div class="dep-item optional" data-dep="ollama">
@@ -78,7 +78,7 @@
 
       <!-- Install Screen -->
       <section id="screen-install" class="screen">
-        <h2>Install Ultrathink</h2>
+        <h2>Install MyclicMemory</h2>
         <div id="install-status" class="install-status">
           <div class="spinner"></div>
           <p id="install-message">Ready to install</p>
@@ -135,14 +135,14 @@
       <!-- Complete Screen -->
       <section id="screen-complete" class="screen">
         <h2>Setup Complete! 🎉</h2>
-        <p>Ultrathink has been installed successfully.</p>
+        <p>MyclicMemory has been installed successfully.</p>
 
         <div class="next-steps">
           <h3>Next Steps</h3>
           <ol>
             <li>Add to Claude Code: Edit <code>~/.claude/mcp.json</code></li>
             <li>Restart Claude Code</li>
-            <li>Try: "Remember that ultrathink is working"</li>
+            <li>Try: "Remember that mycelicmemory is working"</li>
           </ol>
         </div>
 
@@ -150,8 +150,8 @@
           <p>Add this to your mcp.json:</p>
           <pre><code>{
   "mcpServers": {
-    "ultrathink": {
-      "command": "ultrathink",
+    "mycelicmemory": {
+      "command": "mycelicmemory",
       "args": ["--mcp"]
     }
   }

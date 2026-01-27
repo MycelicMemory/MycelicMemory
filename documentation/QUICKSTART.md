@@ -1,6 +1,6 @@
-# Ultrathink Quickstart Guide
+# MyclicMemory Quickstart Guide
 
-Get productive with Ultrathink in 5 minutes.
+Get productive with MyclicMemory in 5 minutes.
 
 ## Table of Contents
 
@@ -37,10 +37,10 @@ Get productive with Ultrathink in 5 minutes.
 
 ```bash
 # Simple memory
-ultrathink remember "React useEffect runs after render, not before"
+mycelicmemory remember "React useEffect runs after render, not before"
 
 # With metadata
-ultrathink remember "Never use force push on main branch" \
+mycelicmemory remember "Never use force push on main branch" \
   --importance 9 \
   --tags git,safety,teamwork \
   --domain devops
@@ -50,49 +50,49 @@ ultrathink remember "Never use force push on main branch" \
 
 ```bash
 # Basic search
-ultrathink search "react hooks"
+mycelicmemory search "react hooks"
 
 # Search within a domain
-ultrathink search "deployment" --domain devops
+mycelicmemory search "deployment" --domain devops
 
 # Search by tags
-ultrathink search --tags debugging
+mycelicmemory search --tags debugging
 ```
 
 ### Analyze Memories
 
 ```bash
 # Ask a question
-ultrathink analyze "What do I know about error handling?"
+mycelicmemory analyze "What do I know about error handling?"
 
 # Get a summary
-ultrathink analyze --type summarize --timeframe week
+mycelicmemory analyze --type summarize --timeframe week
 
 # Discover patterns
-ultrathink analyze --type patterns
+mycelicmemory analyze --type patterns
 ```
 
 ### System Commands
 
 ```bash
 # Health check
-ultrathink doctor
+mycelicmemory doctor
 
 # Version info
-ultrathink --version
+mycelicmemory --version
 
 # Start REST API server
-ultrathink start
+mycelicmemory start
 
 # Stop server
-ultrathink stop
+mycelicmemory stop
 ```
 
 ---
 
 ## Using with Claude
 
-Once Ultrathink is configured as an MCP server, Claude can use it directly.
+Once MyclicMemory is configured as an MCP server, Claude can use it directly.
 
 ### Storing Memories
 
@@ -179,26 +179,26 @@ Importance: 6-7
 **Semantic Search** (default)
 Finds memories by meaning, not just keywords:
 ```bash
-ultrathink search "how to handle errors"
+mycelicmemory search "how to handle errors"
 # Finds memories about error handling, exception management, etc.
 ```
 
 **Tag Search**
 Find memories with specific tags:
 ```bash
-ultrathink search --tags debugging,python
+mycelicmemory search --tags debugging,python
 ```
 
 **Domain Search**
 Search within a knowledge domain:
 ```bash
-ultrathink search "testing" --domain backend
+mycelicmemory search "testing" --domain backend
 ```
 
 **Hybrid Search**
 Combine approaches:
 ```bash
-ultrathink search "authentication" --tags security --domain backend
+mycelicmemory search "authentication" --tags security --domain backend
 ```
 
 ### Search Tips
@@ -219,9 +219,9 @@ Requires Ollama with models installed. See [Installation Guide](INSTALLATION.md#
 Ask questions and get answers based on your stored knowledge:
 
 ```bash
-ultrathink analyze "What authentication methods have I used?"
-ultrathink analyze "How do I typically structure my Go projects?"
-ultrathink analyze "What debugging strategies work best for React?"
+mycelicmemory analyze "What authentication methods have I used?"
+mycelicmemory analyze "How do I typically structure my Go projects?"
+mycelicmemory analyze "What debugging strategies work best for React?"
 ```
 
 ### Summarization
@@ -230,11 +230,11 @@ Get summaries of your memories:
 
 ```bash
 # Recent activity
-ultrathink analyze --type summarize --timeframe today
-ultrathink analyze --type summarize --timeframe week
+mycelicmemory analyze --type summarize --timeframe today
+mycelicmemory analyze --type summarize --timeframe week
 
 # All memories in a domain
-ultrathink analyze --type summarize --domain programming
+mycelicmemory analyze --type summarize --domain programming
 ```
 
 ### Pattern Discovery
@@ -242,8 +242,8 @@ ultrathink analyze --type summarize --domain programming
 Find patterns across your knowledge:
 
 ```bash
-ultrathink analyze --type patterns
-ultrathink analyze --type patterns --domain devops
+mycelicmemory analyze --type patterns
+mycelicmemory analyze --type patterns --domain devops
 ```
 
 ---
@@ -256,7 +256,7 @@ Connect related memories to build a knowledge graph.
 
 ```bash
 # Link two related memories
-ultrathink relate <memory-id-1> <memory-id-2> --type similar
+mycelicmemory relate <memory-id-1> <memory-id-2> --type similar
 
 # Relationship types:
 # - similar: Related concepts
@@ -271,17 +271,17 @@ ultrathink relate <memory-id-1> <memory-id-2> --type similar
 
 ```bash
 # Find memories related to a specific one
-ultrathink find_related <memory-id>
+mycelicmemory find_related <memory-id>
 
 # View the knowledge graph
-ultrathink graph <memory-id> --depth 2
+mycelicmemory graph <memory-id> --depth 2
 ```
 
 ### Automatic Discovery
 
 Let AI find connections:
 ```bash
-ultrathink discover-relationships
+mycelicmemory discover-relationships
 ```
 
 ---
@@ -292,7 +292,7 @@ ultrathink discover-relationships
 
 When you learn something valuable, store it right away:
 ```bash
-ultrathink remember "Just discovered that..." --importance 7 --tags learning
+mycelicmemory remember "Just discovered that..." --importance 7 --tags learning
 ```
 
 ### 2. Use Consistent Tags
@@ -311,10 +311,10 @@ Create a personal taxonomy:
 Periodically review and update your knowledge:
 ```bash
 # What did I learn recently?
-ultrathink analyze --type summarize --timeframe week
+mycelicmemory analyze --type summarize --timeframe week
 
 # Find outdated information
-ultrathink search "deprecated" --importance 5
+mycelicmemory search "deprecated" --importance 5
 ```
 
 ### 4. Connect Related Knowledge
@@ -322,7 +322,7 @@ ultrathink search "deprecated" --importance 5
 Build a knowledge graph:
 ```bash
 # After storing related memories
-ultrathink relate <id1> <id2> --type similar
+mycelicmemory relate <id1> <id2> --type similar
 ```
 
 ### 5. Set Appropriate Importance
@@ -340,14 +340,14 @@ ultrathink relate <id1> <id2> --type similar
 
 ```bash
 # Store project context
-ultrathink remember "Project X uses Go 1.23, PostgreSQL 16, and Redis 7.
+mycelicmemory remember "Project X uses Go 1.23, PostgreSQL 16, and Redis 7.
 Deployed on AWS EKS with ArgoCD for GitOps." \
   --importance 9 \
   --tags project-x,architecture,stack \
   --domain backend
 
 # Store coding conventions
-ultrathink remember "Project X conventions: use snake_case for DB columns,
+mycelicmemory remember "Project X conventions: use snake_case for DB columns,
 camelCase for Go variables, kebab-case for API endpoints." \
   --importance 8 \
   --tags project-x,convention
@@ -357,13 +357,13 @@ camelCase for Go variables, kebab-case for API endpoints." \
 
 ```bash
 # Store a decision
-ultrathink remember "Chose to use pgx over database/sql for better
+mycelicmemory remember "Chose to use pgx over database/sql for better
 PostgreSQL features and performance. Considered GORM but wanted more control." \
   --importance 8 \
   --tags decision,database,go
 
 # Store a debugging insight
-ultrathink remember "The connection pool exhaustion was caused by not closing
+mycelicmemory remember "The connection pool exhaustion was caused by not closing
 rows after scanning. Always defer rows.Close() immediately after Query()." \
   --importance 9 \
   --tags debugging,gotcha,go,database
@@ -371,7 +371,7 @@ rows after scanning. Always defer rows.Close() immediately after Query()." \
 
 ### Getting Help from Claude
 
-With Ultrathink connected, ask Claude:
+With MyclicMemory connected, ask Claude:
 - "Based on my memories, what database library should I use for this Go project?"
 - "What gotchas should I watch out for with PostgreSQL in Go?"
 - "Remind me of the conventions for Project X"
@@ -383,4 +383,4 @@ With Ultrathink connected, ask Claude:
 - **Explore advanced features**: Relationships, domains, categories
 - **Set up auto-capture**: See [Installation Guide](INSTALLATION.md#auto-memory-hooks)
 - **Enable AI features**: Install Ollama for semantic search and analysis
-- **Join the community**: https://github.com/MycelicMemory/ultrathink
+- **Join the community**: https://github.com/MycelicMemory/mycelicmemory

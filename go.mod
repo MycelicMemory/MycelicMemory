@@ -1,4 +1,4 @@
-module github.com/MycelicMemory/ultrathink
+module github.com/MycelicMemory/mycelicmemory
 
 go 1.23.0
 

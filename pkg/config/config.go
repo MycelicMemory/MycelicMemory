@@ -81,7 +81,7 @@ type QdrantConfig struct {
 // DefaultConfig returns configuration with verified default values
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
-	configDir := filepath.Join(homeDir, ".ultrathink")
+	configDir := filepath.Join(homeDir, ".mycelicmemory")
 
 	return &Config{
 		Profile: "default",
@@ -128,8 +128,8 @@ func DefaultConfig() *Config {
 // Load loads configuration from YAML file with fallback to defaults
 // Searches in multiple locations:
 // 1. ./config.yaml (current directory)
-// 2. ~/.ultrathink/config.yaml (user home)
-// 3. /etc/ultrathink/config.yaml (system-wide)
+// 2. ~/.mycelicmemory/config.yaml (user home)
+// 3. /etc/mycelicmemory/config.yaml (system-wide)
 func Load() (*Config, error) {
 	v := viper.New()
 
@@ -140,8 +140,8 @@ func Load() (*Config, error) {
 	// Add search paths
 	v.AddConfigPath(".")                                          // Current directory
 	homeDir, _ := os.UserHomeDir()
-	v.AddConfigPath(filepath.Join(homeDir, ".ultrathink"))       // User config
-	v.AddConfigPath("/etc/ultrathink")                           // System config
+	v.AddConfigPath(filepath.Join(homeDir, ".mycelicmemory"))       // User config
+	v.AddConfigPath("/etc/mycelicmemory")                           // System config
 
 	// Set default values
 	setDefaults(v)
@@ -172,7 +172,7 @@ func Load() (*Config, error) {
 // setDefaults sets default values in Viper
 func setDefaults(v *viper.Viper) {
 	homeDir, _ := os.UserHomeDir()
-	configDir := filepath.Join(homeDir, ".ultrathink")
+	configDir := filepath.Join(homeDir, ".mycelicmemory")
 
 	v.SetDefault("profile", "default")
 	v.SetDefault("database.path", filepath.Join(configDir, "memories.db"))
@@ -265,7 +265,7 @@ func (c *Config) EnsureConfigDir() error {
 // ConfigPath returns the path to the configuration directory
 func ConfigPath() string {
 	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".ultrathink")
+	return filepath.Join(homeDir, ".mycelicmemory")
 }
 
 // DatabasePath returns the default database path

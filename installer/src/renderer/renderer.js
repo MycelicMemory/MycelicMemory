@@ -14,7 +14,7 @@ function goToScreen(screenId) {
 
 // Check dependencies
 async function checkDependencies() {
-  const deps = await window.ultrathink.checkDependencies();
+  const deps = await window.mycelicmemory.checkDependencies();
   dependencies = deps;
   updateDependencyUI(deps);
 }
@@ -23,8 +23,8 @@ function updateDependencyUI(deps) {
   // Node.js
   updateDepItem('node', deps.node.installed, deps.node.version || 'Not installed');
 
-  // Ultrathink
-  updateDepItem('ultrathink', deps.ultrathink.installed, deps.ultrathink.version || 'Not installed');
+  // MyclicMemory
+  updateDepItem('mycelicmemory', deps.mycelicmemory.installed, deps.mycelicmemory.version || 'Not installed');
 
   // Ollama
   const ollamaStatus = deps.ollama.installed
@@ -61,10 +61,10 @@ function updateDepItem(dep, success, status, isOptional = false) {
   item.querySelector('.dep-status').textContent = status;
 }
 
-// Install ultrathink
+// Install mycelicmemory
 async function startInstall() {
   // Check if already installed
-  if (dependencies && dependencies.ultrathink.installed) {
+  if (dependencies && dependencies.mycelicmemory.installed) {
     goToScreen('optional');
     return;
   }
@@ -81,11 +81,11 @@ async function startInstall() {
   spinner.classList.add('active');
   output.classList.add('active');
   output.textContent = '';
-  message.textContent = 'Installing ultrathink...';
+  message.textContent = 'Installing mycelicmemory...';
   progressBar.style.width = '10%';
 
   // Listen for progress
-  window.ultrathink.onInstallProgress((progress) => {
+  window.mycelicmemory.onInstallProgress((progress) => {
     if (progress.message) {
       output.textContent += progress.message;
       output.scrollTop = output.scrollHeight;
@@ -111,7 +111,7 @@ async function startInstall() {
   });
 
   try {
-    await window.ultrathink.installUltrathink();
+    await window.mycelicmemory.installMyclicMemory();
   } catch (error) {
     message.textContent = `Error: ${error.message}`;
     spinner.classList.remove('active');
@@ -127,10 +127,10 @@ function openLink(type) {
       ? 'https://ollama.ai/download/mac'
       : 'https://ollama.ai/download/windows',
     docker: 'https://www.docker.com/products/docker-desktop/',
-    docs: 'https://github.com/MycelicMemory/ultrathink'
+    docs: 'https://github.com/MycelicMemory/mycelicmemory'
   };
 
-  window.ultrathink.openExternal(urls[type]);
+  window.mycelicmemory.openExternal(urls[type]);
 }
 
 function openDocs() {
@@ -144,8 +144,8 @@ function finishInstall() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  // Check if ultrathink is already installed on load
-  if (dependencies && dependencies.ultrathink.installed) {
+  // Check if mycelicmemory is already installed on load
+  if (dependencies && dependencies.mycelicmemory.installed) {
     document.getElementById('btn-install').textContent = 'Already Installed';
   }
 });

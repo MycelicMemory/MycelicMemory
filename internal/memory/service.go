@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // Service provides the business logic layer for memory operations

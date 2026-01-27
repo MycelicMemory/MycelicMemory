@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/ultrathink/internal/api"
-	"github.com/MycelicMemory/ultrathink/internal/daemon"
-	"github.com/MycelicMemory/ultrathink/internal/database"
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/internal/api"
+	"github.com/MycelicMemory/mycelicmemory/internal/daemon"
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the daemon",
-	Long:  `Start the Ultrathink daemon which provides REST API and MCP services.`,
+	Long:  `Start the MyclicMemory daemon which provides REST API and MCP services.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runStart()
 	},
@@ -35,7 +35,7 @@ var startCmd = &cobra.Command{
 var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the daemon",
-	Long:  `Stop the running Ultrathink daemon.`,
+	Long:  `Stop the running MyclicMemory daemon.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runStop()
 	},
@@ -45,7 +45,7 @@ var stopCmd = &cobra.Command{
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show daemon status",
-	Long:  `Show the current status of the Ultrathink daemon.`,
+	Long:  `Show the current status of the MyclicMemory daemon.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runStatus()
 	},
@@ -54,8 +54,8 @@ var statusCmd = &cobra.Command{
 // psCmd represents the ps command
 var psCmd = &cobra.Command{
 	Use:   "ps",
-	Short: "List running ultrathink processes",
-	Long:  `List all running Ultrathink processes.`,
+	Short: "List running mycelicmemory processes",
+	Long:  `List all running MyclicMemory processes.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runPS()
 	},
@@ -64,8 +64,8 @@ var psCmd = &cobra.Command{
 // killAllCmd represents the kill_all command
 var killAllCmd = &cobra.Command{
 	Use:   "kill_all",
-	Short: "Kill all ultrathink processes",
-	Long:  `Kill all running Ultrathink processes.`,
+	Short: "Kill all mycelicmemory processes",
+	Long:  `Kill all running MyclicMemory processes.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runKillAll()
 	},
@@ -100,8 +100,8 @@ func runStart() {
 	// Check if already running
 	if d.IsRunning() {
 		status := d.Status()
-		fmt.Printf("Ultrathink daemon is already running (PID: %d)\n", status.PID)
-		fmt.Println("Use 'ultrathink stop' to stop it first")
+		fmt.Printf("MyclicMemory daemon is already running (PID: %d)\n", status.PID)
+		fmt.Println("Use 'mycelicmemory stop' to stop it first")
 		os.Exit(1)
 	}
 
@@ -128,7 +128,7 @@ func runStart() {
 			time.Sleep(100 * time.Millisecond)
 			if d.IsRunning() {
 				status := d.Status()
-				fmt.Printf("Ultrathink daemon started (PID: %d)\n", status.PID)
+				fmt.Printf("MyclicMemory daemon started (PID: %d)\n", status.PID)
 				if status.RESTEnabled {
 					fmt.Printf("REST API: http://%s:%d\n", status.RESTHost, status.RESTPort)
 				}
@@ -141,7 +141,7 @@ func runStart() {
 	}
 
 	// Foreground mode
-	fmt.Printf("Ultrathink v%s\n", Version)
+	fmt.Printf("MyclicMemory v%s\n", Version)
 	fmt.Println("AI-powered persistent memory system (open source)")
 	fmt.Println()
 
@@ -211,12 +211,12 @@ func runStop() {
 	d := getDaemon()
 
 	if !d.IsRunning() {
-		fmt.Println("Ultrathink daemon is not running")
+		fmt.Println("MyclicMemory daemon is not running")
 		return
 	}
 
 	status := d.Status()
-	fmt.Printf("Stopping Ultrathink daemon (PID: %d)...\n", status.PID)
+	fmt.Printf("Stopping MyclicMemory daemon (PID: %d)...\n", status.PID)
 
 	if err := d.Stop(); err != nil {
 		fmt.Printf("Error stopping daemon: %v\n", err)
@@ -236,7 +236,7 @@ func runStatus() {
 	d := daemon.New(config.ConfigPath(), Version)
 	status := d.Status()
 
-	fmt.Println("Ultrathink Status")
+	fmt.Println("MyclicMemory Status")
 	fmt.Println("═════════════════")
 	fmt.Println()
 
@@ -271,11 +271,11 @@ func runPS() {
 	}
 
 	if len(processes) == 0 {
-		fmt.Println("No Ultrathink processes running")
+		fmt.Println("No MyclicMemory processes running")
 		return
 	}
 
-	fmt.Println("Running Ultrathink processes:")
+	fmt.Println("Running MyclicMemory processes:")
 	fmt.Println("PID\tTYPE\t\tUPTIME\t\tVERSION")
 	fmt.Println("---\t----\t\t------\t\t-------")
 	for _, p := range processes {
@@ -287,11 +287,11 @@ func runKillAll() {
 	d := getDaemon()
 
 	if !d.IsRunning() {
-		fmt.Println("No Ultrathink processes running")
+		fmt.Println("No MyclicMemory processes running")
 		return
 	}
 
-	fmt.Println("Killing all Ultrathink processes...")
+	fmt.Println("Killing all MyclicMemory processes...")
 	killed, err := d.KillAll()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)

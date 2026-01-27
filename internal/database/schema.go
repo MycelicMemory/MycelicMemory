@@ -1,6 +1,6 @@
 package database
 
-// Schema contains the complete SQLite schema for Ultrathink
+// Schema contains the complete SQLite schema for MyclicMemory
 // VERIFIED: Extracted from Local Memory v1.2.0 database via sqlite3 .schema
 //
 // Tables (16 total):

@@ -1,6 +1,6 @@
 #!/bin/bash
 # E2E Test: REST API
-# Tests all ultrathink REST API endpoints
+# Tests all mycelicmemory REST API endpoints
 
 set -e
 

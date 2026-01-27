@@ -1,7 +1,7 @@
 {
-  "name": "ultrathink-dashboard",
+  "name": "mycelicmemory-dashboard",
   "version": "1.0.0",
-  "description": "Local dashboard UI for Ultrathink AI memory system",
+  "description": "Local dashboard UI for MyclicMemory AI memory system",
   "type": "module",
   "scripts": {
     "dev": "vite",

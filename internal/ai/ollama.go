@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MycelicMemory/ultrathink/pkg/config"
+	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
 // OllamaClient provides AI capabilities via Ollama

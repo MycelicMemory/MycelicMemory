@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/MycelicMemory/ultrathink/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/ai"
 )
 
 // AnalyzeRequest represents an analysis request

@@ -44,7 +44,7 @@ jobs:
       - name: Check if version exists
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          if npm view ultrathink@$VERSION > /dev/null 2>&1; then
+          if npm view mycelicmemory@$VERSION > /dev/null 2>&1; then
             echo "ERROR: Version $VERSION already exists on npm!"
             exit 1
           fi
@@ -70,7 +70,7 @@ jobs:
       - name: Verify publication
         run: |
           sleep 10  # Wait for npm registry propagation
-          npm view ultrathink@${{ needs.verify.outputs.version }}
+          npm view mycelicmemory@${{ needs.verify.outputs.version }}
           echo ""
-          echo "Successfully published ultrathink@${{ needs.verify.outputs.version }}!"
-          echo "Install with: npm install -g ultrathink"
+          echo "Successfully published mycelicmemory@${{ needs.verify.outputs.version }}!"
+          echo "Install with: npm install -g mycelicmemory"
