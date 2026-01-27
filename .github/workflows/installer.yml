@@ -1,0 +1,118 @@
+name: Build Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 1.2.1)'
+        required: false
+        type: string
+
+jobs:
+  build-installer-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: installer
+        run: npm ci
+
+      - name: Build dashboard
+        working-directory: dashboard
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy dashboard to installer
+        run: |
+          mkdir -p installer/resources/dashboard
+          cp -r dashboard/dist/* installer/resources/dashboard/
+
+      - name: Build macOS installer
+        working-directory: installer
+        run: npm run build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultrathink-installer-macos
+          path: |
+            installer/dist/*.dmg
+            installer/dist/*.zip
+
+  build-installer-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: installer
+        run: npm ci
+
+      - name: Build dashboard
+        working-directory: dashboard
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy dashboard to installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer/resources/dashboard
+          Copy-Item -Recurse dashboard/dist/* installer/resources/dashboard/
+
+      - name: Build Windows installer
+        working-directory: installer
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultrathink-installer-windows
+          path: |
+            installer/dist/*.exe
+            installer/dist/*.msi
+
+  release-installers:
+    needs: [build-installer-macos, build-installer-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download macOS installer
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-installer-macos
+          path: installers
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-installer-windows
+          path: installers
+
+      - name: List installers
+        run: ls -la installers/
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installers/*
+          fail_on_unmatched_files: false
