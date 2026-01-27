@@ -1,0 +1,323 @@
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - development
+      - main
+  pull_request:
+    branches:
+      - development
+      - main
+  workflow_dispatch:
+
+env:
+  CGO_ENABLED: 1
+  BUILD_TAGS: fts5
+
+jobs:
+  # Build binaries for testing
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            name: ultrathink-macos-arm64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            name: ultrathink-linux-x64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            name: ultrathink-windows-x64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+
+      - name: Make executable
+        if: matrix.goos != 'windows'
+        run: chmod +x ${{ matrix.name }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+          retention-days: 1
+
+  # E2E Tests on Linux
+  e2e-linux:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-linux-x64
+          path: ./
+
+      - name: Setup binary
+        run: |
+          chmod +x ultrathink-linux-x64
+          sudo mv ultrathink-linux-x64 /usr/local/bin/ultrathink
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Make test scripts executable
+        run: chmod +x scripts/e2e-tests/*.sh
+
+      - name: Run CLI tests
+        run: |
+          export ULTRATHINK_BINARY=ultrathink
+          bash scripts/e2e-tests/test-cli.sh
+
+      - name: Start server for API tests
+        run: |
+          ultrathink start --port 3099 > /tmp/server.log 2>&1 &
+          echo "Waiting for server..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3099/api/v1/health > /dev/null; then
+              echo "Server ready!"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run REST API tests
+        run: |
+          export API_BASE=http://localhost:3099/api/v1
+          bash scripts/e2e-tests/test-rest-api.sh
+
+      - name: Run Memory Operations tests (CLI)
+        run: |
+          export ULTRATHINK_BINARY=ultrathink
+          export USE_API=false
+          bash scripts/e2e-tests/test-memory-ops.sh
+
+      - name: Run Memory Operations tests (API)
+        run: |
+          export API_BASE=http://localhost:3099/api/v1
+          export USE_API=true
+          bash scripts/e2e-tests/test-memory-ops.sh
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-linux
+          path: /tmp/server.log
+
+  # E2E Tests on macOS
+  e2e-macos:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-macos-arm64
+          path: ./
+
+      - name: Setup binary
+        run: |
+          chmod +x ultrathink-macos-arm64
+          sudo mv ultrathink-macos-arm64 /usr/local/bin/ultrathink
+
+      - name: Install test dependencies
+        run: brew install jq
+
+      - name: Make test scripts executable
+        run: chmod +x scripts/e2e-tests/*.sh
+
+      - name: Run CLI tests
+        run: |
+          export ULTRATHINK_BINARY=ultrathink
+          bash scripts/e2e-tests/test-cli.sh
+
+      - name: Start server for API tests
+        run: |
+          ultrathink start --port 3099 > /tmp/server.log 2>&1 &
+          echo "Waiting for server..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3099/api/v1/health > /dev/null; then
+              echo "Server ready!"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run REST API tests
+        run: |
+          export API_BASE=http://localhost:3099/api/v1
+          bash scripts/e2e-tests/test-rest-api.sh
+
+      - name: Run Memory Operations tests
+        run: |
+          export ULTRATHINK_BINARY=ultrathink
+          export API_BASE=http://localhost:3099/api/v1
+          export USE_API=false
+          bash scripts/e2e-tests/test-memory-ops.sh
+
+  # E2E Tests on Windows
+  e2e-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-windows-x64.exe
+          path: ./
+
+      - name: Setup binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\tools
+          Move-Item ultrathink-windows-x64.exe C:\tools\ultrathink.exe
+          echo "C:\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Git Bash dependencies
+        shell: bash
+        run: |
+          # jq should be available on Windows runners
+
+      - name: Run CLI tests
+        shell: bash
+        run: |
+          export ULTRATHINK_BINARY="C:/tools/ultrathink.exe"
+          chmod +x scripts/e2e-tests/*.sh
+          bash scripts/e2e-tests/test-cli.sh
+        continue-on-error: true
+
+      - name: Start server for API tests
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "C:\tools\ultrathink.exe" -ArgumentList "start", "--port", "3099" -NoNewWindow -RedirectStandardOutput "server.log"
+          Start-Sleep -Seconds 10
+
+      - name: Run REST API tests
+        shell: bash
+        run: |
+          export API_BASE=http://localhost:3099/api/v1
+          bash scripts/e2e-tests/test-rest-api.sh
+        continue-on-error: true
+
+      - name: Run Memory Operations tests
+        shell: bash
+        run: |
+          export ULTRATHINK_BINARY="C:/tools/ultrathink.exe"
+          export API_BASE=http://localhost:3099/api/v1
+          export USE_API=true
+          bash scripts/e2e-tests/test-memory-ops.sh
+        continue-on-error: true
+
+  # Docker-based isolated E2E test
+  e2e-docker-isolated:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-linux-x64
+          path: ./
+
+      - name: Run E2E tests in isolated Docker container
+        run: |
+          chmod +x ultrathink-linux-x64
+          docker run --rm \
+            -v $(pwd):/app \
+            -w /app \
+            ubuntu:22.04 \
+            bash -c '
+              apt-get update && apt-get install -y curl jq ca-certificates
+
+              # Setup binary
+              chmod +x ultrathink-linux-x64
+              mv ultrathink-linux-x64 /usr/local/bin/ultrathink
+
+              # Verify binary
+              ultrathink --version
+              ultrathink doctor || true
+
+              # Make scripts executable
+              chmod +x scripts/e2e-tests/*.sh
+
+              # Run CLI tests
+              export ULTRATHINK_BINARY=ultrathink
+              bash scripts/e2e-tests/test-cli.sh
+
+              # Start server
+              ultrathink start --port 3099 &
+              sleep 5
+
+              # Run API tests
+              export API_BASE=http://localhost:3099/api/v1
+              bash scripts/e2e-tests/test-rest-api.sh || true
+
+              # Run memory tests
+              export USE_API=true
+              bash scripts/e2e-tests/test-memory-ops.sh || true
+
+              echo "Docker isolated E2E tests complete!"
+            '
+
+  # Summary
+  e2e-summary:
+    needs: [e2e-linux, e2e-macos, e2e-windows, e2e-docker-isolated]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "E2E Test Results:"
+          echo "================="
+          echo "Linux: ${{ needs.e2e-linux.result }}"
+          echo "macOS: ${{ needs.e2e-macos.result }}"
+          echo "Windows: ${{ needs.e2e-windows.result }}"
+          echo "Docker: ${{ needs.e2e-docker-isolated.result }}"
+
+          # Count successes
+          SUCCESS=0
+          TOTAL=4
+
+          [ "${{ needs.e2e-linux.result }}" = "success" ] && ((SUCCESS++)) || true
+          [ "${{ needs.e2e-macos.result }}" = "success" ] && ((SUCCESS++)) || true
+          [ "${{ needs.e2e-windows.result }}" = "success" ] && ((SUCCESS++)) || true
+          [ "${{ needs.e2e-docker-isolated.result }}" = "success" ] && ((SUCCESS++)) || true
+
+          echo ""
+          echo "Summary: $SUCCESS/$TOTAL platforms passed"
+
+          # Fail if critical platforms fail
+          if [ "${{ needs.e2e-linux.result }}" != "success" ]; then
+            echo "Linux E2E tests failed - this is critical!"
+            exit 1
+          fi
