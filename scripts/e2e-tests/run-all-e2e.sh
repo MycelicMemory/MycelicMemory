@@ -29,10 +29,10 @@ log_header() {
 log_result() {
     if [ "$2" = "0" ]; then
         echo -e "  ${GREEN}✓${NC} $1: ${GREEN}PASSED${NC}"
-        ((OVERALL_PASSED++))
+        OVERALL_PASSED=$((OVERALL_PASSED + 1))
     else
         echo -e "  ${RED}✗${NC} $1: ${RED}FAILED${NC}"
-        ((OVERALL_FAILED++))
+        OVERALL_FAILED=$((OVERALL_FAILED + 1))
     fi
 }
 
