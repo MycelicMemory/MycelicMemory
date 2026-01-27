@@ -24,7 +24,7 @@ Ultrathink gives Claude persistent memory across conversations. Store knowledge,
 ### Prerequisites
 
 **Required:**
-- **Node.js 16+** (includes npm)
+- **Node.js 18+** (includes npm)
 
 **Optional (for enhanced AI features):**
 - **Ollama** - For semantic search and AI analysis
@@ -35,13 +35,25 @@ Ultrathink gives Claude persistent memory across conversations. Store knowledge,
 npm install -g ultrathink
 ```
 
-That's it. The installer automatically downloads the correct binary for your platform.
+**Important:** After installation, run `ultrathink` once to download the platform-specific binary:
+
+```bash
+ultrathink --version
+```
+
+The first run automatically downloads and caches the binary for your system (macOS, Linux, or Windows).
+
+### Alternative: Install from GitHub
+
+```bash
+npm install -g github:MycelicMemory/ultrathink
+```
 
 ### Verify Installation
 
 ```bash
-ultrathink --version
-ultrathink doctor
+ultrathink --version    # Should show version
+ultrathink doctor       # Check system dependencies
 ```
 
 ---
