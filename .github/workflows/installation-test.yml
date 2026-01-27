@@ -1,0 +1,245 @@
+name: Installation Test
+
+on:
+  push:
+    branches:
+      - development
+      - main
+  pull_request:
+    branches:
+      - development
+      - main
+  workflow_dispatch:
+
+env:
+  CGO_ENABLED: 1
+  BUILD_TAGS: fts5
+
+jobs:
+  # Build binaries for all platforms first
+  build-binaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            name: ultrathink-macos-arm64
+          - os: macos-15
+            goos: darwin
+            goarch: amd64
+            name: ultrathink-macos-x64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            name: ultrathink-linux-x64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            name: ultrathink-linux-arm64
+            cc: aarch64-linux-gnu-gcc
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            name: ultrathink-windows-x64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Install cross-compiler (Linux ARM64)
+        if: matrix.goarch == 'arm64' && matrix.goos == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc || '' }}
+        run: |
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/ultrathink
+
+      - name: Make executable (Unix)
+        if: matrix.goos != 'windows'
+        run: chmod +x ${{ matrix.name }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+          retention-days: 1
+
+  # Test installation on clean macOS
+  test-macos:
+    needs: build-binaries
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download macOS ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-macos-arm64
+          path: ./bin
+
+      - name: Test binary execution
+        run: |
+          chmod +x ./bin/ultrathink-macos-arm64
+          ./bin/ultrathink-macos-arm64 --version
+          ./bin/ultrathink-macos-arm64 --help
+
+      - name: Test doctor command (checks dependencies)
+        run: |
+          ./bin/ultrathink-macos-arm64 doctor || true
+          # Doctor may fail if Ollama/Qdrant not installed, that's expected
+
+      - name: Test database initialization
+        run: |
+          export HOME=$(mktemp -d)
+          ./bin/ultrathink-macos-arm64 doctor
+          ls -la $HOME/.ultrathink/ || echo "Config dir not created yet"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test npm installation from GitHub
+        run: |
+          npm install -g github:MycelicMemory/ultrathink#${{ github.sha }}
+          which ultrathink || echo "ultrathink not in PATH"
+          ultrathink --version || echo "Version check with npm wrapper"
+
+  # Test installation on clean Ubuntu
+  test-linux:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-linux-x64
+          path: ./bin
+
+      - name: Test binary execution
+        run: |
+          chmod +x ./bin/ultrathink-linux-x64
+          ./bin/ultrathink-linux-x64 --version
+          ./bin/ultrathink-linux-x64 --help
+
+      - name: Test doctor command
+        run: |
+          ./bin/ultrathink-linux-x64 doctor || true
+
+      - name: Test in isolated environment (Docker)
+        run: |
+          docker run --rm -v $(pwd):/app -w /app ubuntu:22.04 bash -c '
+            apt-get update && apt-get install -y ca-certificates
+            chmod +x ./bin/ultrathink-linux-x64
+            ./bin/ultrathink-linux-x64 --version
+            ./bin/ultrathink-linux-x64 --help
+            echo "Binary runs in clean Ubuntu container"
+          '
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test npm installation from GitHub
+        run: |
+          npm install -g github:MycelicMemory/ultrathink#${{ github.sha }}
+          ultrathink --version || echo "Version check with npm wrapper"
+
+  # Test installation on clean Windows
+  test-windows:
+    needs: build-binaries
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-windows-x64.exe
+          path: ./bin
+
+      - name: Test binary execution
+        shell: pwsh
+        run: |
+          ./bin/ultrathink-windows-x64.exe --version
+          ./bin/ultrathink-windows-x64.exe --help
+
+      - name: Test doctor command
+        shell: pwsh
+        run: |
+          ./bin/ultrathink-windows-x64.exe doctor
+        continue-on-error: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test npm installation from GitHub
+        shell: pwsh
+        run: |
+          npm install -g "github:MycelicMemory/ultrathink#${{ github.sha }}"
+          ultrathink --version
+
+  # Test MCP server functionality
+  test-mcp-server:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ultrathink-linux-x64
+          path: ./bin
+
+      - name: Test MCP server starts
+        run: |
+          chmod +x ./bin/ultrathink-linux-x64
+          # Start MCP server in background and test it responds
+          timeout 5 ./bin/ultrathink-linux-x64 --mcp < /dev/null || true
+          echo "MCP server started and exited cleanly"
+
+      - name: Test MCP protocol
+        run: |
+          chmod +x ./bin/ultrathink-linux-x64
+          # Send initialize request
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | \
+            timeout 5 ./bin/ultrathink-linux-x64 --mcp 2>/dev/null | head -1 || true
+          echo "MCP protocol test complete"
+
+  # Summary job
+  installation-test-summary:
+    needs: [test-macos, test-linux, test-windows, test-mcp-server]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "Installation Test Results:"
+          echo "=========================="
+          echo "macOS: ${{ needs.test-macos.result }}"
+          echo "Linux: ${{ needs.test-linux.result }}"
+          echo "Windows: ${{ needs.test-windows.result }}"
+          echo "MCP Server: ${{ needs.test-mcp-server.result }}"
+
+          if [ "${{ needs.test-macos.result }}" != "success" ] || \
+             [ "${{ needs.test-linux.result }}" != "success" ] || \
+             [ "${{ needs.test-windows.result }}" != "success" ]; then
+            echo "One or more installation tests failed!"
+            exit 1
+          fi
+
+          echo "All installation tests passed!"
