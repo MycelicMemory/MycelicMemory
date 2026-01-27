@@ -1,0 +1,361 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --bg: #0f172a;
+  --bg-secondary: #1e293b;
+  --text: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border: #334155;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-app-region: drag;
+}
+
+.container {
+  padding: 20px;
+  max-width: 100%;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  padding: 20px 0;
+  -webkit-app-region: drag;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: var(--primary);
+  border-radius: 16px;
+  margin-bottom: 12px;
+}
+
+.logo svg {
+  color: white;
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Screens */
+.screens {
+  -webkit-app-region: no-drag;
+}
+
+.screen {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.screen.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+h2 {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+p {
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+/* Features */
+.features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.feature .icon {
+  font-size: 20px;
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn.secondary {
+  background: var(--bg-secondary);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn.secondary:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.btn-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: flex-end;
+}
+
+/* Dependency List */
+.dep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.dep-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.dep-item.success {
+  border-color: var(--success);
+}
+
+.dep-item.error {
+  border-color: var(--error);
+}
+
+.dep-item.warning {
+  border-color: var(--warning);
+}
+
+.dep-icon {
+  font-size: 18px;
+}
+
+.dep-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.dep-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--border);
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+/* Install Status */
+.install-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: none;
+}
+
+.spinner.active {
+  display: block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progress-container {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--primary);
+  width: 0%;
+  transition: width 0.3s;
+}
+
+.install-output {
+  max-height: 120px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 12px;
+  background: #000;
+  padding: 12px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  display: none;
+}
+
+.install-output.active {
+  display: block;
+}
+
+/* Optional Dependencies */
+.optional-dep {
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.optional-dep h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.optional-dep p {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.optional-dep details {
+  margin-top: 12px;
+}
+
+.optional-dep summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 13px;
+}
+
+.optional-dep ol {
+  margin-top: 8px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.optional-dep li {
+  margin-bottom: 4px;
+}
+
+.optional-dep code {
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Complete Screen */
+.next-steps {
+  background: var(--bg-secondary);
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.next-steps h3 {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.next-steps ol {
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.next-steps li {
+  margin-bottom: 8px;
+}
+
+.config-example {
+  background: var(--bg-secondary);
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.config-example p {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.config-example pre {
+  background: #000;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.config-example code {
+  font-size: 12px;
+  color: var(--success);
+}

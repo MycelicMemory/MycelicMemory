@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Ultrathink Installer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+      </div>
+      <h1>Ultrathink</h1>
+      <p class="subtitle">AI-Powered Memory System</p>
+    </header>
+
+    <!-- Screens -->
+    <main class="screens">
+      <!-- Welcome Screen -->
+      <section id="screen-welcome" class="screen active">
+        <h2>Welcome</h2>
+        <p>This installer will set up Ultrathink on your computer and help you configure optional AI features.</p>
+        <div class="features">
+          <div class="feature">
+            <span class="icon">🧠</span>
+            <span>Persistent memory for Claude</span>
+          </div>
+          <div class="feature">
+            <span class="icon">🔍</span>
+            <span>Semantic search</span>
+          </div>
+          <div class="feature">
+            <span class="icon">📊</span>
+            <span>AI-powered analysis</span>
+          </div>
+        </div>
+        <button class="btn primary" onclick="goToScreen('check')">Get Started</button>
+      </section>
+
+      <!-- Dependency Check Screen -->
+      <section id="screen-check" class="screen">
+        <h2>System Check</h2>
+        <p>Checking your system for required and optional dependencies...</p>
+        <div id="dep-list" class="dep-list">
+          <div class="dep-item" data-dep="node">
+            <span class="dep-icon">⏳</span>
+            <span class="dep-name">Node.js</span>
+            <span class="dep-status">Checking...</span>
+          </div>
+          <div class="dep-item" data-dep="ultrathink">
+            <span class="dep-icon">⏳</span>
+            <span class="dep-name">Ultrathink</span>
+            <span class="dep-status">Checking...</span>
+          </div>
+          <div class="dep-item optional" data-dep="ollama">
+            <span class="dep-icon">⏳</span>
+            <span class="dep-name">Ollama <span class="badge">Optional</span></span>
+            <span class="dep-status">Checking...</span>
+          </div>
+          <div class="dep-item optional" data-dep="qdrant">
+            <span class="dep-icon">⏳</span>
+            <span class="dep-name">Qdrant <span class="badge">Optional</span></span>
+            <span class="dep-status">Checking...</span>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn secondary" onclick="goToScreen('welcome')">Back</button>
+          <button class="btn primary" id="btn-continue" onclick="goToScreen('install')" disabled>Continue</button>
+        </div>
+      </section>
+
+      <!-- Install Screen -->
+      <section id="screen-install" class="screen">
+        <h2>Install Ultrathink</h2>
+        <div id="install-status" class="install-status">
+          <div class="spinner"></div>
+          <p id="install-message">Ready to install</p>
+        </div>
+        <div class="progress-container">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div id="install-output" class="install-output"></div>
+        <div class="btn-group">
+          <button class="btn secondary" id="btn-back-install" onclick="goToScreen('check')">Back</button>
+          <button class="btn primary" id="btn-install" onclick="startInstall()">Install</button>
+        </div>
+      </section>
+
+      <!-- Optional Dependencies Screen -->
+      <section id="screen-optional" class="screen">
+        <h2>Optional: AI Features</h2>
+        <p>For semantic search and AI analysis, install these optional dependencies:</p>
+
+        <div class="optional-dep" id="opt-ollama">
+          <h3>Ollama</h3>
+          <p>Powers semantic search and AI analysis</p>
+          <button class="btn secondary" onclick="openLink('ollama')">Download Ollama</button>
+          <details>
+            <summary>Setup Instructions</summary>
+            <ol>
+              <li>Download and install Ollama</li>
+              <li>Run: <code>ollama serve</code></li>
+              <li>Run: <code>ollama pull nomic-embed-text</code></li>
+              <li>Run: <code>ollama pull qwen2.5:3b</code></li>
+            </ol>
+          </details>
+        </div>
+
+        <div class="optional-dep" id="opt-qdrant">
+          <h3>Qdrant (via Docker)</h3>
+          <p>High-performance vector search for large collections</p>
+          <button class="btn secondary" onclick="openLink('docker')">Download Docker</button>
+          <details>
+            <summary>Setup Instructions</summary>
+            <ol>
+              <li>Install Docker Desktop</li>
+              <li>Run: <code>docker run -d -p 6333:6333 qdrant/qdrant</code></li>
+            </ol>
+          </details>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn secondary" onclick="goToScreen('install')">Back</button>
+          <button class="btn primary" onclick="goToScreen('complete')">Continue</button>
+        </div>
+      </section>
+
+      <!-- Complete Screen -->
+      <section id="screen-complete" class="screen">
+        <h2>Setup Complete! 🎉</h2>
+        <p>Ultrathink has been installed successfully.</p>
+
+        <div class="next-steps">
+          <h3>Next Steps</h3>
+          <ol>
+            <li>Add to Claude Code: Edit <code>~/.claude/mcp.json</code></li>
+            <li>Restart Claude Code</li>
+            <li>Try: "Remember that ultrathink is working"</li>
+          </ol>
+        </div>
+
+        <div class="config-example">
+          <p>Add this to your mcp.json:</p>
+          <pre><code>{
+  "mcpServers": {
+    "ultrathink": {
+      "command": "ultrathink",
+      "args": ["--mcp"]
+    }
+  }
+}</code></pre>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn secondary" onclick="openDocs()">View Documentation</button>
+          <button class="btn primary" onclick="finishInstall()">Finish</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
