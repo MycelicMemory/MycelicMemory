@@ -1,15 +1,19 @@
 name: Installation Test
 
+# Only run on releases and manual dispatch - E2E tests cover regular CI
 on:
-  push:
-    branches:
-      - development
-      - main
-  pull_request:
-    branches:
-      - development
-      - main
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual run'
+        required: false
+        default: 'Manual verification'
+
+concurrency:
+  group: installation-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CGO_ENABLED: 1

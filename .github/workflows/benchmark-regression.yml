@@ -10,6 +10,10 @@ on:
       - 'go.sum'
   workflow_dispatch:
 
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CGO_ENABLED: 1
   BUILD_TAGS: fts5

@@ -3,13 +3,27 @@ name: E2E Tests
 on:
   push:
     branches:
-      - development
       - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'scripts/e2e-tests/**'
+      - '.github/workflows/e2e-test.yml'
   pull_request:
     branches:
-      - development
       - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'scripts/e2e-tests/**'
+      - '.github/workflows/e2e-test.yml'
   workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CGO_ENABLED: 1
@@ -236,62 +250,10 @@ jobs:
           bash scripts/e2e-tests/test-memory-ops.sh
         continue-on-error: true
 
-  # Docker-based isolated E2E test
-  e2e-docker-isolated:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download binary
-        uses: actions/download-artifact@v4
-        with:
-          name: mycelicmemory-linux-x64
-          path: ./
-
-      - name: Run E2E tests in isolated Docker container
-        run: |
-          chmod +x mycelicmemory-linux-x64
-          docker run --rm \
-            -v $(pwd):/app \
-            -w /app \
-            ubuntu:22.04 \
-            bash -c '
-              apt-get update && apt-get install -y curl jq ca-certificates
-
-              # Setup binary
-              chmod +x mycelicmemory-linux-x64
-              mv mycelicmemory-linux-x64 /usr/local/bin/mycelicmemory
-
-              # Verify binary
-              mycelicmemory --version
-              mycelicmemory doctor || true
-
-              # Make scripts executable
-              chmod +x scripts/e2e-tests/*.sh
-
-              # Run CLI tests
-              export ULTRATHINK_BINARY=mycelicmemory
-              bash scripts/e2e-tests/test-cli.sh
-
-              # Start server
-              mycelicmemory start --port 3099 &
-              sleep 5
-
-              # Run API tests
-              export API_BASE=http://localhost:3099/api/v1
-              bash scripts/e2e-tests/test-rest-api.sh || true
-
-              # Run memory tests
-              export USE_API=true
-              bash scripts/e2e-tests/test-memory-ops.sh || true
-
-              echo "Docker isolated E2E tests complete!"
-            '
-
-  # Summary
+  # Summary - Docker isolated test removed (redundant with Linux test)
+  # Windows tests are continue-on-error so not included in required checks
   e2e-summary:
-    needs: [e2e-linux, e2e-macos, e2e-windows, e2e-docker-isolated]
+    needs: [e2e-linux, e2e-macos, e2e-windows]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -301,23 +263,17 @@ jobs:
           echo "================="
           echo "Linux: ${{ needs.e2e-linux.result }}"
           echo "macOS: ${{ needs.e2e-macos.result }}"
-          echo "Windows: ${{ needs.e2e-windows.result }}"
-          echo "Docker: ${{ needs.e2e-docker-isolated.result }}"
+          echo "Windows: ${{ needs.e2e-windows.result }} (non-blocking)"
 
-          # Count successes
-          SUCCESS=0
-          TOTAL=4
-
-          [ "${{ needs.e2e-linux.result }}" = "success" ] && ((SUCCESS++)) || true
-          [ "${{ needs.e2e-macos.result }}" = "success" ] && ((SUCCESS++)) || true
-          [ "${{ needs.e2e-windows.result }}" = "success" ] && ((SUCCESS++)) || true
-          [ "${{ needs.e2e-docker-isolated.result }}" = "success" ] && ((SUCCESS++)) || true
-
-          echo ""
-          echo "Summary: $SUCCESS/$TOTAL platforms passed"
-
-          # Fail if critical platforms fail
+          # Only Linux and macOS are required to pass
           if [ "${{ needs.e2e-linux.result }}" != "success" ]; then
-            echo "Linux E2E tests failed - this is critical!"
+            echo "❌ Linux E2E tests failed - this is critical!"
             exit 1
           fi
+
+          if [ "${{ needs.e2e-macos.result }}" != "success" ]; then
+            echo "❌ macOS E2E tests failed - this is critical!"
+            exit 1
+          fi
+
+          echo "✅ All critical platform tests passed"
