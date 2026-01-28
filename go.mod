@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	// Utilities
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	// Database
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/spf13/viper v1.18.2
