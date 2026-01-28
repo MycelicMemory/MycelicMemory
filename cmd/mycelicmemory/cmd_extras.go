@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/dependencies"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
@@ -108,23 +110,49 @@ func runCategorize(memoryID string) {
 	}
 	defer db.Close()
 
-	// Check if AI is available
-	aiManager := ai.NewManager(db, cfg)
-	status := aiManager.GetStatus()
+	// Check dependencies
+	depResult := dependencies.Check(cfg)
 
-	if !status.OllamaAvailable {
+	if !depResult.AIFeaturesAvailable() {
 		fmt.Println("AI Categorization")
 		fmt.Println("=================")
 		fmt.Println()
-		fmt.Println("Error: Ollama is not available.")
+		fmt.Println("❌ Error: AI features are not available.")
 		fmt.Println()
-		fmt.Println("To use AI categorization, please:")
-		fmt.Println("1. Install Ollama: https://ollama.ai")
-		fmt.Println("2. Start Ollama: ollama serve")
+
+		// Show specific issue
+		switch depResult.Ollama.Status {
+		case dependencies.StatusMissing, dependencies.StatusUnavailable:
+			fmt.Println("Ollama is not running or not installed.")
+		case dependencies.StatusDisabled:
+			fmt.Println("Ollama is disabled in configuration.")
+		case dependencies.StatusAvailable:
+			if len(depResult.Ollama.MissingItems) > 0 {
+				fmt.Printf("Missing required models: %s\n", strings.Join(depResult.Ollama.MissingItems, ", "))
+			}
+		}
+
+		// Show installation instructions
+		instructions := dependencies.GetInstallInstructions(depResult, cfg)
+		if instructions.Ollama != nil {
+			fmt.Println()
+			fmt.Println("To enable AI categorization:")
+			for _, step := range instructions.Ollama.InstallSteps {
+				fmt.Println(step)
+			}
+			for _, step := range instructions.Ollama.ModelSteps {
+				fmt.Println(step)
+			}
+		}
+
 		fmt.Println()
-		fmt.Println("Run 'mycelicmemory doctor' to check system status.")
+		fmt.Println("Run 'mycelicmemory doctor' for full system status.")
 		os.Exit(1)
 	}
+
+	// Check if AI is available (for unused variable warning suppression)
+	aiManager := ai.NewManager(db, cfg)
+	_ = aiManager // Will be used when categorization is implemented
 
 	// TODO: Implement AI-based categorization
 	fmt.Println("AI Categorization")
@@ -162,11 +190,12 @@ func runSetup() {
 }
 
 func runValidate() {
-	fmt.Println("MyclicMemory Installation Validation")
-	fmt.Println("==================================")
+	fmt.Println("MycelicMemory Installation Validation")
+	fmt.Println("=====================================")
 	fmt.Println()
 
 	allOk := true
+	hasWarnings := false
 
 	// Check configuration
 	fmt.Print("Configuration... ")
@@ -197,11 +226,60 @@ func runValidate() {
 		allOk = false
 	}
 
+	// Check optional dependencies
+	if cfg != nil {
+		fmt.Println()
+		fmt.Println("Optional Dependencies:")
+
+		depResult := dependencies.Check(cfg)
+
+		// Ollama check
+		fmt.Print("  Ollama... ")
+		switch depResult.Ollama.Status {
+		case dependencies.StatusAvailable:
+			if len(depResult.Ollama.MissingItems) > 0 {
+				fmt.Printf("PARTIAL (missing models: %s)\n", depResult.Ollama.MissingItems)
+				hasWarnings = true
+			} else {
+				fmt.Println("OK")
+			}
+		case dependencies.StatusDisabled:
+			fmt.Println("DISABLED")
+		case dependencies.StatusMissing, dependencies.StatusUnavailable:
+			fmt.Println("NOT AVAILABLE")
+			hasWarnings = true
+		}
+
+		// Qdrant check
+		fmt.Print("  Qdrant... ")
+		switch depResult.Qdrant.Status {
+		case dependencies.StatusAvailable:
+			fmt.Println("OK")
+		case dependencies.StatusDisabled:
+			fmt.Println("DISABLED")
+		case dependencies.StatusMissing, dependencies.StatusUnavailable:
+			fmt.Println("NOT AVAILABLE")
+			if cfg.Qdrant.Enabled {
+				hasWarnings = true
+			}
+		}
+
+		// Show warning summary if needed
+		if warning := dependencies.FormatWarning(depResult); warning != "" {
+			fmt.Println()
+			fmt.Print(warning)
+		}
+	}
+
 	fmt.Println()
-	if allOk {
-		fmt.Println("Installation validated successfully!")
+	if allOk && !hasWarnings {
+		fmt.Println("✅ Installation validated successfully!")
+	} else if allOk && hasWarnings {
+		fmt.Println("✅ Core installation validated.")
+		fmt.Println("⚠️  Some optional dependencies are unavailable.")
+		fmt.Println("   Run 'mycelicmemory doctor' for installation instructions.")
 	} else {
-		fmt.Println("Some issues found. Run 'mycelicmemory doctor' for more details.")
+		fmt.Println("❌ Some issues found. Run 'mycelicmemory doctor' for more details.")
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/dependencies"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
@@ -189,6 +190,12 @@ func runRemember(content string) {
 	}
 	defer db.Close()
 
+	// Check for dependency warnings
+	depResult := dependencies.Check(cfg)
+	if warning := dependencies.FormatShortWarning(depResult); warning != "" {
+		fmt.Printf("⚠️  %s - memory stored but not indexed for AI search\n", warning)
+	}
+
 	svc := memory.NewService(db, cfg)
 
 	result, err := svc.Store(&memory.StoreOptions{
@@ -227,6 +234,12 @@ func runRemember(content string) {
 	fmt.Println("   💡 Consider setting higher importance (--importance 8-10) for critical information")
 	fmt.Println("   💡 Add tags (--tags tag1,tag2) to make this memory easier to find later")
 	fmt.Println("   💡 Specify a domain (--domain category) to organize related memories")
+
+	// Show dependency warning at the end if AI not available
+	if !depResult.AIFeaturesAvailable() {
+		fmt.Println()
+		fmt.Println("ℹ️  Note: AI features disabled. Run 'mycelicmemory doctor' to enable.")
+	}
 }
 
 func runSearch(query string) {
@@ -236,6 +249,13 @@ func runSearch(query string) {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	// Check for dependency warnings
+	depResult := dependencies.Check(cfg)
+	searchMode := "keyword"
+	if depResult.SemanticSearchAvailable() {
+		searchMode = "semantic + keyword"
+	}
 
 	engine := search.NewEngine(db, cfg)
 
@@ -252,8 +272,11 @@ func runSearch(query string) {
 
 	fmt.Printf("Search Results for: \"%s\"\n", query)
 	fmt.Println("========================================")
+	if !depResult.SemanticSearchAvailable() {
+		fmt.Println("⚠️  Semantic search unavailable - using keyword matching only")
+	}
 	fmt.Println()
-	fmt.Printf("Found %d result(s):\n\n", len(results))
+	fmt.Printf("Found %d result(s) [mode: %s]:\n\n", len(results), searchMode)
 
 	for i, r := range results {
 		fmt.Printf("%d. %s\n", i+1, r.Memory.Content)
@@ -274,8 +297,14 @@ func runSearch(query string) {
 
 	fmt.Println("Response format: detailed")
 	fmt.Println()
+
+	// Show appropriate suggestions based on AI availability
 	fmt.Println("💡 Suggestions:")
-	fmt.Println("   💡 Try adding --use_ai for better semantic search results")
+	if depResult.SemanticSearchAvailable() {
+		fmt.Println("   💡 Semantic search is active - natural language queries work best")
+	} else {
+		fmt.Println("   💡 Enable semantic search: run 'mycelicmemory doctor' for setup instructions")
+	}
 	fmt.Println("   💡 Combine with tags (--tags tag1,tag2) for more precise filtering")
 }
 

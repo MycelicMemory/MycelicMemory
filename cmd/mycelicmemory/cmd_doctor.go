@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/mycelicmemory/internal/ai"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/dependencies"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
 
@@ -26,11 +26,12 @@ func init() {
 }
 
 func runDoctor() {
-	fmt.Println("MyclicMemory System Check")
-	fmt.Println("=======================")
+	fmt.Println("MycelicMemory System Check")
+	fmt.Println("==========================")
 	fmt.Println()
 
 	allOk := true
+	hasWarnings := false
 
 	// Check configuration
 	fmt.Print("Configuration... ")
@@ -65,44 +66,34 @@ func runDoctor() {
 		}
 		fmt.Printf("  Path: %s\n", cfg.Database.Path)
 	}
+	fmt.Println()
 
-	// Check AI services
-	fmt.Print("Ollama... ")
+	// Check optional dependencies (Ollama and Qdrant)
 	if cfg != nil {
-		db, _ := database.Open(cfg.Database.Path)
-		if db != nil {
-			aiManager := ai.NewManager(db, cfg)
-			status := aiManager.GetStatus()
-			if status.OllamaAvailable {
-				fmt.Println("OK")
-				fmt.Printf("  URL: %s\n", cfg.Ollama.BaseURL)
-				fmt.Printf("  Chat Model: %s\n", cfg.Ollama.ChatModel)
-				fmt.Printf("  Embedding Model: %s\n", cfg.Ollama.EmbeddingModel)
-			} else {
-				fmt.Println("NOT AVAILABLE")
-				fmt.Println("  AI features will be disabled.")
-				fmt.Println("  Install Ollama: https://ollama.ai")
-			}
-			db.Close()
-		}
-	}
+		depResult := dependencies.Check(cfg)
 
-	// Check Qdrant (optional)
-	fmt.Print("Qdrant... ")
-	if cfg != nil && cfg.Qdrant.URL != "" {
-		fmt.Println("NOT CHECKED (optional)")
-		fmt.Printf("  URL: %s\n", cfg.Qdrant.URL)
-	} else {
-		fmt.Println("NOT CONFIGURED (optional)")
+		// Print detailed report
+		fmt.Print(dependencies.FormatDoctorReport(depResult, cfg))
+
+		// Track warnings
+		if depResult.Ollama.Status != dependencies.StatusAvailable || len(depResult.Ollama.MissingItems) > 0 {
+			hasWarnings = true
+		}
+		if cfg.Qdrant.Enabled && depResult.Qdrant.Status != dependencies.StatusAvailable {
+			hasWarnings = true
+		}
 	}
 
 	fmt.Println()
 
 	// Summary
-	if allOk {
-		fmt.Println("All core systems operational!")
+	if allOk && !hasWarnings {
+		fmt.Println("✅ All systems operational!")
+	} else if allOk && hasWarnings {
+		fmt.Println("⚠️  Core systems operational with optional features unavailable.")
+		fmt.Println("   MyclicMemory will work but some AI features are disabled.")
 	} else {
-		fmt.Println("Some issues detected. Please review the errors above.")
+		fmt.Println("❌ Some issues detected. Please review the errors above.")
 	}
 
 	// Print configuration details
@@ -111,5 +102,27 @@ func runDoctor() {
 	if cfg != nil {
 		fmt.Printf("  Config Dir: %s\n", config.ConfigPath())
 		fmt.Printf("  REST API: %s:%d (enabled: %v)\n", cfg.RestAPI.Host, cfg.RestAPI.Port, cfg.RestAPI.Enabled)
+	}
+
+	// Feature availability summary
+	if cfg != nil {
+		fmt.Println()
+		fmt.Println("Feature Availability:")
+		depResult := dependencies.Check(cfg)
+
+		if depResult.AIFeaturesAvailable() {
+			fmt.Println("  ✅ AI Analysis (analyze, categorize)")
+		} else {
+			fmt.Println("  ❌ AI Analysis (analyze, categorize) - requires Ollama with models")
+		}
+
+		if depResult.SemanticSearchAvailable() {
+			fmt.Println("  ✅ Semantic Search (AI-powered search)")
+		} else {
+			fmt.Println("  ❌ Semantic Search - requires Ollama + Qdrant")
+		}
+
+		fmt.Println("  ✅ Basic Search (keyword matching)")
+		fmt.Println("  ✅ Memory Storage (remember, get, list)")
 	}
 }
