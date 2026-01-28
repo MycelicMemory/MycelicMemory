@@ -17,8 +17,8 @@ go.work
 # Build artifacts
 /dist/
 /build/
-/ultrathink
-ultrathink-*
+/mycelicmemory
+mycelicmemory-*
 
 # Dependency directories
 vendor/
@@ -53,7 +53,7 @@ temp/
 
 # npm package binaries
 npm/bin/
-bin/ultrathink-*
+bin/mycelicmemory-*
 
 # OS specific
 Thumbs.db
