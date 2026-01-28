@@ -147,8 +147,8 @@ func (d *Daemon) Status() *Status {
 
 	if !d.isProcessRunning(pid) {
 		// Clean up stale PID file
-		d.RemovePID()
-		d.RemoveState()
+		_ = d.RemovePID()
+		_ = d.RemoveState()
 		return status
 	}
 
@@ -196,7 +196,7 @@ func (d *Daemon) Start(restEnabled bool, restHost string, restPort int, mcpEnabl
 	}
 
 	if err := d.WriteState(state); err != nil {
-		d.RemovePID()
+		_ = d.RemovePID()
 		log.Error("failed to write state file", "error", err)
 		return fmt.Errorf("failed to write state file: %w", err)
 	}
@@ -217,8 +217,8 @@ func (d *Daemon) Stop() error {
 
 	if !d.isProcessRunning(pid) {
 		log.Debug("stale PID file, cleaning up", "pid", pid)
-		d.RemovePID()
-		d.RemoveState()
+		_ = d.RemovePID()
+		_ = d.RemoveState()
 		return fmt.Errorf("daemon is not running (stale PID file)")
 	}
 
@@ -238,8 +238,8 @@ func (d *Daemon) Stop() error {
 	// Wait for process to exit (with timeout)
 	for i := 0; i < 50; i++ { // 5 second timeout
 		if !d.isProcessRunning(pid) {
-			d.RemovePID()
-			d.RemoveState()
+			_ = d.RemovePID()
+			_ = d.RemoveState()
 			log.Info("daemon stopped gracefully", "pid", pid)
 			return nil
 		}
@@ -253,16 +253,16 @@ func (d *Daemon) Stop() error {
 		return fmt.Errorf("failed to send SIGKILL: %w", err)
 	}
 
-	d.RemovePID()
-	d.RemoveState()
+	_ = d.RemovePID()
+	_ = d.RemoveState()
 	log.Info("daemon killed", "pid", pid)
 	return nil
 }
 
 // Cleanup removes PID and state files (called on graceful shutdown)
 func (d *Daemon) Cleanup() {
-	d.RemovePID()
-	d.RemoveState()
+	_ = d.RemovePID()
+	_ = d.RemoveState()
 }
 
 // Daemonize forks the current process and runs it as a daemon

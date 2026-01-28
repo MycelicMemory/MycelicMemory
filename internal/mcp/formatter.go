@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Formatter handles UX-friendly output formatting for MCP responses
@@ -104,8 +107,9 @@ func (f *Formatter) getToolIcon(toolName string) string {
 
 func (f *Formatter) formatToolName(name string) string {
 	parts := strings.Split(name, "_")
+	caser := cases.Title(language.English)
 	for i, p := range parts {
-		parts[i] = strings.Title(p)
+		parts[i] = caser.String(p)
 	}
 	return strings.Join(parts, " ")
 }

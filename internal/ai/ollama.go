@@ -513,7 +513,7 @@ func parseRelationshipResponse(response string) (string, float64, string) {
 		} else if strings.HasPrefix(upperLine, "CONFIDENCE:") {
 			// Remove prefix case-insensitively
 			confStr := strings.TrimSpace(line[len("CONFIDENCE:"):])
-			fmt.Sscanf(confStr, "%f", &confidence)
+			_, _ = fmt.Sscanf(confStr, "%f", &confidence)
 		} else if strings.HasPrefix(upperLine, "REASONING:") {
 			// Remove prefix case-insensitively
 			reasoning = strings.TrimSpace(line[len("REASONING:"):])

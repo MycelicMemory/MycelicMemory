@@ -15,7 +15,7 @@ func MigrationV1ToV2(db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is harmless
 
 	// 1. Add new columns to memories table
 	alterStatements := []string{

@@ -161,7 +161,7 @@ func TestMemoryCRUD(t *testing.T) {
 			Content:    "Original content",
 			Importance: 5,
 		}
-		db.CreateMemory(mem)
+		_ = db.CreateMemory(mem)
 
 		newContent := "Updated content"
 		newImportance := 9
@@ -196,7 +196,7 @@ func TestMemoryCRUD(t *testing.T) {
 		mem := &Memory{
 			Content: "To be deleted",
 		}
-		db.CreateMemory(mem)
+		_ = db.CreateMemory(mem)
 
 		err := db.DeleteMemory(mem.ID)
 		if err != nil {
@@ -233,7 +233,7 @@ func TestListMemories(t *testing.T) {
 		} else {
 			mem.Tags = []string{"odd"}
 		}
-		db.CreateMemory(mem)
+		_ = db.CreateMemory(mem)
 	}
 
 	t.Run("ListAll", func(t *testing.T) {
@@ -335,7 +335,7 @@ func TestSearchFTS(t *testing.T) {
 			Tags:    td.tags,
 			Domain:  "programming",
 		}
-		db.CreateMemory(mem)
+		_ = db.CreateMemory(mem)
 	}
 
 	t.Run("SimpleSearch", func(t *testing.T) {
@@ -424,9 +424,9 @@ func TestRelationships(t *testing.T) {
 	mem1 := &Memory{Content: "Memory 1"}
 	mem2 := &Memory{Content: "Memory 2"}
 	mem3 := &Memory{Content: "Memory 3"}
-	db.CreateMemory(mem1)
-	db.CreateMemory(mem2)
-	db.CreateMemory(mem3)
+	_ = db.CreateMemory(mem1)
+	_ = db.CreateMemory(mem2)
+	_ = db.CreateMemory(mem3)
 
 	t.Run("CreateRelationship", func(t *testing.T) {
 		rel := &Relationship{
@@ -477,7 +477,7 @@ func TestRelationships(t *testing.T) {
 
 	t.Run("FindRelated", func(t *testing.T) {
 		// Create additional relationships
-		db.CreateRelationship(&Relationship{
+		_ = db.CreateRelationship(&Relationship{
 			SourceMemoryID:   mem2.ID,
 			TargetMemoryID:   mem3.ID,
 			RelationshipType: "expands",
@@ -529,24 +529,24 @@ func TestGetGraph(t *testing.T) {
 	memC := &Memory{Content: "Memory C", Importance: 6}
 	memD := &Memory{Content: "Memory D", Importance: 4}
 
-	db.CreateMemory(memA)
-	db.CreateMemory(memB)
-	db.CreateMemory(memC)
-	db.CreateMemory(memD)
+	_ = db.CreateMemory(memA)
+	_ = db.CreateMemory(memB)
+	_ = db.CreateMemory(memC)
+	_ = db.CreateMemory(memD)
 
-	db.CreateRelationship(&Relationship{
+	_ = db.CreateRelationship(&Relationship{
 		SourceMemoryID:   memA.ID,
 		TargetMemoryID:   memB.ID,
 		RelationshipType: "sequential",
 		Strength:         0.9,
 	})
-	db.CreateRelationship(&Relationship{
+	_ = db.CreateRelationship(&Relationship{
 		SourceMemoryID:   memB.ID,
 		TargetMemoryID:   memC.ID,
 		RelationshipType: "sequential",
 		Strength:         0.9,
 	})
-	db.CreateRelationship(&Relationship{
+	_ = db.CreateRelationship(&Relationship{
 		SourceMemoryID:   memC.ID,
 		TargetMemoryID:   memD.ID,
 		RelationshipType: "sequential",
@@ -650,8 +650,8 @@ func TestCategories(t *testing.T) {
 	})
 
 	t.Run("ListCategories", func(t *testing.T) {
-		db.CreateCategory(&Category{Name: "Category A", Description: "A"})
-		db.CreateCategory(&Category{Name: "Category B", Description: "B"})
+		_ = db.CreateCategory(&Category{Name: "Category A", Description: "A"})
+		_ = db.CreateCategory(&Category{Name: "Category B", Description: "B"})
 
 		categories, err := db.ListCategories()
 		if err != nil {
@@ -665,10 +665,10 @@ func TestCategories(t *testing.T) {
 
 	t.Run("CategorizeMemory", func(t *testing.T) {
 		mem := &Memory{Content: "Test memory for categorization"}
-		db.CreateMemory(mem)
+		_ = db.CreateMemory(mem)
 
 		cat := &Category{Name: "Test Cat", Description: "Test"}
-		db.CreateCategory(cat)
+		_ = db.CreateCategory(cat)
 
 		err := db.CategorizeMemory(mem.ID, cat.ID, 0.9, "High confidence match")
 		if err != nil {
@@ -678,9 +678,9 @@ func TestCategories(t *testing.T) {
 
 	t.Run("InvalidConfidence", func(t *testing.T) {
 		mem := &Memory{Content: "Test"}
-		db.CreateMemory(mem)
+		_ = db.CreateMemory(mem)
 		cat := &Category{Name: "Cat2", Description: "Test"}
-		db.CreateCategory(cat)
+		_ = db.CreateCategory(cat)
 
 		err := db.CategorizeMemory(mem.ID, cat.ID, 1.5, "Invalid")
 		if err == nil {
@@ -710,8 +710,8 @@ func TestDomains(t *testing.T) {
 	})
 
 	t.Run("ListDomains", func(t *testing.T) {
-		db.CreateDomain(&Domain{Name: "domain-a", Description: "A"})
-		db.CreateDomain(&Domain{Name: "domain-b", Description: "B"})
+		_ = db.CreateDomain(&Domain{Name: "domain-a", Description: "A"})
+		_ = db.CreateDomain(&Domain{Name: "domain-b", Description: "B"})
 
 		domains, err := db.ListDomains()
 		if err != nil {
@@ -761,7 +761,7 @@ func TestPerformanceMetrics(t *testing.T) {
 	}
 
 	var count int
-	db.QueryRow("SELECT COUNT(*) FROM performance_metrics WHERE operation_type = ?", "search").Scan(&count)
+	_ = db.QueryRow("SELECT COUNT(*) FROM performance_metrics WHERE operation_type = ?", "search").Scan(&count)
 	if count != 1 {
 		t.Errorf("Expected 1 metric record, got %d", count)
 	}
@@ -809,10 +809,10 @@ func TestDatabaseStats(t *testing.T) {
 
 	// Create some test data
 	for i := 0; i < 5; i++ {
-		db.CreateMemory(&Memory{Content: "Test memory"})
+		_ = db.CreateMemory(&Memory{Content: "Test memory"})
 	}
-	db.CreateCategory(&Category{Name: "Cat", Description: "Test"})
-	db.CreateDomain(&Domain{Name: "domain"})
+	_ = db.CreateCategory(&Category{Name: "Cat", Description: "Test"})
+	_ = db.CreateDomain(&Domain{Name: "domain"})
 
 	stats, err := db.GetStats()
 	if err != nil {
@@ -839,10 +839,10 @@ func TestCascadeDelete(t *testing.T) {
 
 	mem1 := &Memory{Content: "Memory 1"}
 	mem2 := &Memory{Content: "Memory 2"}
-	db.CreateMemory(mem1)
-	db.CreateMemory(mem2)
+	_ = db.CreateMemory(mem1)
+	_ = db.CreateMemory(mem2)
 
-	db.CreateRelationship(&Relationship{
+	_ = db.CreateRelationship(&Relationship{
 		SourceMemoryID:   mem1.ID,
 		TargetMemoryID:   mem2.ID,
 		RelationshipType: "references",
@@ -851,15 +851,15 @@ func TestCascadeDelete(t *testing.T) {
 
 	// Verify relationship exists
 	var relCount int
-	db.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&relCount)
+	_ = db.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&relCount)
 	if relCount != 1 {
 		t.Fatalf("Expected 1 relationship, got %d", relCount)
 	}
 
 	// Delete mem1 - should cascade delete relationship
-	db.DeleteMemory(mem1.ID)
+	_ = db.DeleteMemory(mem1.ID)
 
-	db.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&relCount)
+	_ = db.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&relCount)
 	if relCount != 0 {
 		t.Errorf("Expected 0 relationships after cascade delete, got %d", relCount)
 	}
@@ -871,7 +871,7 @@ func TestFTS5Triggers(t *testing.T) {
 
 	// Create memory - should trigger FTS insert
 	mem := &Memory{Content: "Unique searchable content xyz123"}
-	db.CreateMemory(mem)
+	_ = db.CreateMemory(mem)
 
 	// Search should find it
 	results, err := db.SearchFTS("xyz123", &SearchFilters{})
@@ -884,7 +884,7 @@ func TestFTS5Triggers(t *testing.T) {
 
 	// Update memory content - should trigger FTS update
 	newContent := "Updated unique content abc789"
-	db.UpdateMemory(mem.ID, &MemoryUpdate{Content: &newContent})
+	_ = db.UpdateMemory(mem.ID, &MemoryUpdate{Content: &newContent})
 
 	// Old content should not be found
 	results, _ = db.SearchFTS("xyz123", &SearchFilters{})
@@ -899,7 +899,7 @@ func TestFTS5Triggers(t *testing.T) {
 	}
 
 	// Delete memory - should trigger FTS delete
-	db.DeleteMemory(mem.ID)
+	_ = db.DeleteMemory(mem.ID)
 
 	results, _ = db.SearchFTS("abc789", &SearchFilters{})
 	if len(results) != 0 {

@@ -279,7 +279,7 @@ func TestServiceList(t *testing.T) {
 
 	// Store test memories
 	for i := 0; i < 10; i++ {
-		svc.Store(&StoreOptions{
+		_, _ = svc.Store(&StoreOptions{
 			Content:    "Test memory",
 			Importance: i + 1,
 			Domain:     "testing",
@@ -332,8 +332,8 @@ func TestServiceStats(t *testing.T) {
 	svc := newTestService(t)
 
 	// Store some memories
-	svc.Store(&StoreOptions{Content: "Test 1", Domain: "domain1"})
-	svc.Store(&StoreOptions{Content: "Test 2", Domain: "domain2"})
+	_, _ = svc.Store(&StoreOptions{Content: "Test 1", Domain: "domain1"})
+	_, _ = svc.Store(&StoreOptions{Content: "Test 2", Domain: "domain2"})
 
 	stats, err := svc.GetStats()
 	if err != nil {
@@ -375,7 +375,7 @@ func TestDateRangeFilter(t *testing.T) {
 	svc := newTestService(t)
 
 	// Store memories - they'll have current timestamps
-	svc.Store(&StoreOptions{Content: "Today's memory"})
+	_, _ = svc.Store(&StoreOptions{Content: "Today's memory"})
 
 	now := time.Now()
 	yesterday := now.Add(-24 * time.Hour)

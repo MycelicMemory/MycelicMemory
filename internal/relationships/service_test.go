@@ -136,14 +136,14 @@ func TestFindRelated(t *testing.T) {
 	memB := createTestMemory(t, svc.db, "Memory B")
 	memC := createTestMemory(t, svc.db, "Memory C")
 
-	svc.Create(&CreateOptions{
+	_, _ = svc.Create(&CreateOptions{
 		SourceMemoryID:   memA.ID,
 		TargetMemoryID:   memB.ID,
 		RelationshipType: "references",
 		Strength:         0.8,
 	})
 
-	svc.Create(&CreateOptions{
+	_, _ = svc.Create(&CreateOptions{
 		SourceMemoryID:   memB.ID,
 		TargetMemoryID:   memC.ID,
 		RelationshipType: "expands",
@@ -203,21 +203,21 @@ func TestMapGraph(t *testing.T) {
 	memC := createTestMemory(t, svc.db, "Memory C")
 	memD := createTestMemory(t, svc.db, "Memory D")
 
-	svc.Create(&CreateOptions{
+	_, _ = svc.Create(&CreateOptions{
 		SourceMemoryID:   memA.ID,
 		TargetMemoryID:   memB.ID,
 		RelationshipType: "sequential",
 		Strength:         0.9,
 	})
 
-	svc.Create(&CreateOptions{
+	_, _ = svc.Create(&CreateOptions{
 		SourceMemoryID:   memB.ID,
 		TargetMemoryID:   memC.ID,
 		RelationshipType: "sequential",
 		Strength:         0.8,
 	})
 
-	svc.Create(&CreateOptions{
+	_, _ = svc.Create(&CreateOptions{
 		SourceMemoryID:   memC.ID,
 		TargetMemoryID:   memD.ID,
 		RelationshipType: "sequential",

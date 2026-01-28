@@ -503,6 +503,6 @@ func float64SliceToBytes(floats []float64) []byte {
 // Helper function to convert bytes to float64 slice
 func bytesToFloat64Slice(data []byte) []float64 {
 	var floats []float64
-	json.Unmarshal(data, &floats)
+	_ = json.Unmarshal(data, &floats)
 	return floats
 }

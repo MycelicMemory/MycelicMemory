@@ -187,11 +187,3 @@ func runAnalyze(query string) {
 
 	fmt.Printf("\n⏱️  Analysis completed in %s\n", elapsed)
 }
-
-func truncateStr(s string, maxLen int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
