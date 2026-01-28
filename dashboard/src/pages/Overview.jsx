@@ -96,8 +96,8 @@ export default function Overview() {
         <div className="bg-red-500/20 border border-red-500 rounded-xl p-6 text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
-          <p className="text-slate-400">Unable to connect to Ultrathink API at localhost:3099</p>
-          <p className="text-slate-500 text-sm mt-2">Run: ultrathink start</p>
+          <p className="text-slate-400">Unable to connect to MycelicMemory API at localhost:3099</p>
+          <p className="text-slate-500 text-sm mt-2">Run: mycelicmemory start</p>
         </div>
       </div>
     );

@@ -60,10 +60,44 @@ mycelicmemory doctor       # Check system dependencies
 
 ## Connect to Claude
 
-### Claude Code (CLI)
+MCP (Model Context Protocol) lets Claude communicate with MycelicMemory directly. Configuration depends on your platform.
+
+### Step 1: Locate the Binary
+
+After `npm install -g mycelicmemory`, find the native binary path:
+
+**macOS/Linux:**
+```bash
+# The binary is inside the npm global modules directory
+BINARY_PATH="$(npm root -g)/mycelicmemory/bin/$(node -e "
+  const os = require('os');
+  const p = os.platform(), a = os.arch();
+  const names = {
+    'darwin-arm64': 'mycelicmemory-macos-arm64',
+    'darwin-x64': 'mycelicmemory-macos-x64',
+    'linux-arm64': 'mycelicmemory-linux-arm64',
+    'linux-x64': 'mycelicmemory-linux-x64'
+  };
+  console.log(names[p+'-'+a]);
+")"
+echo $BINARY_PATH
+```
+
+**Windows (PowerShell):**
+```powershell
+# Typically located at:
+# %APPDATA%\npm\node_modules\mycelicmemory\bin\mycelicmemory-windows-x64.exe
+$BinaryPath = Join-Path (npm root -g) "mycelicmemory\bin\mycelicmemory-windows-x64.exe"
+Write-Host $BinaryPath
+```
+
+> **Why the direct binary path?** On Windows, the npm wrapper script (`mycelicmemory.cmd`) goes through `cmd.exe -> node.js -> Go binary`, which can cause stdin/stdout pipe issues in MCP mode. Using the direct binary path avoids this.
+
+### Step 2: Configure Claude Code (CLI)
 
 Edit `~/.claude/mcp.json`:
 
+**macOS/Linux** (npm wrapper works reliably):
 ```json
 {
   "mcpServers": {
@@ -75,40 +109,47 @@ Edit `~/.claude/mcp.json`:
 }
 ```
 
-Restart Claude Code:
+**Windows** (use direct binary path):
+```json
+{
+  "mcpServers": {
+    "mycelicmemory": {
+      "command": "C:\\Users\\YOUR_USERNAME\\AppData\\Roaming\\npm\\node_modules\\mycelicmemory\\bin\\mycelicmemory-windows-x64.exe",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
 
+Replace `YOUR_USERNAME` with your Windows username.
+
+Restart Claude Code after editing:
 ```bash
 claude
 ```
 
-### Claude Desktop
+### Step 3: Configure Claude Desktop (Optional)
 
 Edit your config file:
 
-| Platform | Location |
+| Platform | Config File Location |
 |----------|----------|
 | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Linux | `~/.config/Claude/claude_desktop_config.json` |
 
-Add:
+Use the same `mcpServers` block as above (matching your platform).
 
-```json
-{
-  "mcpServers": {
-    "mycelicmemory": {
-      "command": "mycelicmemory",
-      "args": ["--mcp"]
-    }
-  }
-}
+Restart Claude Desktop after editing.
+
+### Step 4: Verify MCP Connection
+
+In Claude Code, run:
+```
+/mcp
 ```
 
-Restart Claude Desktop.
-
-### Test It Works
-
-Ask Claude:
+You should see `mycelicmemory` listed as connected. Then ask Claude:
 - "Remember that mycelicmemory is now working"
 - "What memories do I have?"
 
@@ -247,23 +288,57 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
 Ensure npm global bin is in your PATH:
 
 ```bash
-npm bin -g
-# Add this directory to your PATH
+npm root -g        # Shows the global node_modules directory
+npm bin -g         # Shows the global bin directory (add to PATH)
+```
+
+**Windows (PowerShell):**
+```powershell
+npm root -g
+# Typically: C:\Users\<user>\AppData\Roaming\npm\node_modules
 ```
 
 ### MCP Not Available in Claude
 
+**Step 1: Verify the binary exists and runs:**
+
 ```bash
-# Verify installation
-which mycelicmemory
 mycelicmemory --version
-
-# Test MCP mode
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | mycelicmemory --mcp
-
-# Validate config
-cat ~/.claude/mcp.json | python3 -m json.tool
+mycelicmemory doctor
 ```
+
+**Step 2: Test MCP mode directly** (use the native binary, not the npm wrapper):
+
+macOS/Linux:
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | "$(npm root -g)/mycelicmemory/bin/mycelicmemory-$(uname -s | tr A-Z a-z)-$(uname -m)" --mcp
+```
+
+Windows (PowerShell):
+```powershell
+'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | & "$(npm root -g)\mycelicmemory\bin\mycelicmemory-windows-x64.exe" --mcp
+```
+
+You should see a JSON response containing `"serverInfo":{"name":"mycelicmemory"}`.
+
+**Step 3: Validate your MCP config:**
+
+macOS/Linux:
+```bash
+cat ~/.claude/mcp.json
+python3 -m json.tool ~/.claude/mcp.json
+```
+
+Windows (PowerShell):
+```powershell
+Get-Content "$env:USERPROFILE\.claude\mcp.json"
+```
+
+**Step 4: Restart Claude Code** — MCP config changes require a full restart.
+
+### Windows: npm Wrapper Not Working in MCP Mode
+
+If `"command": "mycelicmemory"` fails on Windows, use the direct binary path instead. The npm wrapper routes through `cmd.exe -> node.js -> binary`, which can break stdin/stdout piping required by MCP. See the [Connect to Claude](#connect-to-claude) section for the direct path configuration.
 
 ### macOS Security Warning
 
