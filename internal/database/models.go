@@ -180,6 +180,16 @@ type Graph struct {
 	Edges []GraphEdge `json:"edges"`
 }
 
+// OptimizedGraphResult contains the full graph data in a single query result
+// Used by GetGraphOptimized to eliminate N+1 query patterns
+type OptimizedGraphResult struct {
+	Nodes         []*Memory       `json:"nodes"`
+	Edges         []*Relationship `json:"edges"`
+	NodeDistances map[string]int  `json:"node_distances"` // memoryID -> distance from root
+	TotalNodes    int             `json:"total_nodes"`
+	TotalEdges    int             `json:"total_edges"`
+}
+
 // MemoryFilters represents filters for listing memories
 type MemoryFilters struct {
 	SessionID   string

@@ -11,14 +11,15 @@ import (
 
 // Config represents the complete application configuration
 type Config struct {
-	Profile  string          `mapstructure:"profile"`
-	Database DatabaseConfig  `mapstructure:"database"`
-	Setup    SetupConfig     `mapstructure:"setup"`
-	RestAPI  RestAPIConfig   `mapstructure:"rest_api"`
-	Session  SessionConfig   `mapstructure:"session"`
-	Logging  LoggingConfig   `mapstructure:"logging"`
-	Ollama   OllamaConfig    `mapstructure:"ollama"`
-	Qdrant   QdrantConfig    `mapstructure:"qdrant"`
+	Profile   string           `mapstructure:"profile"`
+	Database  DatabaseConfig   `mapstructure:"database"`
+	Setup     SetupConfig      `mapstructure:"setup"`
+	RestAPI   RestAPIConfig    `mapstructure:"rest_api"`
+	Session   SessionConfig    `mapstructure:"session"`
+	Logging   LoggingConfig    `mapstructure:"logging"`
+	Ollama    OllamaConfig     `mapstructure:"ollama"`
+	Qdrant    QdrantConfig     `mapstructure:"qdrant"`
+	RateLimit RateLimitConfig  `mapstructure:"rate_limit"`
 }
 
 // DatabaseConfig holds database configuration
@@ -78,6 +79,26 @@ type QdrantConfig struct {
 	URL        string `mapstructure:"url"`
 }
 
+// RateLimitConfig holds rate limiting configuration
+type RateLimitConfig struct {
+	Enabled bool                 `mapstructure:"enabled"`
+	Global  GlobalLimitConfig    `mapstructure:"global"`
+	Tools   []ToolLimitConfig    `mapstructure:"tools"`
+}
+
+// GlobalLimitConfig defines global rate limit parameters
+type GlobalLimitConfig struct {
+	RequestsPerSecond float64 `mapstructure:"requests_per_second"`
+	BurstSize         int     `mapstructure:"burst_size"`
+}
+
+// ToolLimitConfig defines per-tool rate limiting
+type ToolLimitConfig struct {
+	Name              string  `mapstructure:"name"`
+	RequestsPerSecond float64 `mapstructure:"requests_per_second"`
+	BurstSize         int     `mapstructure:"burst_size"`
+}
+
 // DefaultConfig returns configuration with verified default values
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
@@ -121,6 +142,20 @@ func DefaultConfig() *Config {
 			Enabled:    true,
 			AutoDetect: true,
 			URL:        "http://localhost:6333",
+		},
+		RateLimit: RateLimitConfig{
+			Enabled: true,
+			Global: GlobalLimitConfig{
+				RequestsPerSecond: 100,
+				BurstSize:         200,
+			},
+			Tools: []ToolLimitConfig{
+				{Name: "analysis", RequestsPerSecond: 5, BurstSize: 10},
+				{Name: "search", RequestsPerSecond: 20, BurstSize: 40},
+				{Name: "benchmark_run", RequestsPerSecond: 0.1, BurstSize: 2},
+				{Name: "store_memory", RequestsPerSecond: 30, BurstSize: 60},
+				{Name: "relationships", RequestsPerSecond: 20, BurstSize: 40},
+			},
 		},
 	}
 }
@@ -201,6 +236,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("qdrant.enabled", true)
 	v.SetDefault("qdrant.auto_detect", true)
 	v.SetDefault("qdrant.url", "http://localhost:6333")
+
+	v.SetDefault("rate_limit.enabled", true)
+	v.SetDefault("rate_limit.global.requests_per_second", 100)
+	v.SetDefault("rate_limit.global.burst_size", 200)
 }
 
 // Validate validates the configuration
