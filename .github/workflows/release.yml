@@ -16,146 +16,15 @@ env:
   BUILD_TAGS: fts5
 
 jobs:
-  build-macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        include:
-          - goarch: arm64
-            name: mycelicmemory-macos-arm64
-          - goarch: amd64
-            name: mycelicmemory-macos-x64
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-          cache: true
-          cache-dependency-path: go.sum
-
-      # Enhanced caching for Go build cache
-      - name: Cache Go build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ matrix.goarch }}
-          restore-keys: |
-            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
-            ${{ runner.os }}-go-
-
-      - name: Build
-        env:
-          GOARCH: ${{ matrix.goarch }}
-          GOOS: darwin
-        run: |
-          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
-          chmod +x ${{ matrix.name }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-          compression-level: 9
-
-  build-linux:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goarch: amd64
-            name: mycelicmemory-linux-x64
-          - goarch: arm64
-            name: mycelicmemory-linux-arm64
-            cc: aarch64-linux-gnu-gcc
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-          cache: true
-          cache-dependency-path: go.sum
-
-      # Enhanced caching for Go build cache
-      - name: Cache Go build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ matrix.goarch }}
-          restore-keys: |
-            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
-            ${{ runner.os }}-go-
-
-      - name: Install cross-compiler (arm64)
-        if: matrix.goarch == 'arm64'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Build
-        env:
-          GOARCH: ${{ matrix.goarch }}
-          GOOS: linux
-          CC: ${{ matrix.cc || 'gcc' }}
-        run: |
-          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
-          chmod +x ${{ matrix.name }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-          compression-level: 9
-
-  build-windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        include:
-          - goarch: amd64
-            name: mycelicmemory-windows-x64.exe
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-          cache: true
-          cache-dependency-path: go.sum
-
-      # Enhanced caching for Go build cache
-      - name: Cache Go build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\AppData\Local\go-build
-            ~\go\pkg\mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ matrix.goarch }}
-          restore-keys: |
-            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
-            ${{ runner.os }}-go-
-
-      - name: Build
-        env:
-          GOARCH: ${{ matrix.goarch }}
-          GOOS: windows
-        run: |
-          go build -tags "${{ env.BUILD_TAGS }}" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-          compression-level: 9
+  # Use reusable build workflow for all platforms
+  build:
+    uses: ./.github/workflows/build-reusable.yml
+    with:
+      retention-days: 7
+      platforms: '["linux-x64", "linux-arm64", "macos-x64", "macos-arm64", "windows-x64"]'
 
   release:
-    needs: [build-macos, build-linux, build-windows]
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -214,17 +83,17 @@ jobs:
             EXPECTED=$(grep "$BINARY" SHA256SUMS | awk '{print $1}')
             ACTUAL=$(sha256sum "$BINARY" | awk '{print $1}')
             if [ "$EXPECTED" = "$ACTUAL" ]; then
-              echo "✅ SHA256 verified"
+              echo "SHA256 verified"
             else
-              echo "❌ SHA256 mismatch!"
+              echo "SHA256 mismatch!"
               exit 1
             fi
           fi
           if [ -f "SHA256SUMS.asc" ] && command -v gpg >/dev/null 2>&1; then
             gpg --verify SHA256SUMS.asc SHA256SUMS 2>&1 | grep -q "Good signature" && \
-              echo "✅ GPG verified" || echo "⚠️  GPG verification failed"
+              echo "GPG verified" || echo "GPG verification failed"
           fi
-          echo "✅ Verification complete"
+          echo "Verification complete"
           EOFSH
 
           chmod +x release/verify.sh

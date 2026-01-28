@@ -70,11 +70,6 @@ jobs:
           echo "=== Running unit tests ==="
           go test -tags "$BUILD_TAGS" ./... -v -race -coverprofile=coverage.out
 
-      - name: Run benchmark tests
-        run: |
-          echo "=== Running benchmark tests ==="
-          go test -tags "$BUILD_TAGS" -bench=. -benchmem ./... | tee benchmark.txt
-
       - name: Build all platform binaries
         run: |
           echo "=== Building all platform binaries ==="
@@ -124,7 +119,6 @@ jobs:
           name: validation-results
           path: |
             coverage.out
-            benchmark.txt
             dist/SHA256SUMS
           retention-days: 7
 
