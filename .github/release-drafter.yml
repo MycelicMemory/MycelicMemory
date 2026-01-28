@@ -1,0 +1,111 @@
+name-template: 'MycelicMemory v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+    collapse-after: 5
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+    collapse-after: 5
+  - title: '🚀 Performance'
+    labels:
+      - 'performance'
+      - 'perf'
+  - title: '📚 Documentation'
+    labels:
+      - 'documentation'
+      - 'docs'
+  - title: '🔧 Maintenance'
+    labels:
+      - 'chore'
+      - 'dependencies'
+      - 'refactor'
+  - title: '🧪 Tests'
+    labels:
+      - 'test'
+      - 'tests'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+      - 'breaking'
+  minor:
+    labels:
+      - 'minor'
+      - 'feature'
+      - 'enhancement'
+  patch:
+    labels:
+      - 'patch'
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+      - 'chore'
+      - 'dependencies'
+  default: patch
+
+# Conventional Commits parsing
+autolabeler:
+  - label: 'feature'
+    title:
+      - '/^feat(\(.*\))?:.*/i'
+  - label: 'fix'
+    title:
+      - '/^fix(\(.*\))?:.*/i'
+  - label: 'performance'
+    title:
+      - '/^perf(\(.*\))?:.*/i'
+  - label: 'documentation'
+    title:
+      - '/^docs(\(.*\))?:.*/i'
+  - label: 'chore'
+    title:
+      - '/^chore(\(.*\))?:.*/i'
+  - label: 'refactor'
+    title:
+      - '/^refactor(\(.*\))?:.*/i'
+  - label: 'test'
+    title:
+      - '/^test(\(.*\))?:.*/i'
+  - label: 'breaking'
+    title:
+      - '/^.*!:.*$/i'
+    body:
+      - '/BREAKING CHANGE/i'
+
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  ### Installation
+
+  **Via npm (recommended):**
+  ```bash
+  npm install -g mycelicmemory
+  ```
+
+  **Direct download:**
+  Download the binary for your platform below and add it to your PATH.
+
+  ### Platform Binaries
+
+  | Platform | Architecture | Binary |
+  |----------|--------------|--------|
+  | macOS | Apple Silicon (M1/M2/M3) | `mycelicmemory-macos-arm64` |
+  | macOS | Intel | `mycelicmemory-macos-x64` |
+  | Linux | x64 | `mycelicmemory-linux-x64` |
+  | Linux | ARM64 | `mycelicmemory-linux-arm64` |
+  | Windows | x64 | `mycelicmemory-windows-x64.exe` |
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION

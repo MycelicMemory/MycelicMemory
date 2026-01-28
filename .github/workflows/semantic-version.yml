@@ -1,0 +1,154 @@
+name: Semantic Versioning
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type (leave empty for auto-detection)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - major
+          - minor
+          - patch
+      dry_run:
+        description: 'Dry run (do not create tag/release)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  semantic-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper versioning
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Determine version bump
+        id: version
+        run: |
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Get latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+
+          # Analyze commits since last tag
+          COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
+
+          # Determine bump type
+          BUMP_TYPE="${{ inputs.bump_type }}"
+
+          if [ -z "$BUMP_TYPE" ]; then
+            echo "Auto-detecting version bump from commits..."
+
+            # Check for breaking changes (BREAKING CHANGE or ! in commit)
+            if echo "$COMMITS" | grep -qE "(BREAKING CHANGE|^[a-z]+!:|^[a-z]+\([^)]+\)!:)"; then
+              BUMP_TYPE="major"
+              echo "Found breaking changes"
+            # Check for features
+            elif echo "$COMMITS" | grep -qE "^feat(\([^)]+\))?:"; then
+              BUMP_TYPE="minor"
+              echo "Found feature commits"
+            # Default to patch
+            else
+              BUMP_TYPE="patch"
+              echo "No features or breaking changes, defaulting to patch"
+            fi
+          fi
+
+          echo "Bump type: $BUMP_TYPE"
+
+          # Calculate new version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT_VERSION}"
+
+          case "$BUMP_TYPE" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+
+          # Output variables
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Display version information
+        run: |
+          echo "## Version Bump Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Current Version:** ${{ steps.version.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New Version:** ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bump Type:** ${{ steps.version.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "**Dry Run Mode:** No changes will be made" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Update package.json version
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          # Update package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          echo "Updated package.json to version $NEW_VERSION"
+
+      - name: Commit version bump
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add package.json
+          git commit -m "chore(release): bump version to $NEW_VERSION
+
+          [skip ci]"
+
+          git push origin ${{ github.ref_name }}
+
+      - name: Create and push tag
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+
+          echo "Created and pushed tag v$NEW_VERSION"
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Tag Created:** v$NEW_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The release workflow will be triggered automatically." >> $GITHUB_STEP_SUMMARY

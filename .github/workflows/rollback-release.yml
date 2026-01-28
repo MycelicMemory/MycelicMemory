@@ -1,0 +1,277 @@
+name: Rollback Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_version:
+        description: 'Version to rollback (current version that has issues)'
+        required: true
+        type: string
+      restore_version:
+        description: 'Version to restore (previous stable version)'
+        required: true
+        type: string
+      channel:
+        description: 'Channel to rollback'
+        required: true
+        type: choice
+        options:
+          - latest
+          - beta
+          - canary
+      reason:
+        description: 'Reason for rollback'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  validate-rollback:
+    runs-on: ubuntu-latest
+    outputs:
+      rollback_version: ${{ steps.validate.outputs.rollback_version }}
+      restore_version: ${{ steps.validate.outputs.restore_version }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate versions
+        id: validate
+        run: |
+          ROLLBACK="${{ inputs.rollback_version }}"
+          RESTORE="${{ inputs.restore_version }}"
+
+          # Remove 'v' prefix if present
+          ROLLBACK="${ROLLBACK#v}"
+          RESTORE="${RESTORE#v}"
+
+          echo "rollback_version=$ROLLBACK" >> $GITHUB_OUTPUT
+          echo "restore_version=$RESTORE" >> $GITHUB_OUTPUT
+
+          # Verify both versions exist on npm
+          if ! npm view mycelicmemory@$ROLLBACK version > /dev/null 2>&1; then
+            echo "❌ Rollback version $ROLLBACK not found on npm"
+            exit 1
+          fi
+
+          if ! npm view mycelicmemory@$RESTORE version > /dev/null 2>&1; then
+            echo "❌ Restore version $RESTORE not found on npm"
+            exit 1
+          fi
+
+          echo "✅ Both versions verified"
+
+      - name: Create rollback issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔄 Rollback: v${{ steps.validate.outputs.rollback_version }} → v${{ steps.validate.outputs.restore_version }}`,
+              body: `## Release Rollback Initiated
+
+              **Problematic Version:** v${{ steps.validate.outputs.rollback_version }}
+              **Restoring To:** v${{ steps.validate.outputs.restore_version }}
+              **Channel:** @${{ inputs.channel }}
+              **Reason:** ${{ inputs.reason }}
+
+              **Initiated By:** @${{ github.actor }}
+              **Workflow:** [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+              ---
+
+              ### Rollback Checklist
+              - [ ] NPM channel updated
+              - [ ] Users notified
+              - [ ] Post-mortem scheduled
+              - [ ] Root cause identified
+              - [ ] Fix implemented and tested
+
+              **Status:** In Progress
+              `,
+              labels: ['rollback', 'incident', 'urgent']
+            });
+
+            core.setOutput('issue_number', issue.data.number);
+
+  execute-rollback:
+    needs: validate-rollback
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Rollback npm channel
+        run: |
+          RESTORE_VERSION="${{ needs.validate-rollback.outputs.restore_version }}"
+          CHANNEL="${{ inputs.channel }}"
+
+          echo "Rolling back @$CHANNEL to version $RESTORE_VERSION"
+
+          # Point the channel tag to the restore version
+          npm dist-tag add mycelicmemory@$RESTORE_VERSION $CHANNEL
+
+          echo "✅ Rolled back @$CHANNEL to $RESTORE_VERSION"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify rollback
+        run: |
+          sleep 5
+
+          RESTORE_VERSION="${{ needs.validate-rollback.outputs.restore_version }}"
+          CHANNEL="${{ inputs.channel }}"
+
+          CURRENT_VERSION=$(npm view mycelicmemory@$CHANNEL version)
+
+          if [ "$CURRENT_VERSION" != "$RESTORE_VERSION" ]; then
+            echo "❌ Rollback verification failed!"
+            echo "Expected: $RESTORE_VERSION"
+            echo "Got: $CURRENT_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Rollback verified: @$CHANNEL now points to $RESTORE_VERSION"
+
+      - name: Deprecate problematic version
+        run: |
+          ROLLBACK_VERSION="${{ needs.validate-rollback.outputs.rollback_version }}"
+
+          npm deprecate mycelicmemory@$ROLLBACK_VERSION \
+            "⚠️ This version has been rolled back due to: ${{ inputs.reason }}. Please upgrade to the latest stable version."
+
+          echo "✅ Deprecated version $ROLLBACK_VERSION"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create incident report
+        run: |
+          mkdir -p incidents
+
+          cat > incidents/rollback-${{ needs.validate-rollback.outputs.rollback_version }}.md << 'EOF'
+          # Incident Report: Rollback v${{ needs.validate-rollback.outputs.rollback_version }}
+
+          **Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **Severity:** High
+          **Status:** Resolved
+
+          ## Summary
+
+          Version ${{ needs.validate-rollback.outputs.rollback_version }} was rolled back to ${{ needs.validate-rollback.outputs.restore_version }}.
+
+          **Reason:** ${{ inputs.reason }}
+
+          ## Timeline
+
+          - **Rollback Initiated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - **Rollback Completed:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - **Channel Affected:** @${{ inputs.channel }}
+
+          ## Actions Taken
+
+          1. ✅ Rolled back @${{ inputs.channel }} channel to v${{ needs.validate-rollback.outputs.restore_version }}
+          2. ✅ Deprecated problematic version v${{ needs.validate-rollback.outputs.rollback_version }}
+          3. ✅ Created incident tracking issue
+          4. ⏳ User notification pending
+
+          ## Root Cause
+
+          _To be determined in post-mortem_
+
+          ## Prevention
+
+          _To be determined in post-mortem_
+
+          ## References
+
+          - Rollback Issue: #TBD
+          - Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          EOF
+
+          cat incidents/rollback-${{ needs.validate-rollback.outputs.rollback_version }}.md
+
+      - name: Commit incident report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add incidents/
+          git commit -m "docs: add incident report for rollback v${{ needs.validate-rollback.outputs.rollback_version }}
+
+          Rolled back from v${{ needs.validate-rollback.outputs.rollback_version }} to v${{ needs.validate-rollback.outputs.restore_version }}
+
+          Reason: ${{ inputs.reason }}
+
+          [skip ci]" || echo "No changes to commit"
+
+          git push origin ${{ github.ref_name }} || echo "Push failed, may not have permissions"
+
+      - name: Update rollback issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ needs.validate-rollback.outputs.issue_number }};
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `## ✅ Rollback Complete
+
+              The rollback has been successfully executed.
+
+              **NPM Channel:** @${{ inputs.channel }} now points to v${{ needs.validate-rollback.outputs.restore_version }}
+              **Deprecated Version:** v${{ needs.validate-rollback.outputs.rollback_version }}
+
+              ### User Impact
+              Users on @${{ inputs.channel }} will receive v${{ needs.validate-rollback.outputs.restore_version }} on next install/update.
+
+              ### Next Steps
+              1. Monitor for any issues with the restored version
+              2. Schedule post-mortem to analyze root cause
+              3. Implement fix for the issue
+              4. Test thoroughly before next release
+
+              ### Verification
+              \`\`\`bash
+              npm view mycelicmemory@${{ inputs.channel }}
+              # Should show version: ${{ needs.validate-rollback.outputs.restore_version }}
+              \`\`\`
+              `
+            });
+
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              state: 'closed',
+              labels: ['rollback', 'incident', 'resolved']
+            });
+
+      - name: Summary
+        run: |
+          echo "## 🔄 Rollback Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Channel:** @${{ inputs.channel }}" >> $GITHUB_STEP_SUMMARY
+          echo "**From:** v${{ needs.validate-rollback.outputs.rollback_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**To:** v${{ needs.validate-rollback.outputs.restore_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Reason" >> $GITHUB_STEP_SUMMARY
+          echo "${{ inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verification" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "npm install -g mycelicmemory@${{ inputs.channel }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Should install v${{ needs.validate-rollback.outputs.restore_version }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

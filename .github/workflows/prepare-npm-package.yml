@@ -1,0 +1,273 @@
+name: Prepare NPM Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to prepare (e.g., 1.2.3)'
+        required: true
+        type: string
+
+env:
+  CGO_ENABLED: 1
+  BUILD_TAGS: fts5
+
+jobs:
+  build-binaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            name: mycelicmemory-macos-arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            name: mycelicmemory-macos-x64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            name: mycelicmemory-linux-x64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            name: mycelicmemory-linux-arm64
+            cc: aarch64-linux-gnu-gcc
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            name: mycelicmemory-windows-x64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Install cross-compiler (Linux ARM64)
+        if: matrix.goarch == 'arm64' && matrix.goos == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc || '' }}
+        run: |
+          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
+
+      - name: Make executable (Unix)
+        if: matrix.goos != 'windows'
+        run: chmod +x ${{ matrix.name }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+          retention-days: 7
+
+  package-npm:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: bin/native
+
+      - name: Organize binaries
+        run: |
+          mkdir -p bin/native
+          for dir in bin/native/*/; do
+            binary=$(ls "$dir")
+            mv "$dir$binary" "bin/native/$binary"
+            rmdir "$dir"
+          done
+          ls -la bin/native/
+
+      - name: Generate checksums
+        run: |
+          cd bin/native
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Update package version
+        run: |
+          VERSION="${{ inputs.version }}"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Create optimized wrapper script
+        run: |
+          cat > bin/mycelicmemory-bundled << 'EOF'
+          #!/usr/bin/env node
+
+          /**
+           * MyclicMemory CLI - AI-powered persistent memory system
+           * Optimized entry point with bundled binaries
+           */
+
+          const { spawn } = require('child_process');
+          const path = require('path');
+          const os = require('os');
+          const fs = require('fs');
+
+          /**
+           * Get the binary filename for the current platform
+           */
+          function getBinaryName() {
+            const platform = os.platform();
+            const arch = os.arch();
+
+            const names = {
+              'darwin-arm64': 'mycelicmemory-macos-arm64',
+              'darwin-x64': 'mycelicmemory-macos-x64',
+              'linux-arm64': 'mycelicmemory-linux-arm64',
+              'linux-x64': 'mycelicmemory-linux-x64',
+              'win32-x64': 'mycelicmemory-windows-x64.exe',
+              'win32-arm64': 'mycelicmemory-windows-x64.exe',
+            };
+
+            const key = `${platform}-${arch}`;
+            const name = names[key];
+
+            if (!name) {
+              console.error(`Unsupported platform: ${key}`);
+              console.error('Supported: darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-x64');
+              process.exit(1);
+            }
+
+            return name;
+          }
+
+          /**
+           * Get full path to the bundled binary
+           */
+          function getBinaryPath() {
+            return path.join(__dirname, 'native', getBinaryName());
+          }
+
+          /**
+           * Verify binary exists and is executable
+           */
+          function ensureBinary() {
+            const binaryPath = getBinaryPath();
+
+            if (!fs.existsSync(binaryPath)) {
+              console.error(`Binary not found: ${binaryPath}`);
+              console.error('Please reinstall the package: npm install -g mycelicmemory');
+              process.exit(1);
+            }
+
+            // Make executable on Unix
+            if (os.platform() !== 'win32') {
+              try {
+                fs.chmodSync(binaryPath, 0o755);
+              } catch (err) {
+                // Ignore chmod errors
+              }
+            }
+
+            return binaryPath;
+          }
+
+          /**
+           * Main entry point
+           */
+          function main() {
+            try {
+              const binaryPath = ensureBinary();
+
+              const child = spawn(binaryPath, process.argv.slice(2), {
+                stdio: 'inherit',
+                env: process.env
+              });
+
+              child.on('exit', (code) => process.exit(code || 0));
+              child.on('error', (err) => {
+                console.error(`Failed to start: ${err.message}`);
+                if (os.platform() === 'darwin' && err.code === 'EACCES') {
+                  console.error('Note: On macOS, allow the binary in System Preferences > Security');
+                }
+                process.exit(1);
+              });
+
+              ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => {
+                process.on(sig, () => child.pid && child.kill(sig));
+              });
+
+            } catch (err) {
+              console.error(`Error: ${err.message}`);
+              process.exit(1);
+            }
+          }
+
+          main();
+          EOF
+
+          chmod +x bin/mycelicmemory-bundled
+
+      - name: Update package.json for bundled binaries
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
+            // Update bin to use bundled wrapper
+            pkg.bin = {
+              'mycelicmemory': 'bin/mycelicmemory-bundled'
+            };
+
+            // Include native binaries in package
+            pkg.files = [
+              'bin/mycelicmemory-bundled',
+              'bin/native/*',
+              'README.md',
+              'LICENSE'
+            ];
+
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Create package tarball
+        run: |
+          npm pack
+          ls -la *.tgz
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: '*.tgz'
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## NPM Package Prepared" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Bundled Binaries" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh bin/native/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Package Size" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh *.tgz >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

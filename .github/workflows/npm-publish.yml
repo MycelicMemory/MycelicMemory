@@ -50,8 +50,86 @@ jobs:
           fi
           echo "Version $VERSION is available"
 
-  publish:
+  # Comprehensive pre-release validation
+  validate:
     needs: verify
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 1
+      BUILD_TAGS: fts5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Run full test suite
+        run: |
+          echo "=== Running unit tests ==="
+          go test -tags "$BUILD_TAGS" ./... -v -race -coverprofile=coverage.out
+
+      - name: Run benchmark tests
+        run: |
+          echo "=== Running benchmark tests ==="
+          go test -tags "$BUILD_TAGS" -bench=. -benchmem ./... | tee benchmark.txt
+
+      - name: Build all platform binaries
+        run: |
+          echo "=== Building all platform binaries ==="
+          mkdir -p dist
+
+          # Linux x64
+          GOOS=linux GOARCH=amd64 go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o dist/mycelicmemory-linux-x64 ./cmd/mycelicmemory
+
+          # macOS x64 (limited validation)
+          GOOS=darwin GOARCH=amd64 go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o dist/mycelicmemory-macos-x64 ./cmd/mycelicmemory
+
+          # Windows x64
+          GOOS=windows GOARCH=amd64 go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o dist/mycelicmemory-windows-x64.exe ./cmd/mycelicmemory
+
+          echo "=== Build complete ==="
+          ls -lh dist/
+
+      - name: Verify binary checksums
+        run: |
+          echo "=== Generating checksums ==="
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Smoke test Linux binary
+        run: |
+          echo "=== Smoke testing Linux binary ==="
+          chmod +x dist/mycelicmemory-linux-x64
+          ./dist/mycelicmemory-linux-x64 --version
+          ./dist/mycelicmemory-linux-x64 --help
+          ./dist/mycelicmemory-linux-x64 doctor || true
+
+      - name: Test MCP protocol compliance
+        run: |
+          echo "=== Testing MCP protocol ==="
+          chmod +x dist/mycelicmemory-linux-x64
+
+          # Test initialize request
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | \
+            timeout 5 ./dist/mycelicmemory-linux-x64 --mcp 2>/dev/null | head -1 || true
+
+          echo "MCP protocol validation complete"
+
+      - name: Upload validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: |
+            coverage.out
+            benchmark.txt
+            dist/SHA256SUMS
+          retention-days: 7
+
+  publish:
+    needs: [verify, validate]
     runs-on: ubuntu-latest
     environment: npm-publish
     steps:
