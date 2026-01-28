@@ -1,0 +1,181 @@
+name: Promote Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_channel:
+        description: 'Promote from channel'
+        required: true
+        type: choice
+        options:
+          - canary
+          - beta
+      to_channel:
+        description: 'Promote to channel'
+        required: true
+        type: choice
+        options:
+          - beta
+          - latest
+      version:
+        description: 'Version to promote (leave empty for latest from channel)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Validate promotion path
+        run: |
+          FROM="${{ inputs.from_channel }}"
+          TO="${{ inputs.to_channel }}"
+
+          # Validate promotion path
+          if [ "$FROM" == "canary" ] && [ "$TO" == "latest" ]; then
+            echo "❌ Cannot promote directly from canary to latest"
+            echo "Promotion path must be: canary -> beta -> latest"
+            exit 1
+          fi
+
+          if [ "$FROM" == "$TO" ]; then
+            echo "❌ Source and destination channels cannot be the same"
+            exit 1
+          fi
+
+          echo "✅ Valid promotion: $FROM -> $TO"
+
+      - name: Get version to promote
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # Get latest version from source channel
+            VERSION=$(npm view mycelicmemory@${{ inputs.from_channel }} version)
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Promoting version: $VERSION"
+
+      - name: Verify version exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if ! npm view mycelicmemory@$VERSION > /dev/null 2>&1; then
+            echo "❌ Version $VERSION does not exist on npm"
+            exit 1
+          fi
+
+          echo "✅ Version $VERSION exists"
+
+      - name: Run promotion tests
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Install the version to test
+          npm install -g mycelicmemory@$VERSION
+
+          # Basic smoke tests
+          mycelicmemory --version
+          mycelicmemory --help
+
+          echo "✅ Smoke tests passed"
+
+      - name: Promote to target channel
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TO_CHANNEL="${{ inputs.to_channel }}"
+
+          # Add the target channel tag to this version
+          npm dist-tag add mycelicmemory@$VERSION $TO_CHANNEL
+
+          echo "✅ Promoted mycelicmemory@$VERSION to @$TO_CHANNEL"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify promotion
+        run: |
+          sleep 5
+
+          VERSION="${{ steps.version.outputs.version }}"
+          TO_CHANNEL="${{ inputs.to_channel }}"
+
+          # Verify the tag points to the correct version
+          TAGGED_VERSION=$(npm view mycelicmemory@$TO_CHANNEL version)
+
+          if [ "$TAGGED_VERSION" != "$VERSION" ]; then
+            echo "❌ Promotion verification failed"
+            echo "Expected: $VERSION"
+            echo "Got: $TAGGED_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Promotion verified"
+
+      - name: Create stable release (if promoting to latest)
+        if: inputs.to_channel == 'latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: MycelicMemory v${{ steps.version.outputs.version }}
+          body: |
+            ## MycelicMemory v${{ steps.version.outputs.version }}
+
+            AI-powered persistent memory system for Claude and other AI agents.
+
+            **Promoted from:** @${{ inputs.from_channel }}
+
+            ### Installation
+
+            **Via npm (recommended):**
+            ```bash
+            npm install -g mycelicmemory
+            ```
+
+            **Via Homebrew:**
+            ```bash
+            brew install MycelicMemory/tap/mycelicmemory
+            ```
+
+            ### Verification
+            Download `SHA256SUMS` and `verify.sh` to verify your binary:
+            ```bash
+            ./verify.sh mycelicmemory-<platform>-<arch>
+            ```
+          draft: false
+          prerelease: false
+
+      - name: Announcement
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          FROM="${{ inputs.from_channel }}"
+          TO="${{ inputs.to_channel }}"
+
+          echo "## 🎉 Release Promoted" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**From:** @$FROM" >> $GITHUB_STEP_SUMMARY
+          echo "**To:** @$TO" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "npm install -g mycelicmemory@$TO" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$TO" == "latest" ]; then
+            echo "### 📢 Ready for Production" >> $GITHUB_STEP_SUMMARY
+            echo "This version is now the stable release." >> $GITHUB_STEP_SUMMARY
+          fi

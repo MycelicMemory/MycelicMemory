@@ -1,0 +1,128 @@
+version: 2
+updates:
+  # Go modules
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "MycelicMemory/maintainers"
+    assignees:
+      - "MycelicMemory/maintainers"
+    labels:
+      - "dependencies"
+      - "go"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Auto-merge patch updates
+    groups:
+      go-patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+  # NPM dependencies (root package)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "MycelicMemory/maintainers"
+    assignees:
+      - "MycelicMemory/maintainers"
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Auto-merge patch updates
+    groups:
+      npm-patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+  # NPM dependencies (dashboard)
+  - package-ecosystem: "npm"
+    directory: "/dashboard"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "MycelicMemory/maintainers"
+    assignees:
+      - "MycelicMemory/maintainers"
+    labels:
+      - "dependencies"
+      - "npm"
+      - "dashboard"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      dashboard-patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+  # NPM dependencies (installer)
+  - package-ecosystem: "npm"
+    directory: "/installer"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "MycelicMemory/maintainers"
+    assignees:
+      - "MycelicMemory/maintainers"
+    labels:
+      - "dependencies"
+      - "npm"
+      - "installer"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      installer-patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "MycelicMemory/maintainers"
+    assignees:
+      - "MycelicMemory/maintainers"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      github-actions-updates:
+        patterns:
+          - "*"

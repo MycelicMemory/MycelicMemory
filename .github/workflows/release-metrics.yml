@@ -1,0 +1,220 @@
+name: Release Metrics
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  collect-metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install axios
+
+      - name: Collect npm download stats
+        id: npm_stats
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const axios = require('axios');
+
+            // Get download stats for the last 7 days
+            const packageName = 'mycelicmemory';
+            const url = `https://api.npmjs.org/downloads/point/last-week/${packageName}`;
+
+            try {
+              const response = await axios.get(url);
+              const downloads = response.data.downloads || 0;
+
+              core.setOutput('weekly_downloads', downloads);
+              console.log(`Weekly downloads: ${downloads}`);
+
+              // Get package info
+              const pkgUrl = `https://registry.npmjs.org/${packageName}`;
+              const pkgResponse = await axios.get(pkgUrl);
+              const latest = pkgResponse.data['dist-tags'].latest;
+              const beta = pkgResponse.data['dist-tags'].beta || 'N/A';
+              const canary = pkgResponse.data['dist-tags'].canary || 'N/A';
+
+              core.setOutput('latest_version', latest);
+              core.setOutput('beta_version', beta);
+              core.setOutput('canary_version', canary);
+
+              return { downloads, latest, beta, canary };
+            } catch (error) {
+              console.error('Error fetching npm stats:', error.message);
+              return null;
+            }
+
+      - name: Collect GitHub release stats
+        id: github_stats
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get latest releases
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 5
+            });
+
+            let totalDownloads = 0;
+            const releaseStats = [];
+
+            for (const release of releases) {
+              let releaseDownloads = 0;
+
+              for (const asset of release.assets) {
+                releaseDownloads += asset.download_count;
+                totalDownloads += asset.download_count;
+              }
+
+              releaseStats.push({
+                tag: release.tag_name,
+                downloads: releaseDownloads,
+                published: release.published_at
+              });
+            }
+
+            core.setOutput('total_downloads', totalDownloads);
+            core.setOutput('latest_release', releases[0]?.tag_name || 'N/A');
+
+            console.log(`Total GitHub downloads: ${totalDownloads}`);
+            console.log('Recent releases:', releaseStats);
+
+            return { totalDownloads, releaseStats };
+
+      - name: Collect workflow metrics
+        id: workflow_stats
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get recent workflow runs
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 50,
+              created: `>${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()}`
+            });
+
+            const stats = {
+              total: runs.workflow_runs.length,
+              success: runs.workflow_runs.filter(r => r.conclusion === 'success').length,
+              failure: runs.workflow_runs.filter(r => r.conclusion === 'failure').length,
+              cancelled: runs.workflow_runs.filter(r => r.conclusion === 'cancelled').length
+            };
+
+            const successRate = stats.total > 0
+              ? ((stats.success / stats.total) * 100).toFixed(1)
+              : 0;
+
+            core.setOutput('success_rate', successRate);
+            core.setOutput('total_runs', stats.total);
+            core.setOutput('failed_runs', stats.failure);
+
+            console.log('Workflow stats (7 days):', stats);
+            console.log(`Success rate: ${successRate}%`);
+
+            return { stats, successRate };
+
+      - name: Generate metrics report
+        run: |
+          cat > metrics-report.md << 'EOF'
+          # MycelicMemory Release Metrics Report
+
+          **Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          ## 📦 Distribution Metrics
+
+          ### NPM Package
+          - **Latest Version:** ${{ steps.npm_stats.outputs.latest_version }}
+          - **Beta Version:** ${{ steps.npm_stats.outputs.beta_version }}
+          - **Canary Version:** ${{ steps.npm_stats.outputs.canary_version }}
+          - **Weekly Downloads:** ${{ steps.npm_stats.outputs.weekly_downloads }}
+
+          ### GitHub Releases
+          - **Latest Release:** ${{ steps.github_stats.outputs.latest_release }}
+          - **Total Binary Downloads:** ${{ steps.github_stats.outputs.total_downloads }}
+
+          ## 🔧 CI/CD Health (Last 7 Days)
+
+          - **Total Workflow Runs:** ${{ steps.workflow_stats.outputs.total_runs }}
+          - **Success Rate:** ${{ steps.workflow_stats.outputs.success_rate }}%
+          - **Failed Runs:** ${{ steps.workflow_stats.outputs.failed_runs }}
+
+          ## 📊 Trends
+
+          View detailed analytics:
+          - [npm package stats](https://npm-stat.com/charts.html?package=mycelicmemory)
+          - [GitHub insights](https://github.com/MycelicMemory/mycelicmemory/pulse)
+
+          ---
+          *Automated metrics collection*
+          EOF
+
+          cat metrics-report.md
+
+      - name: Store metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metrics-$(date +%Y%m%d)
+          path: metrics-report.md
+          retention-days: 90
+
+      - name: Check for anomalies
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const successRate = parseFloat('${{ steps.workflow_stats.outputs.success_rate }}');
+            const failedRuns = parseInt('${{ steps.workflow_stats.outputs.failed_runs }}');
+
+            // Alert if success rate drops below 80%
+            if (successRate < 80 && failedRuns > 5) {
+              github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '⚠️ CI/CD Health Alert: Low Success Rate',
+                body: `## CI/CD Health Alert
+
+                The workflow success rate has dropped below acceptable levels.
+
+                **Current Metrics:**
+                - Success Rate: ${successRate}%
+                - Failed Runs (7 days): ${failedRuns}
+
+                **Action Required:**
+                Review recent workflow failures and address any systemic issues.
+
+                [View workflows](https://github.com/${context.repo.owner}/${context.repo.repo}/actions)
+                `,
+                labels: ['monitoring', 'alert', 'ci-cd']
+              });
+            }
+
+      - name: Summary
+        run: |
+          echo "## Release Metrics Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### NPM Package" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latest:** ${{ steps.npm_stats.outputs.latest_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Weekly Downloads:** ${{ steps.npm_stats.outputs.weekly_downloads }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### GitHub Releases" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latest:** ${{ steps.github_stats.outputs.latest_release }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Downloads:** ${{ steps.github_stats.outputs.total_downloads }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### CI/CD Health" >> $GITHUB_STEP_SUMMARY
+          echo "- **Success Rate:** ${{ steps.workflow_stats.outputs.success_rate }}%" >> $GITHUB_STEP_SUMMARY
+          echo "- **Failed Runs:** ${{ steps.workflow_stats.outputs.failed_runs }}" >> $GITHUB_STEP_SUMMARY

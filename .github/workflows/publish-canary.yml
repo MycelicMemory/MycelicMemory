@@ -1,0 +1,173 @@
+name: Publish Canary Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - development
+      - main
+
+env:
+  CGO_ENABLED: 1
+  BUILD_TAGS: fts5
+
+jobs:
+  determine-channel:
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.channel.outputs.channel }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine release channel
+        id: channel
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "channel=beta" >> $GITHUB_OUTPUT
+          else
+            echo "channel=canary" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate version
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+
+          if [ "$CHANNEL" == "canary" ]; then
+            VERSION="${BASE_VERSION}-canary.${TIMESTAMP}.${SHORT_SHA}"
+          else
+            VERSION="${BASE_VERSION}-beta.${TIMESTAMP}.${SHORT_SHA}"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+
+  build-and-publish:
+    needs: determine-channel
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Build quick validation binary
+        run: |
+          echo "Building Linux x64 binary for quick validation..."
+          GOOS=linux GOARCH=amd64 go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o mycelicmemory-linux-x64 ./cmd/mycelicmemory
+          chmod +x mycelicmemory-linux-x64
+          ./mycelicmemory-linux-x64 --version
+
+      - name: Update package version
+        run: |
+          VERSION="${{ needs.determine-channel.outputs.version }}"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Updated to version: $VERSION"
+
+      - name: Publish to npm
+        run: |
+          CHANNEL="${{ needs.determine-channel.outputs.channel }}"
+          npm publish --access public --tag $CHANNEL
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify publication
+        run: |
+          sleep 10
+          VERSION="${{ needs.determine-channel.outputs.version }}"
+          CHANNEL="${{ needs.determine-channel.outputs.channel }}"
+
+          npm view mycelicmemory@$VERSION
+          echo ""
+          echo "✅ Published mycelicmemory@$VERSION to @$CHANNEL channel"
+          echo ""
+          echo "Install with:"
+          echo "  npm install -g mycelicmemory@$CHANNEL"
+
+      - name: Create GitHub pre-release
+        if: needs.determine-channel.outputs.channel == 'beta'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.determine-channel.outputs.version }}
+          name: MycelicMemory v${{ needs.determine-channel.outputs.version }} (Beta)
+          body: |
+            ## 🧪 Beta Release
+
+            This is a pre-release beta version for testing.
+
+            **Version:** ${{ needs.determine-channel.outputs.version }}
+            **Channel:** @beta
+
+            ### Installation
+            ```bash
+            npm install -g mycelicmemory@beta
+            ```
+
+            ### ⚠️ Warning
+            Beta releases may contain bugs or breaking changes.
+            Use in production at your own risk.
+
+            **Commit:** ${{ github.sha }}
+          draft: false
+          prerelease: true
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.determine-channel.outputs.version }}';
+            const channel = '${{ needs.determine-channel.outputs.channel }}';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 ${channel.charAt(0).toUpperCase() + channel.slice(1)} Release Published
+
+              **Version:** \`${version}\`
+
+              ### Installation
+              \`\`\`bash
+              npm install -g mycelicmemory@${channel}
+              \`\`\`
+
+              ### Testing
+              After installation, test the changes:
+              \`\`\`bash
+              mycelicmemory --version
+              mycelicmemory doctor
+              \`\`\`
+
+              Once validated, this can be promoted to @latest.
+              `
+            });
+
+      - name: Summary
+        run: |
+          echo "## ${CHANNEL^^} Release Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.determine-channel.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Channel:** @${{ needs.determine-channel.outputs.channel }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "npm install -g mycelicmemory@${{ needs.determine-channel.outputs.channel }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
