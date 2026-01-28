@@ -28,57 +28,31 @@ concurrency:
 env:
   CGO_ENABLED: 1
   BUILD_TAGS: fts5
+  OLLAMA_MODEL: nomic-embed-text
 
 jobs:
-  # Build binaries for testing
+  # Use reusable build workflow
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            name: mycelicmemory-macos-arm64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            name: mycelicmemory-linux-x64
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            name: mycelicmemory-windows-x64.exe
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
+    uses: ./.github/workflows/build-reusable.yml
+    with:
+      retention-days: 1
+      platforms: '["linux-x64", "macos-arm64", "windows-x64"]'
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-          cache: true
-
-      - name: Build binary
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
-
-      - name: Make executable
-        if: matrix.goos != 'windows'
-        run: chmod +x ${{ matrix.name }}
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-          retention-days: 1
-
-  # E2E Tests on Linux
+  # E2E Tests on Linux with full Ollama + Qdrant
   e2e-linux:
     needs: build
     runs-on: ubuntu-latest
+    services:
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+          - 6334:6334
+        options: >-
+          --health-cmd "curl -f http://localhost:6333/readyz || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -92,6 +66,40 @@ jobs:
         run: |
           chmod +x mycelicmemory-linux-x64
           sudo mv mycelicmemory-linux-x64 /usr/local/bin/mycelicmemory
+
+      - name: Cache Ollama
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama --version
+
+      - name: Start Ollama and pull model
+        run: |
+          ollama serve &
+          sleep 5
+
+          # Check if model already cached
+          if ! ollama list | grep -q "$OLLAMA_MODEL"; then
+            echo "Pulling $OLLAMA_MODEL..."
+            ollama pull $OLLAMA_MODEL
+          else
+            echo "Model $OLLAMA_MODEL already cached"
+          fi
+
+          # Verify model is available
+          ollama list
+
+      - name: Verify Qdrant is running
+        run: |
+          curl -f http://localhost:6333/readyz
+          echo "Qdrant is ready"
 
       - name: Install test dependencies
         run: |
@@ -127,13 +135,39 @@ jobs:
         run: |
           export ULTRATHINK_BINARY=mycelicmemory
           export USE_API=false
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
           bash scripts/e2e-tests/test-memory-ops.sh
 
       - name: Run Memory Operations tests (API)
         run: |
           export API_BASE=http://localhost:3099/api/v1
           export USE_API=true
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
           bash scripts/e2e-tests/test-memory-ops.sh
+
+      - name: Run Ollama integration tests
+        run: |
+          export ULTRATHINK_BINARY=mycelicmemory
+          export OLLAMA_HOST=http://localhost:11434
+          # Run any Ollama-specific tests
+          if [ -f scripts/e2e-tests/test-ollama.sh ]; then
+            bash scripts/e2e-tests/test-ollama.sh
+          else
+            echo "No Ollama-specific tests found, skipping"
+          fi
+
+      - name: Run Qdrant integration tests
+        run: |
+          export ULTRATHINK_BINARY=mycelicmemory
+          export QDRANT_HOST=http://localhost:6333
+          # Run any Qdrant-specific tests
+          if [ -f scripts/e2e-tests/test-qdrant.sh ]; then
+            bash scripts/e2e-tests/test-qdrant.sh
+          else
+            echo "No Qdrant-specific tests found, skipping"
+          fi
 
       - name: Upload server logs on failure
         if: failure()
@@ -142,7 +176,7 @@ jobs:
           name: server-logs-linux
           path: /tmp/server.log
 
-  # E2E Tests on macOS
+  # E2E Tests on macOS with Ollama + Qdrant
   e2e-macos:
     needs: build
     runs-on: macos-latest
@@ -159,6 +193,48 @@ jobs:
         run: |
           chmod +x mycelicmemory-macos-arm64
           sudo mv mycelicmemory-macos-arm64 /usr/local/bin/mycelicmemory
+
+      - name: Cache Ollama
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      - name: Install Ollama
+        run: |
+          brew install ollama
+          ollama --version
+
+      - name: Start Ollama and pull model
+        run: |
+          ollama serve &
+          sleep 5
+
+          if ! ollama list | grep -q "$OLLAMA_MODEL"; then
+            echo "Pulling $OLLAMA_MODEL..."
+            ollama pull $OLLAMA_MODEL
+          else
+            echo "Model $OLLAMA_MODEL already cached"
+          fi
+
+          ollama list
+
+      - name: Install and start Qdrant
+        run: |
+          brew install qdrant/tap/qdrant
+          qdrant &
+          sleep 5
+
+          # Wait for Qdrant to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:6333/readyz > /dev/null; then
+              echo "Qdrant is ready!"
+              break
+            fi
+            sleep 1
+          done
 
       - name: Install test dependencies
         run: brew install jq
@@ -193,9 +269,11 @@ jobs:
           export ULTRATHINK_BINARY=mycelicmemory
           export API_BASE=http://localhost:3099/api/v1
           export USE_API=false
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
           bash scripts/e2e-tests/test-memory-ops.sh
 
-  # E2E Tests on Windows
+  # E2E Tests on Windows (continue-on-error due to complexity)
   e2e-windows:
     needs: build
     runs-on: windows-latest
@@ -215,10 +293,46 @@ jobs:
           Move-Item mycelicmemory-windows-x64.exe C:\tools\mycelicmemory.exe
           echo "C:\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Install Git Bash dependencies
-        shell: bash
+      - name: Cache Ollama
+        uses: actions/cache@v4
+        with:
+          path: ~\.ollama
+          key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      - name: Install Ollama
+        shell: pwsh
         run: |
-          # jq should be available on Windows runners
+          Invoke-WebRequest -Uri "https://ollama.com/download/ollama-windows-amd64.exe" -OutFile "ollama.exe"
+          Move-Item ollama.exe C:\tools\ollama.exe
+          C:\tools\ollama.exe --version
+
+      - name: Start Ollama and pull model
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "C:\tools\ollama.exe" -ArgumentList "serve" -NoNewWindow
+          Start-Sleep -Seconds 10
+
+          C:\tools\ollama.exe pull $env:OLLAMA_MODEL
+          C:\tools\ollama.exe list
+
+      - name: Start Qdrant (Docker)
+        shell: pwsh
+        run: |
+          docker run -d -p 6333:6333 -p 6334:6334 qdrant/qdrant:latest
+          Start-Sleep -Seconds 10
+
+          # Wait for Qdrant
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              Invoke-RestMethod -Uri "http://localhost:6333/readyz" -TimeoutSec 5
+              Write-Host "Qdrant is ready!"
+              break
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
 
       - name: Run CLI tests
         shell: bash
@@ -247,11 +361,12 @@ jobs:
           export ULTRATHINK_BINARY="C:/tools/mycelicmemory.exe"
           export API_BASE=http://localhost:3099/api/v1
           export USE_API=true
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
           bash scripts/e2e-tests/test-memory-ops.sh
         continue-on-error: true
 
-  # Summary - Docker isolated test removed (redundant with Linux test)
-  # Windows tests are continue-on-error so not included in required checks
+  # Summary
   e2e-summary:
     needs: [e2e-linux, e2e-macos, e2e-windows]
     runs-on: ubuntu-latest
@@ -267,13 +382,13 @@ jobs:
 
           # Only Linux and macOS are required to pass
           if [ "${{ needs.e2e-linux.result }}" != "success" ]; then
-            echo "❌ Linux E2E tests failed - this is critical!"
+            echo "Linux E2E tests failed - this is critical!"
             exit 1
           fi
 
           if [ "${{ needs.e2e-macos.result }}" != "success" ]; then
-            echo "❌ macOS E2E tests failed - this is critical!"
+            echo "macOS E2E tests failed - this is critical!"
             exit 1
           fi
 
-          echo "✅ All critical platform tests passed"
+          echo "All critical platform tests passed"

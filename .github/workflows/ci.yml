@@ -17,14 +17,29 @@ on:
       - 'go.sum'
       - 'Makefile'
       - '.github/workflows/ci.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CGO_ENABLED: 1
+  BUILD_TAGS: fts5
+
 jobs:
-  build-test:
+  # Combined build, test, and lint job with matrix for efficiency
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: build-test
+            name: Build & Test
+          - task: lint
+            name: Lint
     runs-on: ubuntu-latest
+    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,21 +47,35 @@ jobs:
         with:
           go-version: '1.23'
           cache: true
+          cache-dependency-path: go.sum
+
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
 
       - name: Build and Test
-        run: make build && make test
+        if: matrix.task == 'build-test'
+        run: |
+          go build -tags "$BUILD_TAGS" ./...
+          go test -tags "$BUILD_TAGS" ./... -v -race -coverprofile=coverage.out
 
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      - name: Upload coverage
+        if: matrix.task == 'build-test'
+        uses: actions/upload-artifact@v4
         with:
-          go-version: '1.23'
-          cache: true
+          name: coverage
+          path: coverage.out
+          retention-days: 7
 
-      - uses: golangci/golangci-lint-action@v4
+      - name: Lint
+        if: matrix.task == 'lint'
+        uses: golangci/golangci-lint-action@v4
         with:
           version: latest
           args: --build-tags fts5

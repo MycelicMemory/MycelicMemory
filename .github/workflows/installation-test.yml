@@ -18,70 +18,19 @@ concurrency:
 env:
   CGO_ENABLED: 1
   BUILD_TAGS: fts5
+  OLLAMA_MODEL: nomic-embed-text
 
 jobs:
-  # Build binaries for all platforms first
-  build-binaries:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            name: mycelicmemory-macos-arm64
-          - os: macos-15
-            goos: darwin
-            goarch: amd64
-            name: mycelicmemory-macos-x64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            name: mycelicmemory-linux-x64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            name: mycelicmemory-linux-arm64
-            cc: aarch64-linux-gnu-gcc
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            name: mycelicmemory-windows-x64.exe
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-          cache: true
-
-      - name: Install cross-compiler (Linux ARM64)
-        if: matrix.goarch == 'arm64' && matrix.goos == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Build binary
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CC: ${{ matrix.cc || '' }}
-        run: |
-          go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o ${{ matrix.name }} ./cmd/mycelicmemory
-
-      - name: Make executable (Unix)
-        if: matrix.goos != 'windows'
-        run: chmod +x ${{ matrix.name }}
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-          retention-days: 1
+  # Use reusable build workflow for all platforms
+  build:
+    uses: ./.github/workflows/build-reusable.yml
+    with:
+      retention-days: 1
+      platforms: '["linux-x64", "linux-arm64", "macos-x64", "macos-arm64", "windows-x64"]'
 
   # Test installation on clean macOS
   test-macos:
-    needs: build-binaries
+    needs: build
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,16 +47,52 @@ jobs:
           ./bin/mycelicmemory-macos-arm64 --version
           ./bin/mycelicmemory-macos-arm64 --help
 
-      - name: Test doctor command (checks dependencies)
+      - name: Cache Ollama
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      - name: Install and start Ollama
         run: |
-          ./bin/mycelicmemory-macos-arm64 doctor || true
-          # Doctor may fail if Ollama/Qdrant not installed, that's expected
+          brew install ollama
+          ollama serve &
+          sleep 5
+
+          if ! ollama list | grep -q "$OLLAMA_MODEL"; then
+            ollama pull $OLLAMA_MODEL
+          fi
+          ollama list
+
+      - name: Install and start Qdrant
+        run: |
+          brew install qdrant/tap/qdrant
+          qdrant &
+          sleep 5
+
+          for i in {1..30}; do
+            if curl -s http://localhost:6333/readyz > /dev/null; then
+              echo "Qdrant ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Test doctor command (with dependencies)
+        run: |
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
+          ./bin/mycelicmemory-macos-arm64 doctor
 
       - name: Test database initialization
         run: |
           export HOME=$(mktemp -d)
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
           ./bin/mycelicmemory-macos-arm64 doctor
-          ls -la $HOME/.mycelicmemory/ || echo "Config dir not created yet"
+          ls -la $HOME/.mycelicmemory/ || echo "Config dir check"
 
       - uses: actions/setup-node@v4
         with:
@@ -121,8 +106,19 @@ jobs:
 
   # Test installation on clean Ubuntu
   test-linux:
-    needs: build-binaries
+    needs: build
     runs-on: ubuntu-latest
+    services:
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+          - 6334:6334
+        options: >-
+          --health-cmd "curl -f http://localhost:6333/readyz || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -138,9 +134,35 @@ jobs:
           ./bin/mycelicmemory-linux-x64 --version
           ./bin/mycelicmemory-linux-x64 --help
 
-      - name: Test doctor command
+      - name: Cache Ollama
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      - name: Install and start Ollama
         run: |
-          ./bin/mycelicmemory-linux-x64 doctor || true
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 5
+
+          if ! ollama list | grep -q "$OLLAMA_MODEL"; then
+            ollama pull $OLLAMA_MODEL
+          fi
+          ollama list
+
+      - name: Verify Qdrant is running
+        run: |
+          curl -f http://localhost:6333/readyz
+          echo "Qdrant is ready"
+
+      - name: Test doctor command (with dependencies)
+        run: |
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
+          ./bin/mycelicmemory-linux-x64 doctor
 
       - name: Test in isolated environment (Docker)
         run: |
@@ -163,7 +185,7 @@ jobs:
 
   # Test installation on clean Windows
   test-windows:
-    needs: build-binaries
+    needs: build
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -180,8 +202,45 @@ jobs:
           ./bin/mycelicmemory-windows-x64.exe --version
           ./bin/mycelicmemory-windows-x64.exe --help
 
-      - name: Test doctor command
+      - name: Cache Ollama
+        uses: actions/cache@v4
+        with:
+          path: ~\.ollama
+          key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      - name: Install and start Ollama
         shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://ollama.com/download/ollama-windows-amd64.exe" -OutFile "ollama.exe"
+          Start-Process -FilePath ".\ollama.exe" -ArgumentList "serve" -NoNewWindow
+          Start-Sleep -Seconds 10
+
+          .\ollama.exe pull $env:OLLAMA_MODEL
+          .\ollama.exe list
+
+      - name: Start Qdrant (Docker)
+        shell: pwsh
+        run: |
+          docker run -d -p 6333:6333 -p 6334:6334 qdrant/qdrant:latest
+          Start-Sleep -Seconds 10
+
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              Invoke-RestMethod -Uri "http://localhost:6333/readyz" -TimeoutSec 5
+              Write-Host "Qdrant is ready!"
+              break
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+      - name: Test doctor command (with dependencies)
+        shell: pwsh
+        env:
+          OLLAMA_HOST: http://localhost:11434
+          QDRANT_HOST: http://localhost:6333
         run: |
           ./bin/mycelicmemory-windows-x64.exe doctor
         continue-on-error: true
@@ -198,8 +257,19 @@ jobs:
 
   # Test MCP server functionality
   test-mcp-server:
-    needs: build-binaries
+    needs: build
     runs-on: ubuntu-latest
+    services:
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+          - 6334:6334
+        options: >-
+          --health-cmd "curl -f http://localhost:6333/readyz || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -209,9 +279,29 @@ jobs:
           name: mycelicmemory-linux-x64
           path: ./bin
 
+      - name: Cache Ollama
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
+          restore-keys: |
+            ${{ runner.os }}-ollama-
+
+      - name: Install and start Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 5
+
+          if ! ollama list | grep -q "$OLLAMA_MODEL"; then
+            ollama pull $OLLAMA_MODEL
+          fi
+
       - name: Test MCP server starts
         run: |
           chmod +x ./bin/mycelicmemory-linux-x64
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
           # Start MCP server in background and test it responds
           timeout 5 ./bin/mycelicmemory-linux-x64 --mcp < /dev/null || true
           echo "MCP server started and exited cleanly"
@@ -219,6 +309,8 @@ jobs:
       - name: Test MCP protocol
         run: |
           chmod +x ./bin/mycelicmemory-linux-x64
+          export OLLAMA_HOST=http://localhost:11434
+          export QDRANT_HOST=http://localhost:6333
           # Send initialize request
           echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | \
             timeout 5 ./bin/mycelicmemory-linux-x64 --mcp 2>/dev/null | head -1 || true
