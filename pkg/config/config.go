@@ -152,7 +152,6 @@ func DefaultConfig() *Config {
 			Tools: []ToolLimitConfig{
 				{Name: "analysis", RequestsPerSecond: 5, BurstSize: 10},
 				{Name: "search", RequestsPerSecond: 20, BurstSize: 40},
-				{Name: "benchmark_run", RequestsPerSecond: 0.1, BurstSize: 2},
 				{Name: "store_memory", RequestsPerSecond: 30, BurstSize: 60},
 				{Name: "relationships", RequestsPerSecond: 20, BurstSize: 40},
 			},

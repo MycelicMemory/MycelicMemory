@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
-	"github.com/MycelicMemory/mycelicmemory/internal/benchmark"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
@@ -64,16 +63,16 @@ type SearchMetadata struct {
 }
 
 type SizeMetadata struct {
-	EstimatedTokens     int           `json:"estimated_tokens"`
-	EstimatedChars      int           `json:"estimated_chars"`
-	EstimatedBytes      int           `json:"estimated_bytes"`
-	Format              string        `json:"format"`
-	ResultCount         int           `json:"result_count"`
-	ProcessingTimeMs    int           `json:"processing_time_ms"`
-	CompressionRatio    float64       `json:"compression_ratio"`
-	IsWithinTokenBudget bool          `json:"is_within_token_budget"`
-	TokenBudget         int           `json:"token_budget"`
-	Recommendations     []string      `json:"recommendations"`
+	EstimatedTokens     int      `json:"estimated_tokens"`
+	EstimatedChars      int      `json:"estimated_chars"`
+	EstimatedBytes      int      `json:"estimated_bytes"`
+	Format              string   `json:"format"`
+	ResultCount         int      `json:"result_count"`
+	ProcessingTimeMs    int      `json:"processing_time_ms"`
+	CompressionRatio    float64  `json:"compression_ratio"`
+	IsWithinTokenBudget bool     `json:"is_within_token_budget"`
+	TokenBudget         int      `json:"token_budget"`
+	Recommendations     []string `json:"recommendations"`
 }
 
 // AnalysisQuestionResponse matches local-memory's question response
@@ -95,10 +94,10 @@ type AnalysisSummarizeResponse struct {
 }
 
 type RelationshipsResponse struct {
-	Success       bool                `json:"success"`
-	Relationships []RelationshipInfo  `json:"relationships,omitempty"`
-	Graph         *GraphResponse      `json:"graph,omitempty"`
-	Created       *RelationshipInfo   `json:"created,omitempty"`
+	Success       bool               `json:"success"`
+	Relationships []RelationshipInfo `json:"relationships,omitempty"`
+	Graph         *GraphResponse     `json:"graph,omitempty"`
+	Created       *RelationshipInfo  `json:"created,omitempty"`
 }
 
 // DiscoverRelationshipsResponse matches local-memory's discover response format
@@ -110,10 +109,10 @@ type DiscoverRelationshipsResponse struct {
 
 // DiscoveredRelationshipInfo matches local-memory's discover relationship item format
 type DiscoveredRelationshipInfo struct {
-	Explanation  string                `json:"explanation"`
-	Relationship *RelationshipDetail   `json:"relationship"`
-	SourceMemory *MemoryFullWithEmbed  `json:"source_memory"`
-	TargetMemory *MemoryFullWithEmbed  `json:"target_memory"`
+	Explanation  string               `json:"explanation"`
+	Relationship *RelationshipDetail  `json:"relationship"`
+	SourceMemory *MemoryFullWithEmbed `json:"source_memory"`
+	TargetMemory *MemoryFullWithEmbed `json:"target_memory"`
 }
 
 // RelationshipDetail matches local-memory's relationship object format
@@ -144,12 +143,12 @@ type MemoryFullWithEmbed struct {
 }
 
 type RelationshipInfo struct {
-	ID               string  `json:"id"`
-	SourceID         string  `json:"source_id"`
-	TargetID         string  `json:"target_id"`
-	Type             string  `json:"type"`
-	Strength         float64 `json:"strength"`
-	RelatedContent   string  `json:"related_content,omitempty"`
+	ID             string  `json:"id"`
+	SourceID       string  `json:"source_id"`
+	TargetID       string  `json:"target_id"`
+	Type           string  `json:"type"`
+	Strength       float64 `json:"strength"`
+	RelatedContent string  `json:"related_content,omitempty"`
 }
 
 // FindRelatedResultLM matches local-memory's find_related response item format
@@ -169,11 +168,11 @@ type GraphResponse struct {
 
 // MapGraphResponseLM matches local-memory's map_graph response format
 type MapGraphResponseLM struct {
-	CentralMemory *MemoryFullWithEmbed `json:"central_memory"`
-	Depth         int                  `json:"depth"`
+	CentralMemory *MemoryFullWithEmbed  `json:"central_memory"`
+	Depth         int                   `json:"depth"`
 	Edges         []*RelationshipDetail `json:"edges"`
-	Nodes         []MapGraphNodeLM     `json:"nodes"`
-	TotalNodes    int                  `json:"total_nodes"`
+	Nodes         []MapGraphNodeLM      `json:"nodes"`
+	TotalNodes    int                   `json:"total_nodes"`
 }
 
 // MapGraphNodeLM matches local-memory's map_graph node format
@@ -1114,420 +1113,4 @@ func (s *Server) handleDeleteMemory(ctx context.Context, argsJSON []byte) (inter
 		Success: true,
 		Message: fmt.Sprintf("Memory %s deleted successfully", params.ID),
 	}, nil
-}
-
-// =============================================================================
-// BENCHMARK HANDLERS
-// =============================================================================
-
-// BenchmarkRunParams holds parameters for benchmark_run tool
-type BenchmarkRunParams struct {
-	MaxQuestions      int      `json:"max_questions"`
-	Categories        []string `json:"categories"`
-	ChangeDescription string   `json:"change_description"`
-	Async             bool     `json:"async"`
-	BenchmarkType     string   `json:"benchmark_type"`
-	RandomSample      bool     `json:"random_sample"`
-	Seed              *int     `json:"seed,omitempty"`
-}
-
-// BenchmarkStatusParams holds parameters for benchmark_status tool
-type BenchmarkStatusParams struct {
-	RunID          string `json:"run_id"`
-	IncludeDetails bool   `json:"include_details"`
-}
-
-// BenchmarkResultsParams holds parameters for benchmark_results tool
-type BenchmarkResultsParams struct {
-	Limit     int    `json:"limit"`
-	GitCommit string `json:"git_commit"`
-	Since     string `json:"since"`
-	BestOnly  bool   `json:"best_only"`
-}
-
-// BenchmarkCompareParams holds parameters for benchmark_compare tool
-type BenchmarkCompareParams struct {
-	RunIDA      string `json:"run_id_a"`
-	RunIDB      string `json:"run_id_b"`
-	DetailLevel string `json:"detail_level"`
-}
-
-func (s *Server) handleBenchmarkRun(ctx context.Context, argsJSON []byte) (interface{}, error) {
-	var params BenchmarkRunParams
-	if err := json.Unmarshal(argsJSON, &params); err != nil {
-		return nil, fmt.Errorf("invalid parameters: %w", err)
-	}
-
-	// Check if bridge is available
-	if err := s.benchmarkSvc.CheckBridge(); err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   "Python benchmark bridge is not running. Start it with 'make server' in benchmark/locomo/",
-		}, nil
-	}
-
-	// Default max questions
-	if params.MaxQuestions == 0 {
-		params.MaxQuestions = 20 // Quick test by default
-	}
-
-	// Default benchmark type
-	benchmarkType := params.BenchmarkType
-	if benchmarkType == "" {
-		benchmarkType = "locomo10"
-	}
-
-	// Build config
-	config := &benchmark.RunConfig{
-		BenchmarkType: benchmarkType,
-		MaxQuestions:  params.MaxQuestions,
-		QuestionTypes: params.Categories,
-		ChangeDesc:    params.ChangeDescription,
-		Async:         params.Async,
-		RandomSample:  params.RandomSample,
-		Seed:          params.Seed,
-	}
-
-	// Run benchmark
-	results, err := s.benchmarkSvc.Run(ctx, config)
-	if err != nil {
-		return map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		}, nil
-	}
-
-	// Format response
-	response := map[string]interface{}{
-		"success": true,
-		"run_id":  results.RunID,
-		"status":  string(results.Status),
-		"git": map[string]interface{}{
-			"commit": results.Git.ShortHash,
-			"branch": results.Git.Branch,
-			"dirty":  results.Git.Dirty,
-		},
-		"overall": map[string]interface{}{
-			"llm_judge_accuracy": results.Overall.LLMJudgeAccuracy,
-			"f1_score":           results.Overall.F1Score,
-			"bleu1_score":        results.Overall.BLEU1Score,
-			"total_questions":    results.Overall.TotalQuestions,
-		},
-		"by_category": results.ByCategory,
-		"duration_seconds": results.DurationSecs,
-	}
-
-	return response, nil
-}
-
-func (s *Server) handleBenchmarkStatus(ctx context.Context, argsJSON []byte) (interface{}, error) {
-	var params BenchmarkStatusParams
-	if err := json.Unmarshal(argsJSON, &params); err != nil {
-		return nil, fmt.Errorf("invalid parameters: %w", err)
-	}
-
-	// Check for active run
-	if s.benchmarkSvc.IsRunning() {
-		progress, err := s.benchmarkSvc.GetProgress(ctx)
-		if err != nil {
-			return map[string]interface{}{
-				"running":   true,
-				"run_id":    s.benchmarkSvc.GetActiveRunID(),
-				"error":     err.Error(),
-			}, nil
-		}
-		return map[string]interface{}{
-			"running":          true,
-			"run_id":           progress.RunID,
-			"status":           string(progress.Status),
-			"completed":        progress.CompletedCount,
-			"total":            progress.TotalQuestions,
-			"percent_complete": progress.PercentComplete,
-			"elapsed_seconds":  progress.ElapsedSecs,
-		}, nil
-	}
-
-	// Check specific run or best run
-	if params.RunID != "" {
-		run, err := s.benchmarkSvc.GetRun(params.RunID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get run: %w", err)
-		}
-		if run == nil {
-			return map[string]interface{}{
-				"error": "Run not found",
-			}, nil
-		}
-		return formatRunSummary(run), nil
-	}
-
-	// Return recent runs
-	runs, err := s.benchmarkSvc.ListRuns(&database.BenchmarkRunFilters{Limit: 5})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list runs: %w", err)
-	}
-
-	summaries := make([]map[string]interface{}, len(runs))
-	for i, run := range runs {
-		summaries[i] = formatRunSummary(run)
-	}
-
-	return map[string]interface{}{
-		"running":     false,
-		"recent_runs": summaries,
-	}, nil
-}
-
-func (s *Server) handleBenchmarkResults(ctx context.Context, argsJSON []byte) (interface{}, error) {
-	var params BenchmarkResultsParams
-	if err := json.Unmarshal(argsJSON, &params); err != nil {
-		return nil, fmt.Errorf("invalid parameters: %w", err)
-	}
-
-	if params.Limit == 0 {
-		params.Limit = 10
-	}
-
-	if params.BestOnly {
-		best, err := s.benchmarkSvc.GetBestRun("locomo")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get best run: %w", err)
-		}
-		if best == nil {
-			return map[string]interface{}{
-				"message": "No benchmark runs found",
-			}, nil
-		}
-		return map[string]interface{}{
-			"best_run": formatRunSummary(best),
-		}, nil
-	}
-
-	filters := &database.BenchmarkRunFilters{
-		Limit:     params.Limit,
-		GitCommit: params.GitCommit,
-	}
-
-	if params.Since != "" {
-		t, err := time.Parse("2006-01-02", params.Since)
-		if err == nil {
-			filters.Since = &t
-		}
-	}
-
-	runs, err := s.benchmarkSvc.ListRuns(filters)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list runs: %w", err)
-	}
-
-	results := make([]map[string]interface{}, len(runs))
-	for i, run := range runs {
-		results[i] = formatRunSummary(run)
-	}
-
-	return map[string]interface{}{
-		"count":   len(results),
-		"results": results,
-	}, nil
-}
-
-func (s *Server) handleBenchmarkCompare(ctx context.Context, argsJSON []byte) (interface{}, error) {
-	var params BenchmarkCompareParams
-	if err := json.Unmarshal(argsJSON, &params); err != nil {
-		return nil, fmt.Errorf("invalid parameters: %w", err)
-	}
-
-	if params.RunIDA == "" || params.RunIDB == "" {
-		return nil, fmt.Errorf("both run_id_a and run_id_b are required")
-	}
-
-	comparison, err := s.benchmarkSvc.Compare(params.RunIDA, params.RunIDB)
-	if err != nil {
-		return nil, fmt.Errorf("comparison failed: %w", err)
-	}
-
-	response := map[string]interface{}{
-		"run_a": params.RunIDA,
-		"run_b": params.RunIDB,
-		"overall": map[string]interface{}{
-			"before":         comparison.OverallDiff.Before,
-			"after":          comparison.OverallDiff.After,
-			"diff":           comparison.OverallDiff.Diff,
-			"percent_change": comparison.OverallDiff.PercentChange,
-			"improved":       comparison.OverallDiff.Improved,
-		},
-		"improvements": comparison.Improvements,
-		"regressions":  comparison.Regressions,
-	}
-
-	if params.DetailLevel == "categories" || params.DetailLevel == "questions" {
-		categoryDiffs := make(map[string]interface{})
-		for cat, diff := range comparison.CategoryDiffs {
-			categoryDiffs[cat] = map[string]interface{}{
-				"before":   diff.Before,
-				"after":    diff.After,
-				"diff":     diff.Diff,
-				"improved": diff.Improved,
-			}
-		}
-		response["category_diffs"] = categoryDiffs
-	}
-
-	if params.DetailLevel == "questions" {
-		changedQuestions := make([]map[string]interface{}, len(comparison.ChangedQuestions))
-		for i, q := range comparison.ChangedQuestions {
-			changedQuestions[i] = map[string]interface{}{
-				"question_id": q.QuestionID,
-				"category":    q.Category,
-				"was_correct": q.WasCorrect,
-				"now_correct": q.NowCorrect,
-				"improved":    q.Improved,
-				"regressed":   q.Regressed,
-			}
-		}
-		response["changed_questions"] = changedQuestions
-	}
-
-	return response, nil
-}
-
-func formatRunSummary(run *database.BenchmarkRun) map[string]interface{} {
-	summary := map[string]interface{}{
-		"run_id":     run.ID,
-		"status":     run.Status,
-		"started_at": run.StartedAt.Format(time.RFC3339),
-		"git": map[string]interface{}{
-			"commit": run.GitCommitHash[:7],
-			"branch": run.GitBranch,
-			"dirty":  run.GitDirty,
-		},
-	}
-
-	if run.CompletedAt != nil {
-		summary["completed_at"] = run.CompletedAt.Format(time.RFC3339)
-	}
-	if run.OverallScore != nil {
-		summary["accuracy"] = *run.OverallScore
-	}
-	if run.TotalQuestions != nil {
-		summary["total_questions"] = *run.TotalQuestions
-	}
-	if run.TotalCorrect != nil {
-		summary["correct"] = *run.TotalCorrect
-	}
-	if run.DurationSeconds != nil {
-		summary["duration_seconds"] = *run.DurationSeconds
-	}
-	if run.IsBestRun {
-		summary["is_best"] = true
-	}
-	if run.ChangeDescription != "" {
-		summary["change_description"] = run.ChangeDescription
-	}
-
-	return summary
-}
-
-// BenchmarkImproveParams holds parameters for benchmark_improve tool
-type BenchmarkImproveParams struct {
-	Action         string  `json:"action"`
-	MaxIterations  int     `json:"max_iterations"`
-	MinImprovement float64 `json:"min_improvement"`
-}
-
-func (s *Server) handleBenchmarkImprove(ctx context.Context, argsJSON []byte) (interface{}, error) {
-	var params BenchmarkImproveParams
-	if err := json.Unmarshal(argsJSON, &params); err != nil {
-		return nil, fmt.Errorf("invalid parameters: %w", err)
-	}
-
-	if params.Action == "" {
-		params.Action = "status"
-	}
-
-	switch params.Action {
-	case "start":
-		// Check bridge first
-		if err := s.benchmarkSvc.CheckBridge(); err != nil {
-			return map[string]interface{}{
-				"success": false,
-				"error":   "Python benchmark bridge is not running. Start it with 'make server' in benchmark/locomo/",
-			}, nil
-		}
-
-		if params.MaxIterations == 0 {
-			params.MaxIterations = 10
-		}
-		if params.MinImprovement == 0 {
-			params.MinImprovement = 0.01
-		}
-
-		config := &benchmark.LoopConfig{
-			MaxIterations:           params.MaxIterations,
-			MinImprovementThreshold: params.MinImprovement,
-			ConvergenceThreshold:    0.005,
-			TimeoutMinutes:          120,
-		}
-
-		state, err := s.benchmarkSvc.StartLoop(ctx, config)
-		if err != nil {
-			return map[string]interface{}{
-				"success": false,
-				"error":   err.Error(),
-			}, nil
-		}
-
-		return map[string]interface{}{
-			"success":        true,
-			"message":        "Autonomous improvement loop started",
-			"loop_id":        state.ID,
-			"max_iterations": params.MaxIterations,
-		}, nil
-
-	case "stop":
-		if !s.benchmarkSvc.IsLoopRunning() {
-			return map[string]interface{}{
-				"success": false,
-				"error":   "No improvement loop is currently running",
-			}, nil
-		}
-
-		if err := s.benchmarkSvc.StopLoop(); err != nil {
-			return map[string]interface{}{
-				"success": false,
-				"error":   err.Error(),
-			}, nil
-		}
-
-		return map[string]interface{}{
-			"success": true,
-			"message": "Loop stop requested",
-		}, nil
-
-	case "status":
-		state := s.benchmarkSvc.GetLoopState()
-		if state == nil {
-			return map[string]interface{}{
-				"running": false,
-				"message": "No improvement loop is active",
-			}, nil
-		}
-
-		return map[string]interface{}{
-			"running":           state.Status == benchmark.LoopRunning,
-			"loop_id":           state.ID,
-			"status":            string(state.Status),
-			"current_iteration": state.CurrentIteration,
-			"max_iterations":    state.MaxIterations,
-			"baseline_score":    state.BaselineScore,
-			"best_score":        state.BestScore,
-			"current_score":     state.CurrentScore,
-			"best_run_id":       state.BestRunID,
-			"elapsed_minutes":   state.ElapsedMinutes,
-			"stop_reason":       state.StopReason,
-		}, nil
-
-	default:
-		return nil, fmt.Errorf("unknown action: %s (valid: start, stop, status)", params.Action)
-	}
 }

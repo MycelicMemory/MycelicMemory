@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
-	"github.com/MycelicMemory/mycelicmemory/internal/benchmark"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
@@ -32,11 +31,10 @@ type Server struct {
 	db           *database.Database
 	cfg          *config.Config
 	aiManager    *ai.Manager
-	memSvc       *memory.Service
-	searchEng    *search.Engine
-	relSvc       *relationships.Service
-	benchmarkSvc *benchmark.Service
-	rateLimiter  *ratelimit.Limiter
+	memSvc      *memory.Service
+	searchEng   *search.Engine
+	relSvc      *relationships.Service
+	rateLimiter *ratelimit.Limiter
 	formatter    *Formatter
 	log          *logging.Logger
 
@@ -53,13 +51,6 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	log := logging.GetLogger("mcp")
 	log.Info("initializing MCP server", "version", ServerVersion, "protocol", ProtocolVersion)
 
-	// Get repo path for benchmark service (parent of data directory)
-	repoPath := ""
-	if cfg.Database.Path != "" {
-		// Try to find the repo root
-		repoPath = findRepoRoot(cfg.Database.Path)
-	}
-
 	// Initialize rate limiter with config or defaults
 	var rateLimiterInstance *ratelimit.Limiter
 	if cfg.RateLimit.Enabled {
@@ -75,19 +66,18 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	}
 
 	return &Server{
-		db:           db,
-		cfg:          cfg,
-		aiManager:    ai.NewManager(db, cfg),
-		memSvc:       memory.NewService(db, cfg),
-		searchEng:    search.NewEngine(db, cfg),
-		relSvc:       relationships.NewService(db, cfg),
-		benchmarkSvc: benchmark.NewService(db, repoPath),
-		rateLimiter:  rateLimiterInstance,
-		formatter:    NewFormatter(),
-		log:          log,
-		stdin:        os.Stdin,
-		stdout:       os.Stdout,
-		stderr:       os.Stderr,
+		db:          db,
+		cfg:         cfg,
+		aiManager:   ai.NewManager(db, cfg),
+		memSvc:      memory.NewService(db, cfg),
+		searchEng:   search.NewEngine(db, cfg),
+		relSvc:      relationships.NewService(db, cfg),
+		rateLimiter: rateLimiterInstance,
+		formatter:   NewFormatter(),
+		log:         log,
+		stdin:       os.Stdin,
+		stdout:      os.Stdout,
+		stderr:      os.Stderr,
 	}
 }
 
@@ -102,13 +92,6 @@ func convertToolLimits(tools []config.ToolLimitConfig) []ratelimit.ToolLimit {
 		}
 	}
 	return result
-}
-
-// findRepoRoot attempts to find the git repository root
-func findRepoRoot(startPath string) string {
-	// For now, return the mycelicmemory directory
-	// In production, we'd walk up looking for .git
-	return os.Getenv("MYCELICMEMORY_REPO_PATH")
 }
 
 // Run starts the MCP server main loop
@@ -467,17 +450,6 @@ func (s *Server) callTool(ctx context.Context, name string, args map[string]inte
 		return s.handleUpdateMemory(ctx, argsJSON)
 	case "delete_memory":
 		return s.handleDeleteMemory(ctx, argsJSON)
-	// Benchmark tools
-	case "benchmark_run":
-		return s.handleBenchmarkRun(ctx, argsJSON)
-	case "benchmark_status":
-		return s.handleBenchmarkStatus(ctx, argsJSON)
-	case "benchmark_results":
-		return s.handleBenchmarkResults(ctx, argsJSON)
-	case "benchmark_compare":
-		return s.handleBenchmarkCompare(ctx, argsJSON)
-	case "benchmark_improve":
-		return s.handleBenchmarkImprove(ctx, argsJSON)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -809,143 +781,6 @@ func (s *Server) getToolDefinitions() []Tool {
 					},
 				},
 				Required: []string{"id"},
-			},
-		},
-		// Benchmark tools
-		{
-			Name:        "benchmark_run",
-			Description: "Execute a LoCoMo benchmark evaluation. Requires the Python bridge server running (make server in benchmark/locomo/).",
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]Property{
-					"max_questions": {
-						Type:        "integer",
-						Description: "Maximum questions to evaluate (0 = all ~1986 questions)",
-						Default:     20,
-					},
-					"categories": {
-						Type:        "array",
-						Description: "Filter to specific question categories",
-						Items:       &Property{Type: "string"},
-					},
-					"change_description": {
-						Type:        "string",
-						Description: "Description of code changes being tested (for tracking)",
-					},
-					"async": {
-						Type:        "boolean",
-						Description: "Run asynchronously (returns immediately, check status later)",
-						Default:     false,
-					},
-					"benchmark_type": {
-						Type:        "string",
-						Description: "Benchmark type: locomo10 (free-response, F1 score) or locomo_mc10 (multiple choice, accuracy)",
-						Default:     "locomo10",
-					},
-					"random_sample": {
-						Type:        "boolean",
-						Description: "Randomly sample questions instead of taking first N",
-						Default:     false,
-					},
-					"seed": {
-						Type:        "integer",
-						Description: "Random seed for reproducible sampling",
-					},
-				},
-			},
-		},
-		{
-			Name:        "benchmark_status",
-			Description: "Check the status and progress of a running or recent benchmark",
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]Property{
-					"run_id": {
-						Type:        "string",
-						Description: "Specific run ID to check (optional, defaults to active run)",
-					},
-					"include_details": {
-						Type:        "boolean",
-						Description: "Include detailed progress information",
-						Default:     false,
-					},
-				},
-			},
-		},
-		{
-			Name:        "benchmark_results",
-			Description: "Query historical benchmark results with filtering",
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]Property{
-					"limit": {
-						Type:        "integer",
-						Description: "Maximum results to return",
-						Default:     10,
-					},
-					"git_commit": {
-						Type:        "string",
-						Description: "Filter by git commit hash",
-					},
-					"since": {
-						Type:        "string",
-						Description: "Filter to runs since date (YYYY-MM-DD)",
-					},
-					"best_only": {
-						Type:        "boolean",
-						Description: "Return only the best run",
-						Default:     false,
-					},
-				},
-			},
-		},
-		{
-			Name:        "benchmark_compare",
-			Description: "Compare two benchmark runs to identify improvements and regressions",
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]Property{
-					"run_id_a": {
-						Type:        "string",
-						Description: "First run ID (baseline)",
-					},
-					"run_id_b": {
-						Type:        "string",
-						Description: "Second run ID (comparison)",
-					},
-					"detail_level": {
-						Type:        "string",
-						Description: "Level of detail: summary, categories, questions",
-						Enum:        []string{"summary", "categories", "questions"},
-						Default:     "categories",
-					},
-				},
-				Required: []string{"run_id_a", "run_id_b"},
-			},
-		},
-		{
-			Name:        "benchmark_improve",
-			Description: "Start or manage an autonomous improvement loop that iteratively runs benchmarks and tracks progress",
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]Property{
-					"action": {
-						Type:        "string",
-						Description: "Action to perform: start, stop, status",
-						Enum:        []string{"start", "stop", "status"},
-						Default:     "status",
-					},
-					"max_iterations": {
-						Type:        "integer",
-						Description: "Maximum iterations for the loop (start only)",
-						Default:     10,
-					},
-					"min_improvement": {
-						Type:        "number",
-						Description: "Minimum improvement required per iteration (0.01 = 1%)",
-						Default:     0.01,
-					},
-				},
 			},
 		},
 	}

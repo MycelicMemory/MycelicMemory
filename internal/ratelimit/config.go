@@ -40,11 +40,6 @@ func DefaultConfig() *Config {
 				BurstSize:         40,
 			},
 			{
-				Name:              "benchmark_run",
-				RequestsPerSecond: 0.1, // 1 every 10 seconds
-				BurstSize:         2,
-			},
-			{
 				Name:              "store_memory",
 				RequestsPerSecond: 30,
 				BurstSize:         60,

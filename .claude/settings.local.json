@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"C:\\\\dev\\\\active\\\\ai\\\\MycelicMemory\\\\documentation\\\\mermaid\"\" 2>/dev/null || dir \"C:devactiveaiMycelicMemorydocumentationmermaid\"\")"
+    ]
+  }
+}
