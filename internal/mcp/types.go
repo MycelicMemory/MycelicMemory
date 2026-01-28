@@ -34,7 +34,17 @@ const (
 	MethodNotFound = -32601
 	InvalidParams  = -32602
 	InternalError  = -32603
+
+	// Custom error codes
+	RateLimitExceeded = -32029
 )
+
+// RateLimitErrorData contains rate limit error details
+type RateLimitErrorData struct {
+	RetryAfterMs int64  `json:"retry_after_ms"`
+	LimitType    string `json:"limit_type"`
+	Message      string `json:"message,omitempty"`
+}
 
 // MCP Protocol Types
 

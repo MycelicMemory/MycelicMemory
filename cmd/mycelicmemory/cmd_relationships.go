@@ -7,9 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/dependencies"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
-	"github.com/MycelicMemory/mycelicmemory/internal/database"
 )
 
 var (
@@ -77,6 +78,8 @@ Examples:
 	},
 }
 
+var discoverLimit int
+
 // discoverCmd represents the discover command
 var discoverCmd = &cobra.Command{
 	Use:   "discover",
@@ -87,9 +90,7 @@ Examples:
   mycelicmemory discover
   mycelicmemory discover --limit 10`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Discovering relationships...")
-		fmt.Println("Note: This feature requires Ollama to be running.")
-		fmt.Println("Use 'mycelicmemory doctor' to check AI availability.")
+		runDiscover()
 	},
 }
 
@@ -111,6 +112,9 @@ func init() {
 	// Map graph flags
 	mapGraphCmd.Flags().IntVarP(&graphDepth, "depth", "d", 2, "Graph traversal depth (1-5)")
 	mapGraphCmd.Flags().Float64Var(&graphMinStrength, "min-strength", 0, "Minimum relationship strength")
+
+	// Discover flags
+	discoverCmd.Flags().IntVarP(&discoverLimit, "limit", "l", 10, "Maximum pairs to analyze")
 }
 
 func runRelate(sourceID, targetID string) {
@@ -223,6 +227,63 @@ func runMapGraph(memoryID string) {
 	for _, e := range result.Edges {
 		fmt.Printf("  %s -[%s (%.2f)]-> %s\n", e.SourceID[:8], e.Type, e.Strength, e.TargetID[:8])
 	}
+}
+
+func runDiscover() {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Printf("Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Check dependencies
+	depResult := dependencies.Check(cfg)
+
+	if !depResult.AIFeaturesAvailable() {
+		fmt.Println("AI Relationship Discovery")
+		fmt.Println("=========================")
+		fmt.Println()
+		fmt.Println("❌ Error: AI features are not available.")
+		fmt.Println()
+
+		// Show specific issue
+		switch depResult.Ollama.Status {
+		case dependencies.StatusMissing, dependencies.StatusUnavailable:
+			fmt.Println("Ollama is not running or not installed.")
+		case dependencies.StatusDisabled:
+			fmt.Println("Ollama is disabled in configuration.")
+		case dependencies.StatusAvailable:
+			if len(depResult.Ollama.MissingItems) > 0 {
+				fmt.Printf("Missing required models: %s\n", strings.Join(depResult.Ollama.MissingItems, ", "))
+			}
+		}
+
+		// Show installation instructions
+		instructions := dependencies.GetInstallInstructions(depResult, cfg)
+		if instructions.Ollama != nil {
+			fmt.Println()
+			fmt.Println("To enable AI relationship discovery:")
+			for _, step := range instructions.Ollama.InstallSteps {
+				fmt.Println(step)
+			}
+			for _, step := range instructions.Ollama.ModelSteps {
+				fmt.Println(step)
+			}
+		}
+
+		fmt.Println()
+		fmt.Println("Run 'mycelicmemory doctor' for full system status.")
+		os.Exit(1)
+	}
+
+	fmt.Println("AI Relationship Discovery")
+	fmt.Println("=========================")
+	fmt.Println()
+	fmt.Printf("Analyzing memory pairs (limit: %d)...\n", discoverLimit)
+	fmt.Println()
+	fmt.Println("ℹ️  This feature is under development.")
+	fmt.Println("   When complete, it will automatically discover relationships")
+	fmt.Println("   between memories using AI analysis.")
 }
 
 func truncateContent(s string, maxLen int) string {

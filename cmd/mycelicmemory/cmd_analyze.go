@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/dependencies"
 )
 
 var (
@@ -63,26 +64,48 @@ func runAnalyze(query string) {
 	}
 	defer db.Close()
 
-	// Check if AI is configured
-	aiManager := ai.NewManager(db, cfg)
-	status := aiManager.GetStatus()
+	// Check dependencies
+	depResult := dependencies.Check(cfg)
 
-	if !status.OllamaAvailable {
+	if !depResult.AIFeaturesAvailable() {
 		fmt.Println("AI Analysis")
 		fmt.Println("===========")
 		fmt.Println()
-		fmt.Println("Error: Ollama is not available.")
+		fmt.Println("❌ Error: AI features are not available.")
 		fmt.Println()
-		fmt.Println("To use AI analysis features, please:")
-		fmt.Println("1. Install Ollama: https://ollama.ai")
-		fmt.Println("2. Start Ollama: ollama serve")
-		fmt.Println("3. Pull required models:")
-		fmt.Printf("   ollama pull %s\n", cfg.Ollama.ChatModel)
-		fmt.Printf("   ollama pull %s\n", cfg.Ollama.EmbeddingModel)
+
+		// Show specific issue
+		switch depResult.Ollama.Status {
+		case dependencies.StatusMissing, dependencies.StatusUnavailable:
+			fmt.Println("Ollama is not running or not installed.")
+		case dependencies.StatusDisabled:
+			fmt.Println("Ollama is disabled in configuration.")
+		case dependencies.StatusAvailable:
+			if len(depResult.Ollama.MissingItems) > 0 {
+				fmt.Printf("Missing required models: %s\n", strings.Join(depResult.Ollama.MissingItems, ", "))
+			}
+		}
+
+		// Show installation instructions
+		instructions := dependencies.GetInstallInstructions(depResult, cfg)
+		if instructions.Ollama != nil {
+			fmt.Println()
+			fmt.Println("To enable AI analysis:")
+			for _, step := range instructions.Ollama.InstallSteps {
+				fmt.Println(step)
+			}
+			for _, step := range instructions.Ollama.ModelSteps {
+				fmt.Println(step)
+			}
+		}
+
 		fmt.Println()
-		fmt.Println("Run 'mycelicmemory doctor' to check system status.")
+		fmt.Println("Run 'mycelicmemory doctor' for full system status.")
 		os.Exit(1)
 	}
+
+	// Initialize AI manager after dependency check passes
+	aiManager := ai.NewManager(db, cfg)
 
 	// Validate analysis type
 	validTypes := map[string]bool{

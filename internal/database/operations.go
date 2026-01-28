@@ -668,6 +668,191 @@ func (d *Database) GetGraph(rootID string, depth int) (*Graph, error) {
 	}, nil
 }
 
+// GetGraphOptimized retrieves the relationship graph with all data in optimized queries
+// This replaces the N+1 query pattern with 2 queries: one for traversal, one for edges
+// Performance target: 4-10ms for 50-node graph (vs 50-200ms with N+1)
+func (d *Database) GetGraphOptimized(rootID string, depth int, minStrength float64) (*OptimizedGraphResult, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if depth <= 0 {
+		depth = 2 // Default depth
+	}
+	if depth > 5 {
+		depth = 5 // Max depth
+	}
+
+	// Use recursive CTE to traverse the graph and collect all node IDs with distances
+	// SQLite supports recursive CTEs since version 3.8.3
+	query := `
+		WITH RECURSIVE graph_traversal(id, distance, path) AS (
+			-- Base case: start from root
+			SELECT id, 0, id
+			FROM memories
+			WHERE id = ?
+
+			UNION ALL
+
+			-- Recursive case: follow relationships
+			SELECT
+				CASE
+					WHEN r.source_memory_id = gt.id THEN r.target_memory_id
+					ELSE r.source_memory_id
+				END as id,
+				gt.distance + 1,
+				gt.path || ',' || CASE
+					WHEN r.source_memory_id = gt.id THEN r.target_memory_id
+					ELSE r.source_memory_id
+				END
+			FROM graph_traversal gt
+			JOIN memory_relationships r ON (r.source_memory_id = gt.id OR r.target_memory_id = gt.id)
+			WHERE gt.distance < ?
+			  AND gt.path NOT LIKE '%' || CASE
+					WHEN r.source_memory_id = gt.id THEN r.target_memory_id
+					ELSE r.source_memory_id
+				END || '%'
+			  AND (? <= 0 OR r.strength >= ?)
+		)
+		SELECT DISTINCT id, MIN(distance) as distance
+		FROM graph_traversal
+		GROUP BY id
+		ORDER BY distance, id
+	`
+
+	rows, err := d.db.Query(query, rootID, depth, minStrength, minStrength)
+	if err != nil {
+		return nil, fmt.Errorf("failed to traverse graph: %w", err)
+	}
+	defer rows.Close()
+
+	// Collect node IDs and distances
+	nodeDistances := make(map[string]int)
+	var nodeIDs []string
+	for rows.Next() {
+		var id string
+		var distance int
+		if err := rows.Scan(&id, &distance); err != nil {
+			return nil, fmt.Errorf("failed to scan graph node: %w", err)
+		}
+		nodeDistances[id] = distance
+		nodeIDs = append(nodeIDs, id)
+	}
+
+	if len(nodeIDs) == 0 {
+		return &OptimizedGraphResult{
+			Nodes:         []*Memory{},
+			Edges:         []*Relationship{},
+			NodeDistances: nodeDistances,
+			TotalNodes:    0,
+			TotalEdges:    0,
+		}, nil
+	}
+
+	// Fetch all memories in one query
+	memories, err := d.GetMemoriesByIDs(nodeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get memories: %w", err)
+	}
+
+	// Fetch all edges between nodes in one query
+	edges, err := d.getEdgesBetweenNodes(nodeIDs, minStrength)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get edges: %w", err)
+	}
+
+	return &OptimizedGraphResult{
+		Nodes:         memories,
+		Edges:         edges,
+		NodeDistances: nodeDistances,
+		TotalNodes:    len(memories),
+		TotalEdges:    len(edges),
+	}, nil
+}
+
+// GetMemoriesByIDs retrieves multiple memories by their IDs in a single query
+func (d *Database) GetMemoriesByIDs(ids []string) ([]*Memory, error) {
+	if len(ids) == 0 {
+		return []*Memory{}, nil
+	}
+
+	// Build IN clause with placeholders
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, content, source, importance, tags, session_id, domain,
+		       embedding, created_at, updated_at, agent_type, agent_context,
+		       access_scope, slug, parent_memory_id, chunk_level, chunk_index
+		FROM memories
+		WHERE id IN (%s)
+	`, strings.Join(placeholders, ", "))
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query memories: %w", err)
+	}
+	defer rows.Close()
+
+	return scanMemories(rows)
+}
+
+// getEdgesBetweenNodes retrieves all relationships between the given node IDs
+func (d *Database) getEdgesBetweenNodes(nodeIDs []string, minStrength float64) ([]*Relationship, error) {
+	if len(nodeIDs) == 0 {
+		return []*Relationship{}, nil
+	}
+
+	// Build IN clause with placeholders
+	placeholders := make([]string, len(nodeIDs))
+	args := make([]interface{}, len(nodeIDs)*2)
+	for i, id := range nodeIDs {
+		placeholders[i] = "?"
+		args[i] = id
+		args[len(nodeIDs)+i] = id
+	}
+
+	inClause := strings.Join(placeholders, ", ")
+
+	query := fmt.Sprintf(`
+		SELECT id, source_memory_id, target_memory_id, relationship_type,
+		       strength, context, auto_generated, created_at
+		FROM memory_relationships
+		WHERE source_memory_id IN (%s)
+		  AND target_memory_id IN (%s)
+	`, inClause, inClause)
+
+	if minStrength > 0 {
+		query += " AND strength >= ?"
+		args = append(args, minStrength)
+	}
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query edges: %w", err)
+	}
+	defer rows.Close()
+
+	var relationships []*Relationship
+	for rows.Next() {
+		var r Relationship
+		var context sql.NullString
+		if err := rows.Scan(&r.ID, &r.SourceMemoryID, &r.TargetMemoryID,
+			&r.RelationshipType, &r.Strength, &context, &r.AutoGenerated, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan relationship: %w", err)
+		}
+		if context.Valid {
+			r.Context = context.String
+		}
+		relationships = append(relationships, &r)
+	}
+
+	return relationships, nil
+}
+
 // CreateCategory creates a new category
 // VERIFIED: Matches local-memory categories create behavior
 func (d *Database) CreateCategory(c *Category) error {

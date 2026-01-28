@@ -78,11 +78,17 @@ CREATE TABLE IF NOT EXISTS memory_relationships (
 	FOREIGN KEY (target_memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
--- VERIFIED: 4 indexes on relationships
+-- VERIFIED: 4 indexes on relationships + compound indexes for optimized graph queries
 CREATE INDEX IF NOT EXISTS idx_relationships_source ON memory_relationships(source_memory_id);
 CREATE INDEX IF NOT EXISTS idx_relationships_target ON memory_relationships(target_memory_id);
 CREATE INDEX IF NOT EXISTS idx_relationships_type ON memory_relationships(relationship_type);
 CREATE INDEX IF NOT EXISTS idx_relationships_strength ON memory_relationships(strength);
+
+-- Compound indexes for optimized graph traversal (N+1 query fix)
+CREATE INDEX IF NOT EXISTS idx_relationships_source_target ON memory_relationships(source_memory_id, target_memory_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_target_source ON memory_relationships(target_memory_id, source_memory_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_source_strength ON memory_relationships(source_memory_id, strength);
+CREATE INDEX IF NOT EXISTS idx_relationships_target_strength ON memory_relationships(target_memory_id, strength);
 
 -- =============================================================================
 -- CATEGORIES TABLE

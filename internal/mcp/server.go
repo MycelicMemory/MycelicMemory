@@ -15,6 +15,7 @@ import (
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/ratelimit"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
@@ -35,6 +36,7 @@ type Server struct {
 	searchEng    *search.Engine
 	relSvc       *relationships.Service
 	benchmarkSvc *benchmark.Service
+	rateLimiter  *ratelimit.Limiter
 	formatter    *Formatter
 	log          *logging.Logger
 
@@ -58,6 +60,20 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		repoPath = findRepoRoot(cfg.Database.Path)
 	}
 
+	// Initialize rate limiter with config or defaults
+	var rateLimiterInstance *ratelimit.Limiter
+	if cfg.RateLimit.Enabled {
+		rateLimiterInstance = ratelimit.NewLimiter(&ratelimit.Config{
+			Enabled: cfg.RateLimit.Enabled,
+			Global: ratelimit.LimitConfig{
+				RequestsPerSecond: cfg.RateLimit.Global.RequestsPerSecond,
+				BurstSize:         cfg.RateLimit.Global.BurstSize,
+			},
+			Tools: convertToolLimits(cfg.RateLimit.Tools),
+		})
+		log.Info("rate limiting enabled", "global_rps", cfg.RateLimit.Global.RequestsPerSecond)
+	}
+
 	return &Server{
 		db:           db,
 		cfg:          cfg,
@@ -66,12 +82,26 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		searchEng:    search.NewEngine(db, cfg),
 		relSvc:       relationships.NewService(db, cfg),
 		benchmarkSvc: benchmark.NewService(db, repoPath),
+		rateLimiter:  rateLimiterInstance,
 		formatter:    NewFormatter(),
 		log:          log,
 		stdin:        os.Stdin,
 		stdout:       os.Stdout,
 		stderr:       os.Stderr,
 	}
+}
+
+// convertToolLimits converts config tool limits to ratelimit package format
+func convertToolLimits(tools []config.ToolLimitConfig) []ratelimit.ToolLimit {
+	result := make([]ratelimit.ToolLimit, len(tools))
+	for i, t := range tools {
+		result[i] = ratelimit.ToolLimit{
+			Name:              t.Name,
+			RequestsPerSecond: t.RequestsPerSecond,
+			BurstSize:         t.BurstSize,
+		}
+	}
+	return result
 }
 
 // findRepoRoot attempts to find the git repository root
@@ -347,6 +377,27 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) *Response {
 	}
 
 	s.log.LogRequest("tools/call", "tool", params.Name)
+
+	// Rate limit check
+	if s.rateLimiter != nil {
+		result := s.rateLimiter.Allow(params.Name)
+		if !result.Allowed {
+			s.log.Warn("rate limit exceeded", "tool", params.Name, "limit_type", result.LimitType, "retry_after_ms", result.RetryAfter.Milliseconds())
+			return &Response{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error: &RPCError{
+					Code:    RateLimitExceeded,
+					Message: "Rate limit exceeded",
+					Data: RateLimitErrorData{
+						RetryAfterMs: result.RetryAfter.Milliseconds(),
+						LimitType:    result.LimitType,
+						Message:      fmt.Sprintf("Rate limit exceeded for %s. Retry after %v.", result.LimitType, result.RetryAfter),
+					},
+				},
+			}
+		}
+	}
 
 	// Track execution time
 	startTime := time.Now()
