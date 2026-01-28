@@ -146,7 +146,7 @@ func proxyToAPI(w http.ResponseWriter, r *http.Request) {
 	for {
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
-			w.Write(buf[:n])
+			_, _ = w.Write(buf[:n])
 		}
 		if err != nil {
 			break
@@ -166,5 +166,5 @@ func openBrowser(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 
-	cmd.Run()
+	_ = cmd.Run()
 }

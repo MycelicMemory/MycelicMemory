@@ -111,7 +111,7 @@ func (s *Server) createMemory(c *gin.Context) {
 	// Index for semantic search if AI is available
 	if s.aiManager != nil {
 		ctx := c.Request.Context()
-		s.aiManager.IndexMemory(ctx, result.Memory)
+		_ = s.aiManager.IndexMemory(ctx, result.Memory)
 	}
 
 	// Return flat memory data to match local-memory format
@@ -205,7 +205,7 @@ func (s *Server) updateMemory(c *gin.Context) {
 	// Re-index for semantic search if AI is available
 	if s.aiManager != nil {
 		ctx := c.Request.Context()
-		s.aiManager.IndexMemory(ctx, mem)
+		_ = s.aiManager.IndexMemory(ctx, mem)
 	}
 
 	// Return flat memory data to match local-memory format
@@ -229,7 +229,7 @@ func (s *Server) deleteMemory(c *gin.Context) {
 	// Remove from vector index if AI is available
 	if s.aiManager != nil {
 		ctx := c.Request.Context()
-		s.aiManager.DeleteMemoryIndex(ctx, id)
+		_ = s.aiManager.DeleteMemoryIndex(ctx, id)
 	}
 
 	// Return deleted ID and status to match local-memory format

@@ -44,14 +44,14 @@ func TestTestDB_InitSchema(t *testing.T) {
 
 func TestTestDB_MustExec(t *testing.T) {
 	db := NewTestDB(t)
-	db.InitSchema()
+	_ = db.InitSchema()
 
 	// Should not panic on successful exec
 	db.MustExec("INSERT INTO test_memories (id, content) VALUES (?, ?)", "test-id", "test content")
 
 	// Verify insert worked
 	var count int
-	db.QueryRow("SELECT COUNT(*) FROM test_memories").Scan(&count)
+	_ = db.QueryRow("SELECT COUNT(*) FROM test_memories").Scan(&count)
 	if count != 1 {
 		t.Errorf("Expected 1 row, got %d", count)
 	}
@@ -59,7 +59,7 @@ func TestTestDB_MustExec(t *testing.T) {
 
 func TestTestDB_Count(t *testing.T) {
 	db := NewTestDB(t)
-	db.InitSchema()
+	_ = db.InitSchema()
 
 	// Initially should be 0
 	if count := db.Count("test_memories"); count != 0 {
@@ -78,7 +78,7 @@ func TestTestDB_Count(t *testing.T) {
 
 func TestTestDB_AssertRowCount(t *testing.T) {
 	db := NewTestDB(t)
-	db.InitSchema()
+	_ = db.InitSchema()
 
 	// Initially 0
 	db.AssertRowCount("test_memories", 0)

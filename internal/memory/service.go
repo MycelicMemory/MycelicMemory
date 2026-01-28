@@ -114,18 +114,13 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 	// Normalize tags
 	tags := normalizeTags(opts.Tags)
 
-	// Auto-create domain if specified
+	// Auto-create domain if specified (optional, don't fail on error)
 	if opts.Domain != "" {
-		if err := s.ensureDomainExists(opts.Domain); err != nil {
-			// Log warning but don't fail
-			// Domain creation is optional
-		}
+		_ = s.ensureDomainExists(opts.Domain)
 	}
 
-	// Ensure session is tracked
-	if err := s.db.EnsureSession(sessionID, agentType); err != nil {
-		// Log warning but don't fail - session tracking is optional
-	}
+	// Ensure session is tracked (optional, don't fail on error)
+	_ = s.db.EnsureSession(sessionID, agentType)
 
 	content := strings.TrimSpace(opts.Content)
 
@@ -268,11 +263,9 @@ func (s *Service) Update(opts *UpdateOptions) (*database.Memory, error) {
 		tags = normalizeTags(opts.Tags)
 	}
 
-	// Auto-create domain if specified
+	// Auto-create domain if specified (optional, don't fail on error)
 	if opts.Domain != nil && *opts.Domain != "" {
-		if err := s.ensureDomainExists(*opts.Domain); err != nil {
-			// Log warning but don't fail
-		}
+		_ = s.ensureDomainExists(*opts.Domain)
 	}
 
 	// Update in database

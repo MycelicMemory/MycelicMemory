@@ -53,7 +53,7 @@ func ParseTags(s string) []string {
 		return nil
 	}
 	var tags []string
-	json.Unmarshal([]byte(s), &tags)
+	_ = json.Unmarshal([]byte(s), &tags)
 	return tags
 }
 

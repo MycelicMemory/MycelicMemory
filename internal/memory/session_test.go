@@ -61,11 +61,11 @@ func TestSessionDetector(t *testing.T) {
 		detector := NewSessionDetector(SessionStrategyGitDirectory)
 		detector.Prefix = "custom-"
 
-		sessionID := detector.DetectSessionID()
+		_ = detector.DetectSessionID()
 		// Clear cache first by changing strategy back
 		detector.cacheDir = ""
 
-		sessionID = detector.DetectSessionID()
+		sessionID := detector.DetectSessionID()
 		if !strings.HasPrefix(sessionID, "custom-") {
 			t.Errorf("Expected custom- prefix, got %s", sessionID)
 		}
@@ -85,7 +85,7 @@ func TestFindGitRoot(t *testing.T) {
 	t.Run("WithGitDirectory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		gitDir := filepath.Join(tmpDir, ".git")
-		os.Mkdir(gitDir, 0755)
+		_ = os.Mkdir(gitDir, 0755)
 
 		root := findGitRoot(tmpDir)
 		if root != tmpDir {
@@ -96,10 +96,10 @@ func TestFindGitRoot(t *testing.T) {
 	t.Run("NestedDirectory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		gitDir := filepath.Join(tmpDir, ".git")
-		os.Mkdir(gitDir, 0755)
+		_ = os.Mkdir(gitDir, 0755)
 
 		nestedDir := filepath.Join(tmpDir, "src", "pkg")
-		os.MkdirAll(nestedDir, 0755)
+		_ = os.MkdirAll(nestedDir, 0755)
 
 		root := findGitRoot(nestedDir)
 		if root != tmpDir {

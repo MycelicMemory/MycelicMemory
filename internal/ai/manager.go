@@ -419,7 +419,7 @@ func (m *Manager) analyzeTemporalPatterns(ctx context.Context, memories []*datab
 		contents[i] = fmt.Sprintf("[%s] %s", mem.CreatedAt.Format("2006-01-02"), mem.Content)
 	}
 
-	prompt := fmt.Sprintf("Analyze the temporal patterns and learning progression in these entries")
+	prompt := "Analyze the temporal patterns and learning progression in these entries"
 	if concept != "" {
 		prompt += fmt.Sprintf(" related to '%s'", concept)
 	}
@@ -503,6 +503,6 @@ func float64SliceToBytes(floats []float64) []byte {
 // Helper function to convert bytes to float64 slice
 func bytesToFloat64Slice(data []byte) []float64 {
 	var floats []float64
-	json.Unmarshal(data, &floats)
+	_ = json.Unmarshal(data, &floats)
 	return floats
 }

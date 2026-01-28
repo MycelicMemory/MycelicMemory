@@ -89,7 +89,7 @@ func (d *Database) InitSchema() error {
 		log.Error("failed to begin transaction", "error", err)
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is harmless
 
 	// Execute core schema (tables, indexes, constraints)
 	log.Debug("creating core schema")
@@ -256,15 +256,15 @@ func (d *Database) GetStats() (*Stats, error) {
 
 	// Count tables
 	var tableCount int
-	d.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
 	stats.TableCount = tableCount
 
 	// Count records in main tables
-	d.QueryRow("SELECT COUNT(*) FROM memories").Scan(&stats.MemoryCount)
-	d.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&stats.RelationCount)
-	d.QueryRow("SELECT COUNT(*) FROM categories").Scan(&stats.CategoryCount)
-	d.QueryRow("SELECT COUNT(*) FROM domains").Scan(&stats.DomainCount)
-	d.QueryRow("SELECT COUNT(*) FROM agent_sessions").Scan(&stats.SessionCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM memories").Scan(&stats.MemoryCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&stats.RelationCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM categories").Scan(&stats.CategoryCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM domains").Scan(&stats.DomainCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM agent_sessions").Scan(&stats.SessionCount)
 
 	// Get file size
 	if info, err := os.Stat(d.path); err == nil {

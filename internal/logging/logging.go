@@ -43,7 +43,6 @@ type Config struct {
 var (
 	defaultLogger *slog.Logger
 	loggerMu      sync.RWMutex
-	initialized   bool
 )
 
 func init() {
@@ -91,7 +90,6 @@ func Init(cfg Config) {
 	}
 
 	defaultLogger = slog.New(handler)
-	initialized = true
 }
 
 // parseLevel converts a string level to slog.Level

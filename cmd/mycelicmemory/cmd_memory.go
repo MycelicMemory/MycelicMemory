@@ -464,7 +464,7 @@ func runForget(id string) {
 	// Confirmation prompt
 	fmt.Printf("Are you sure you want to delete memory %s? [y/N]: ", id)
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 	if response != "y" && response != "Y" {
 		fmt.Println("Delete cancelled.")
 		return

@@ -136,8 +136,8 @@ func TestLoadConfig_NoFile(t *testing.T) {
 	// Change to temp directory where no config exists
 	tmpDir := t.TempDir()
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd) //nolint:errcheck
+	_ = os.Chdir(tmpDir)
 
 	// Temporarily override HOME to prevent finding user's config
 	oldHome := os.Getenv("HOME")
@@ -191,8 +191,8 @@ logging:
 
 	// Change to temp directory
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd) //nolint:errcheck
+	_ = os.Chdir(tmpDir)
 
 	// Load config
 	cfg, err := Load()

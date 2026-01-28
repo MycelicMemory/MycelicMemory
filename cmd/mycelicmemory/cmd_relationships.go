@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/dependencies"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
@@ -121,7 +120,7 @@ func runRelate(sourceID, targetID string) {
 	// Confirmation prompt
 	fmt.Printf("Are you sure you want to create a '%s' relationship between memory %s and %s? [y/N]: ", relateType, sourceID, targetID)
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 	if response != "y" && response != "Y" {
 		fmt.Println("Relationship creation cancelled.")
 		return
@@ -291,18 +290,4 @@ func truncateContent(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
-}
-
-func getRelDB() (*database.Database, *config.Config, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	db, err := database.Open(cfg.Database.Path)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return db, cfg, nil
 }

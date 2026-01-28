@@ -274,7 +274,7 @@ func TestQdrantClientIntegration(t *testing.T) {
 		for i, p := range points {
 			ids[i] = p.ID
 		}
-		client.Delete(ctx, ids)
+		_ = client.Delete(ctx, ids)
 	})
 }
 
@@ -314,7 +314,7 @@ func TestSearchOptions(t *testing.T) {
 		defer cancel()
 
 		// First, ensure collection exists
-		client.InitCollection(ctx)
+		_ = client.InitCollection(ctx)
 
 		vector := make([]float64, 768)
 		for i := range vector {
