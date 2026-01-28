@@ -182,7 +182,7 @@ func TestGetStats(t *testing.T) {
 	}
 }
 
-func TestReset(t *testing.T) {
+func TestLimiterReset(t *testing.T) {
 	cfg := &Config{
 		Enabled: true,
 		Global: LimitConfig{
