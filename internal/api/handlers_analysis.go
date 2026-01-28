@@ -108,7 +108,7 @@ func (s *Server) analyze(c *gin.Context) {
 
 	// Build response matching local-memory format
 	insights := result.Insights
-	if insights == nil || len(insights) == 0 {
+	if len(insights) == 0 {
 		insights = []string{"parsing_failed"}
 	}
 
@@ -121,7 +121,7 @@ func (s *Server) analyze(c *gin.Context) {
 	}
 
 	recommendations := result.Sources
-	if recommendations == nil || len(recommendations) == 0 {
+	if len(recommendations) == 0 {
 		recommendations = []string{"norecommendationsavailable"}
 	}
 

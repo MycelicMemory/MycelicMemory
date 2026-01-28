@@ -19,9 +19,8 @@ var (
 	Version = "1.2.0"
 
 	// Global flags
-	mcpMode  bool
-	logLevel string
-	quiet    bool
+	mcpMode bool
+	quiet   bool
 )
 
 // rootCmd represents the base command
@@ -54,7 +53,7 @@ Progressive Discovery:
 		if mcpMode {
 			runMCPServer()
 		} else {
-			cmd.Help()
+			_ = cmd.Help()
 		}
 	},
 }
