@@ -33,10 +33,10 @@ jobs:
     needs: build
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download macOS ARM64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: mycelicmemory-macos-arm64
           path: ./bin
@@ -48,7 +48,7 @@ jobs:
           ./bin/mycelicmemory-macos-arm64 --help
 
       - name: Cache Ollama
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.ollama
           key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
@@ -94,7 +94,7 @@ jobs:
           ./bin/mycelicmemory-macos-arm64 doctor
           ls -la $HOME/.mycelicmemory/ || echo "Config dir check"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -120,10 +120,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download Linux x64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: mycelicmemory-linux-x64
           path: ./bin
@@ -135,7 +135,7 @@ jobs:
           ./bin/mycelicmemory-linux-x64 --help
 
       - name: Cache Ollama
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.ollama
           key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
@@ -174,7 +174,7 @@ jobs:
             echo "Binary runs in clean Ubuntu container"
           '
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -188,10 +188,10 @@ jobs:
     needs: build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download Windows x64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: mycelicmemory-windows-x64.exe
           path: ./bin
@@ -203,7 +203,7 @@ jobs:
           ./bin/mycelicmemory-windows-x64.exe --help
 
       - name: Cache Ollama
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~\.ollama
           key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
@@ -245,7 +245,7 @@ jobs:
           ./bin/mycelicmemory-windows-x64.exe doctor
         continue-on-error: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -271,16 +271,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download Linux binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: mycelicmemory-linux-x64
           path: ./bin
 
       - name: Cache Ollama
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.ollama
           key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}

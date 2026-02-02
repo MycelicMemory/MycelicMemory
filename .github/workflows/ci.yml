@@ -41,16 +41,16 @@ jobs:
     runs-on: ubuntu-latest
     name: ${{ matrix.name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.23'
           cache: true
           cache-dependency-path: go.sum
 
       - name: Cache Go build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/go-build
@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload coverage
         if: matrix.task == 'build-test'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage
           path: coverage.out
@@ -75,7 +75,7 @@ jobs:
 
       - name: Lint
         if: matrix.task == 'lint'
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           args: --build-tags fts5

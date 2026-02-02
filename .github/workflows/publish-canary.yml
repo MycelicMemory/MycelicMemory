@@ -18,7 +18,7 @@ jobs:
       channel: ${{ steps.channel.outputs.channel }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine release channel
         id: channel
@@ -51,14 +51,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm-publish
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.23'
           cache: true
@@ -130,7 +130,7 @@ jobs:
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const version = '${{ needs.determine-channel.outputs.version }}';
