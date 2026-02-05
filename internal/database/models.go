@@ -26,6 +26,9 @@ type Memory struct {
 	ParentMemoryID string `json:"parent_memory_id,omitempty"` // ID of parent memory (null for root)
 	ChunkLevel     int    `json:"chunk_level"`                // 0=full/root, 1=paragraph, 2=atomic
 	ChunkIndex     int    `json:"chunk_index"`                // Position within parent's chunks
+	// Multi-source ingestion fields (Schema v3)
+	SourceID   string `json:"source_id,omitempty"`   // Reference to data_sources.id
+	ExternalID string `json:"external_id,omitempty"` // Unique ID in source system (for deduplication)
 }
 
 // IsChunk returns true if this memory is a chunk (not a root memory)
@@ -205,13 +208,14 @@ type MemoryFilters struct {
 
 // SearchFilters represents filters for searching memories
 type SearchFilters struct {
-	Query       string
-	SessionID   string
-	Domain      string
-	Tags        []string
-	UseAI       bool // Use semantic search vs FTS5
-	Limit       int
+	Query        string
+	SessionID    string
+	Domain       string
+	Tags         []string
+	UseAI        bool // Use semantic search vs FTS5
+	Limit        int
 	MinRelevance float64
+	SourceID     string // Filter by data source
 }
 
 // RelationshipFilters represents filters for finding relationships
@@ -219,5 +223,98 @@ type RelationshipFilters struct {
 	Type        string
 	MinStrength float64
 	Limit       int
+}
+
+// =============================================================================
+// DATA SOURCE MODELS (Schema v3)
+// =============================================================================
+
+// DataSource represents a configured data source for memory ingestion
+type DataSource struct {
+	ID               string     `json:"id"`
+	SourceType       string     `json:"source_type"`       // 'slack' | 'claude-stream' | 'email' | etc.
+	Name             string     `json:"name"`              // User-friendly display name
+	Config           string     `json:"config"`            // JSON configuration (source-specific)
+	Status           string     `json:"status"`            // 'active' | 'paused' | 'error'
+	LastSyncAt       *time.Time `json:"last_sync_at"`      // Last successful sync timestamp
+	LastSyncPosition string     `json:"last_sync_position"` // Cursor/checkpoint for incremental sync
+	ErrorMessage     string     `json:"error_message,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+// DataSourceSyncHistory represents a sync operation record
+type DataSourceSyncHistory struct {
+	ID               string     `json:"id"`
+	SourceID         string     `json:"source_id"`
+	StartedAt        time.Time  `json:"started_at"`
+	CompletedAt      *time.Time `json:"completed_at,omitempty"`
+	ItemsProcessed   int        `json:"items_processed"`
+	MemoriesCreated  int        `json:"memories_created"`
+	DuplicatesSkipped int       `json:"duplicates_skipped"`
+	Status           string     `json:"status"` // 'running' | 'completed' | 'failed'
+	Error            string     `json:"error,omitempty"`
+}
+
+// DataSourceFilters represents filters for listing data sources
+type DataSourceFilters struct {
+	SourceType string
+	Status     string
+	Limit      int
+	Offset     int
+}
+
+// DataSourceStats contains statistics for a data source
+type DataSourceStats struct {
+	TotalMemories   int        `json:"total_memories"`
+	TotalSyncs      int        `json:"total_syncs"`
+	SuccessfulSyncs int        `json:"successful_syncs"`
+	FailedSyncs     int        `json:"failed_syncs"`
+	LastSyncAt      *time.Time `json:"last_sync_at"`
+	LastError       string     `json:"last_error,omitempty"`
+}
+
+// IngestItem represents an item to be ingested from a data source
+type IngestItem struct {
+	ExternalID  string            `json:"external_id"`  // Unique ID in source system
+	Content     string            `json:"content"`      // Raw content
+	ContentType string            `json:"content_type"` // 'text' | 'code' | 'markdown' | 'html'
+	Timestamp   time.Time         `json:"timestamp"`
+	Metadata    IngestMetadata    `json:"metadata"`
+}
+
+// IngestMetadata contains source-specific metadata for ingested items
+type IngestMetadata struct {
+	SourceType     string   `json:"source_type"`
+	Author         string   `json:"author,omitempty"`
+	Channel        string   `json:"channel,omitempty"`  // For Slack
+	ThreadID       string   `json:"thread_id,omitempty"`
+	FileReferences []string `json:"file_references,omitempty"`
+	Importance     int      `json:"importance,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	Domain         string   `json:"domain,omitempty"`
+}
+
+// IngestRequest represents a bulk ingestion request
+type IngestRequest struct {
+	Items      []IngestItem `json:"items"`
+	Checkpoint string       `json:"checkpoint,omitempty"` // For resumable sync
+}
+
+// IngestResponse represents the result of an ingestion operation
+type IngestResponse struct {
+	Processed         int    `json:"processed"`
+	MemoriesCreated   int    `json:"memories_created"`
+	DuplicatesSkipped int    `json:"duplicates_skipped"`
+	Checkpoint        string `json:"checkpoint"`
+}
+
+// DataSourceUpdate represents optional updates to a data source
+type DataSourceUpdate struct {
+	Name             *string `json:"name,omitempty"`
+	Config           *string `json:"config,omitempty"`
+	Status           *string `json:"status,omitempty"`
+	LastSyncPosition *string `json:"last_sync_position,omitempty"`
+	ErrorMessage     *string `json:"error_message,omitempty"`
 }
 

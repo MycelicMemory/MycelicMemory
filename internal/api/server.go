@@ -144,6 +144,26 @@ func (s *Server) setupRoutes() {
 		// Search endpoints
 		api.POST("/search/tags", s.searchByTags)
 		api.POST("/search/date-range", s.searchByDateRange)
+
+		// Data Sources (Multi-source ingestion support)
+		api.POST("/sources", s.createDataSource)
+		api.GET("/sources", s.listDataSources)
+		api.GET("/sources/:id", s.getDataSource)
+		api.PATCH("/sources/:id", s.updateDataSource)
+		api.DELETE("/sources/:id", s.deleteDataSource)
+
+		// Source Control
+		api.POST("/sources/:id/pause", s.pauseDataSource)
+		api.POST("/sources/:id/resume", s.resumeDataSource)
+		api.POST("/sources/:id/sync", s.triggerSync)
+
+		// Ingestion
+		api.POST("/sources/:id/ingest", s.ingestItems)
+
+		// Source History & Stats
+		api.GET("/sources/:id/history", s.getSyncHistory)
+		api.GET("/sources/:id/stats", s.getSourceStats)
+		api.GET("/sources/:id/memories", s.getSourceMemories)
 	}
 }
 

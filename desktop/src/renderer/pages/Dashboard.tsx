@@ -1,9 +1,36 @@
 import { useState, useEffect } from 'react';
-import { Brain, Database, Tag, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import api from '../api/client';
+import {
+  Brain,
+  Database,
+  Tag,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  MessageSquare,
+  FileText,
+} from 'lucide-react';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import type { Memory, Domain, DashboardStats, HealthStatus } from '../../shared/types';
 
-function StatCard({ icon: Icon, label, value, subtext, color = 'primary' }) {
+interface StatCardProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  subtext?: string;
+  color?: 'primary' | 'green' | 'amber' | 'blue';
+}
+
+function StatCard({ icon: Icon, label, value, subtext, color = 'primary' }: StatCardProps) {
   const colors = {
     primary: 'bg-primary-500/20 text-primary-400',
     green: 'bg-green-500/20 text-green-400',
@@ -27,7 +54,13 @@ function StatCard({ icon: Icon, label, value, subtext, color = 'primary' }) {
   );
 }
 
-function StatusIndicator({ label, status, detail }) {
+interface StatusIndicatorProps {
+  label: string;
+  status: boolean | string | undefined;
+  detail: string;
+}
+
+function StatusIndicator({ label, status, detail }: StatusIndicatorProps) {
   const isOk = status === 'ok' || status === 'connected' || status === true;
 
   return (
@@ -47,44 +80,46 @@ function StatusIndicator({ label, status, detail }) {
 
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-export default function Overview() {
-  const [stats, setStats] = useState(null);
-  const [health, setHealth] = useState(null);
-  const [domains, setDomains] = useState([]);
-  const [recentMemories, setRecentMemories] = useState([]);
+export default function Dashboard() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [recentMemories, setRecentMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
+        setError(null);
+
         const [statsRes, healthRes, domainsRes, memoriesRes] = await Promise.all([
-          api.getStats().catch(() => null),
-          api.getHealth().catch(() => null),
-          api.getDomains().catch(() => []),
-          api.getMemories({ limit: 5, sort: '-created_at' }).catch(() => ({ memories: [] })),
+          window.mycelicMemory.stats.dashboard().catch(() => null),
+          window.mycelicMemory.stats.health().catch(() => null),
+          window.mycelicMemory.domains.list().catch(() => []),
+          window.mycelicMemory.memory.list({ limit: 5 }).catch(() => []),
         ]);
 
         setStats(statsRes);
         setHealth(healthRes);
         setDomains(domainsRes || []);
-        setRecentMemories(memoriesRes?.memories || []);
+        setRecentMemories(memoriesRes || []);
       } catch (err) {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'Failed to fetch data');
       } finally {
         setLoading(false);
       }
     }
 
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Refresh every 30s
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center">
+      <div className="p-8 flex items-center justify-center h-full">
         <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
       </div>
     );
@@ -96,8 +131,10 @@ export default function Overview() {
         <div className="bg-red-500/20 border border-red-500 rounded-xl p-6 text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
-          <p className="text-slate-400">Unable to connect to MycelicMemory API at localhost:3099</p>
-          <p className="text-slate-500 text-sm mt-2">Run: mycelicmemory start</p>
+          <p className="text-slate-400">Unable to connect to MycelicMemory API</p>
+          <p className="text-slate-500 text-sm mt-2">
+            Make sure MycelicMemory is running: <code className="bg-slate-800 px-2 py-1 rounded">mycelicmemory start</code>
+          </p>
         </div>
       </div>
     );
@@ -105,14 +142,13 @@ export default function Overview() {
 
   const memoryCount = stats?.memory_count || 0;
   const sessionCount = stats?.session_count || 0;
+  const domainCount = domains.length;
 
-  // Mock domain distribution data (would come from API)
   const domainData = domains.map((d, i) => ({
     name: d.name,
-    value: Math.floor(Math.random() * 50) + 10, // Replace with real counts
+    value: d.memory_count || Math.floor(Math.random() * 50) + 10,
   }));
 
-  // Mock importance distribution
   const importanceData = [
     { range: '1-3', count: 5 },
     { range: '4-6', count: 25 },
@@ -121,8 +157,8 @@ export default function Overview() {
   ];
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Overview</h1>
+    <div className="p-8 animate-fade-in">
+      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -135,7 +171,7 @@ export default function Overview() {
         <StatCard
           icon={Database}
           label="Domains"
-          value={domains.length}
+          value={domainCount}
           color="blue"
         />
         <StatCard
@@ -147,7 +183,7 @@ export default function Overview() {
         <StatCard
           icon={Clock}
           label="This Week"
-          value={Math.floor(memoryCount * 0.2)}
+          value={stats?.this_week_count || 0}
           subtext="New memories"
           color="amber"
         />
@@ -169,11 +205,13 @@ export default function Overview() {
                   outerRadius={80}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {domainData.map((entry, index) => (
+                  {domainData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -204,13 +242,12 @@ export default function Overview() {
           {recentMemories.length > 0 ? (
             <div className="space-y-3">
               {recentMemories.map((memory) => (
-                <div
-                  key={memory.id}
-                  className="p-3 bg-slate-700/50 rounded-lg"
-                >
+                <div key={memory.id} className="p-3 bg-slate-700/50 rounded-lg">
                   <p className="text-sm line-clamp-2">{memory.content}</p>
                   <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-                    <span className="bg-slate-600 px-2 py-0.5 rounded">{memory.domain || 'general'}</span>
+                    <span className="bg-slate-600 px-2 py-0.5 rounded">
+                      {memory.domain || 'general'}
+                    </span>
                     <span>Importance: {memory.importance}</span>
                   </div>
                 </div>
@@ -226,9 +263,9 @@ export default function Overview() {
           <h2 className="text-lg font-semibold mb-4">System Status</h2>
           <div>
             <StatusIndicator
-              label="Ultrathink API"
-              status={health ? 'ok' : 'error'}
-              detail={health ? 'Running on :3099' : 'Not connected'}
+              label="MycelicMemory API"
+              status={health?.api}
+              detail={health?.api ? 'Running on :3099' : 'Not connected'}
             />
             <StatusIndicator
               label="Ollama"
@@ -242,7 +279,7 @@ export default function Overview() {
             />
             <StatusIndicator
               label="Database"
-              status="ok"
+              status={health?.database}
               detail="SQLite + FTS5"
             />
           </div>

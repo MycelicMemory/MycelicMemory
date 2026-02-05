@@ -9,7 +9,7 @@ package database
 // - Metadata: performance_metrics, migration_log, schema_version, sqlite_sequence
 
 // SchemaVersion is the current schema version
-const SchemaVersion = 1
+const SchemaVersion = 3
 
 // CoreSchema contains the main table definitions
 // VERIFIED: Exact schema from ~/.local-memory/unified-memories.db
@@ -239,6 +239,107 @@ CREATE TRIGGER IF NOT EXISTS memories_fts_update AFTER UPDATE ON memories BEGIN
 	WHERE id = old.id;
 END;
 `
+
+// DataSourceSchema contains the multi-source ingestion tables
+// Added in schema version 3 for scalable data source support
+const DataSourceSchema = `
+-- =============================================================================
+-- DATA SOURCES TABLE
+-- Registry of configured data sources (Slack, Claude Stream, Email, etc.)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS data_sources (
+	id TEXT PRIMARY KEY,
+	source_type TEXT NOT NULL,           -- 'slack' | 'claude-stream' | 'email' | etc.
+	name TEXT NOT NULL,                   -- User-friendly display name
+	config TEXT NOT NULL DEFAULT '{}',    -- JSON source-specific configuration
+	status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'error')),
+	last_sync_at DATETIME,
+	last_sync_position TEXT,              -- Cursor/checkpoint for incremental sync
+	error_message TEXT,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_sources_type ON data_sources(source_type);
+CREATE INDEX IF NOT EXISTS idx_data_sources_status ON data_sources(status);
+
+-- =============================================================================
+-- DATA SOURCE SYNC HISTORY TABLE
+-- Track sync operations for each source
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS data_source_sync_history (
+	id TEXT PRIMARY KEY,
+	source_id TEXT NOT NULL,
+	started_at DATETIME NOT NULL,
+	completed_at DATETIME,
+	items_processed INTEGER DEFAULT 0,
+	memories_created INTEGER DEFAULT 0,
+	duplicates_skipped INTEGER DEFAULT 0,
+	status TEXT DEFAULT 'running' CHECK (status IN ('running', 'completed', 'failed')),
+	error TEXT,
+	FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sync_history_source ON data_source_sync_history(source_id);
+CREATE INDEX IF NOT EXISTS idx_sync_history_status ON data_source_sync_history(status);
+CREATE INDEX IF NOT EXISTS idx_sync_history_started ON data_source_sync_history(started_at);
+`
+
+// DataSourceTypes contains the supported source types
+var DataSourceTypes = []string{
+	"claude-stream", // Claude Code chat sessions
+	"slack",         // Slack messages
+	"email",         // Email (IMAP/Gmail)
+	"browser",       // Browser history
+	"notion",        // Notion pages
+	"obsidian",      // Obsidian vault
+	"github",        // GitHub issues/PRs
+	"custom",        // Custom/generic source
+}
+
+// DataSourceStatuses contains the valid source statuses
+var DataSourceStatuses = []string{
+	"active", // Actively syncing
+	"paused", // Paused by user
+	"error",  // Error state (needs attention)
+}
+
+// SyncStatuses contains the valid sync history statuses
+var SyncStatuses = []string{
+	"running",   // Sync in progress
+	"completed", // Sync completed successfully
+	"failed",    // Sync failed
+}
+
+// IsValidDataSourceType checks if a source type is valid
+func IsValidDataSourceType(t string) bool {
+	for _, st := range DataSourceTypes {
+		if st == t {
+			return true
+		}
+	}
+	return false
+}
+
+// IsValidDataSourceStatus checks if a source status is valid
+func IsValidDataSourceStatus(s string) bool {
+	for _, ss := range DataSourceStatuses {
+		if ss == s {
+			return true
+		}
+	}
+	return false
+}
+
+// IsValidSyncStatus checks if a sync status is valid
+func IsValidSyncStatus(s string) bool {
+	for _, ss := range SyncStatuses {
+		if ss == s {
+			return true
+		}
+	}
+	return false
+}
 
 // RelationshipTypes contains the 7 verified relationship types
 var RelationshipTypes = []string{

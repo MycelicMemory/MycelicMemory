@@ -155,8 +155,112 @@ func (d *Database) RunMigrations() error {
 		}
 	}
 
-	// Add future migrations here:
-	// if version < 3 { MigrationV2ToV3(d.db) }
+	// Add data source support
+	if version < 3 {
+		if err := MigrationV2ToV3(d.db); err != nil {
+			return fmt.Errorf("migration v2 to v3 failed: %w", err)
+		}
+	}
 
+	return nil
+}
+
+// MigrationV2ToV3 adds multi-source data ingestion support
+// This adds the data_sources registry, sync history, and source tracking on memories
+func MigrationV2ToV3(db *sql.DB) error {
+	log.Info("running migration v2 to v3: adding data source support")
+
+	// Start transaction
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is harmless
+
+	// 1. Create data_sources table
+	dataSourcesSQL := `
+		CREATE TABLE IF NOT EXISTS data_sources (
+			id TEXT PRIMARY KEY,
+			source_type TEXT NOT NULL,
+			name TEXT NOT NULL,
+			config TEXT NOT NULL DEFAULT '{}',
+			status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'error')),
+			last_sync_at DATETIME,
+			last_sync_position TEXT,
+			error_message TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_data_sources_type ON data_sources(source_type);
+		CREATE INDEX IF NOT EXISTS idx_data_sources_status ON data_sources(status);
+	`
+	if _, err := tx.Exec(dataSourcesSQL); err != nil {
+		log.Warn("failed to create data_sources table", "error", err)
+	}
+
+	// 2. Create data_source_sync_history table
+	syncHistorySQL := `
+		CREATE TABLE IF NOT EXISTS data_source_sync_history (
+			id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL,
+			started_at DATETIME NOT NULL,
+			completed_at DATETIME,
+			items_processed INTEGER DEFAULT 0,
+			memories_created INTEGER DEFAULT 0,
+			duplicates_skipped INTEGER DEFAULT 0,
+			status TEXT DEFAULT 'running' CHECK (status IN ('running', 'completed', 'failed')),
+			error TEXT,
+			FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_sync_history_source ON data_source_sync_history(source_id);
+		CREATE INDEX IF NOT EXISTS idx_sync_history_status ON data_source_sync_history(status);
+		CREATE INDEX IF NOT EXISTS idx_sync_history_started ON data_source_sync_history(started_at);
+	`
+	if _, err := tx.Exec(syncHistorySQL); err != nil {
+		log.Warn("failed to create data_source_sync_history table", "error", err)
+	}
+
+	// 3. Add source_id and external_id columns to memories table
+	alterStatements := []string{
+		"ALTER TABLE memories ADD COLUMN source_id TEXT REFERENCES data_sources(id);",
+		"ALTER TABLE memories ADD COLUMN external_id TEXT;",
+	}
+
+	for _, stmt := range alterStatements {
+		if _, err := tx.Exec(stmt); err != nil {
+			// Column may already exist, log and continue
+			log.Debug("alter statement skipped (may already exist)", "stmt", stmt, "error", err)
+		}
+	}
+
+	// 4. Create indexes for source tracking
+	indexStatements := []string{
+		"CREATE INDEX IF NOT EXISTS idx_memories_source_id ON memories(source_id);",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_dedup ON memories(source_id, external_id) WHERE source_id IS NOT NULL AND external_id IS NOT NULL;",
+	}
+
+	for _, stmt := range indexStatements {
+		if _, err := tx.Exec(stmt); err != nil {
+			log.Warn("failed to create index", "stmt", stmt, "error", err)
+		}
+	}
+
+	// 5. Update FTS5 triggers to handle new columns (recreate for safety)
+	// The FTS5 table doesn't need the new columns as they're not searchable
+
+	// 6. Update schema version
+	if _, err := tx.Exec(`
+		INSERT OR REPLACE INTO schema_version (version, applied_at)
+		VALUES (3, CURRENT_TIMESTAMP)
+	`); err != nil {
+		return fmt.Errorf("failed to update schema version: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit migration: %w", err)
+	}
+
+	log.Info("migration v2 to v3 completed successfully")
 	return nil
 }
