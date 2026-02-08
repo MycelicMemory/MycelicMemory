@@ -22,12 +22,12 @@ import { AppSettings } from '../shared/types';
 const store = new Store<{ settings: AppSettings }>({
   defaults: {
     settings: {
-      api_url: 'http://localhost',
+      api_url: 'http://127.0.0.1',
       api_port: 3099,
-      ollama_base_url: 'http://localhost:11434',
+      ollama_base_url: 'http://127.0.0.1:11434',
       ollama_embedding_model: 'nomic-embed-text',
       ollama_chat_model: 'llama3.2',
-      qdrant_url: 'http://localhost:6333',
+      qdrant_url: 'http://127.0.0.1:6333',
       qdrant_enabled: true,
       claude_stream_db_path: getDefaultClaudeStreamDbPath(),
       extraction: {
@@ -98,6 +98,19 @@ function createWindow(): void {
 
 function initializeServicesAndHandlers(): void {
   const settings = store.get('settings');
+
+  // Normalize localhost → 127.0.0.1 to avoid IPv6 resolution issues on Windows
+  // (Node.js fetch can resolve 'localhost' to ::1 which may fail)
+  if (settings.api_url.includes('localhost')) {
+    settings.api_url = settings.api_url.replace('localhost', '127.0.0.1');
+  }
+  if (settings.ollama_base_url.includes('localhost')) {
+    settings.ollama_base_url = settings.ollama_base_url.replace('localhost', '127.0.0.1');
+  }
+  if (settings.qdrant_url.includes('localhost')) {
+    settings.qdrant_url = settings.qdrant_url.replace('localhost', '127.0.0.1');
+  }
+
   const apiBaseUrl = `${settings.api_url}:${settings.api_port}`;
   const claudeDbPath = settings.claude_stream_db_path;
 

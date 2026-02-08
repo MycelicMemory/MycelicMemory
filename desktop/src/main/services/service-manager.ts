@@ -50,7 +50,7 @@ export class ServiceManager {
   async isBackendRunning(): Promise<boolean> {
     try {
       const resp = await fetchWithTimeout(
-        `http://localhost:${this.settings.api_port}/api/v1/health`,
+        `http://127.0.0.1:${this.settings.api_port}/api/v1/health`,
         3000
       );
       return resp.ok;

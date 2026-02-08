@@ -20,7 +20,7 @@ interface ProjectCardProps {
 }
 
 function ProjectCard({ project, isSelected, onClick }: ProjectCardProps) {
-  const displayName = project.project_path.split(/[/\\]/).pop() || project.project_hash;
+  const displayName = project.project_path?.split(/[/\\]/).pop() || project.project_hash || 'Unknown';
 
   return (
     <div
