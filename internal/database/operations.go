@@ -47,14 +47,16 @@ func (d *Database) CreateMemory(m *Memory) error {
 		INSERT INTO memories (
 			id, content, source, importance, tags, session_id, domain,
 			embedding, created_at, updated_at, agent_type, agent_context,
-			access_scope, slug, parent_memory_id, chunk_level, chunk_index
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			access_scope, slug, parent_memory_id, chunk_level, chunk_index,
+			cc_session_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		m.ID, m.Content, nullString(m.Source), m.Importance, tagsJSON,
 		nullString(m.SessionID), nullString(m.Domain),
 		m.Embedding, m.CreatedAt, m.UpdatedAt, m.AgentType, nullString(m.AgentContext),
 		m.AccessScope, nullString(m.Slug),
 		nullString(m.ParentMemoryID), m.ChunkLevel, m.ChunkIndex,
+		nullString(m.CCSessionID),
 	)
 
 	if err != nil {
@@ -75,15 +77,19 @@ func (d *Database) GetMemory(id string) (*Memory, error) {
 	var source, sessionID, domain, agentContext, slug, parentMemoryID sql.NullString
 	var embedding []byte
 
+	var ccSessionID sql.NullString
+
 	err := d.db.QueryRow(`
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
-		       access_scope, slug, parent_memory_id, chunk_level, chunk_index
+		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
+		       cc_session_id
 		FROM memories WHERE id = ?
 	`, id).Scan(
 		&m.ID, &m.Content, &source, &m.Importance, &tagsJSON, &sessionID, &domain,
 		&embedding, &m.CreatedAt, &m.UpdatedAt, &m.AgentType, &agentContext,
 		&m.AccessScope, &slug, &parentMemoryID, &m.ChunkLevel, &m.ChunkIndex,
+		&ccSessionID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -100,6 +106,7 @@ func (d *Database) GetMemory(id string) (*Memory, error) {
 	m.AgentContext = agentContext.String
 	m.Slug = slug.String
 	m.ParentMemoryID = parentMemoryID.String
+	m.CCSessionID = ccSessionID.String
 	m.Embedding = embedding
 	m.Tags = ParseTags(tagsJSON)
 
@@ -236,7 +243,8 @@ func (d *Database) ListMemories(filters *MemoryFilters) ([]*Memory, error) {
 	query := `
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
-		       access_scope, slug, parent_memory_id, chunk_level, chunk_index
+		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
+		       cc_session_id
 		FROM memories
 	`
 
@@ -539,7 +547,8 @@ func (d *Database) FindRelated(memoryID string, filters *RelationshipFilters) ([
 	query := `
 		SELECT DISTINCT m.id, m.content, m.source, m.importance, m.tags, m.session_id, m.domain,
 		       m.embedding, m.created_at, m.updated_at, m.agent_type, m.agent_context,
-		       m.access_scope, m.slug, m.parent_memory_id, m.chunk_level, m.chunk_index
+		       m.access_scope, m.slug, m.parent_memory_id, m.chunk_level, m.chunk_index,
+		       m.cc_session_id
 		FROM memories m
 		JOIN memory_relationships r ON (
 			(r.source_memory_id = ? AND r.target_memory_id = m.id) OR
@@ -786,7 +795,8 @@ func (d *Database) GetMemoriesByIDs(ids []string) ([]*Memory, error) {
 	query := fmt.Sprintf(`
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
-		       access_scope, slug, parent_memory_id, chunk_level, chunk_index
+		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
+		       cc_session_id
 		FROM memories
 		WHERE id IN (%s)
 	`, strings.Join(placeholders, ", "))
@@ -1141,7 +1151,8 @@ func (d *Database) GetChildChunks(parentID string) ([]*Memory, error) {
 	rows, err := d.db.Query(`
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
-		       access_scope, slug, parent_memory_id, chunk_level, chunk_index
+		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
+		       cc_session_id
 		FROM memories
 		WHERE parent_memory_id = ?
 		ORDER BY chunk_index ASC
@@ -1177,7 +1188,8 @@ func (d *Database) GetRootMemories(filters *MemoryFilters) ([]*Memory, error) {
 	query := `
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
-		       access_scope, slug, parent_memory_id, chunk_level, chunk_index
+		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
+		       cc_session_id
 		FROM memories
 		WHERE ` + strings.Join(whereClauses, " AND ") + `
 		ORDER BY created_at DESC
@@ -1205,13 +1217,14 @@ func scanMemories(rows *sql.Rows) ([]*Memory, error) {
 	for rows.Next() {
 		var m Memory
 		var tagsJSON string
-		var source, sessionID, domain, agentContext, slug, parentMemoryID sql.NullString
+		var source, sessionID, domain, agentContext, slug, parentMemoryID, ccSessionID sql.NullString
 		var embedding []byte
 
 		err := rows.Scan(
 			&m.ID, &m.Content, &source, &m.Importance, &tagsJSON, &sessionID, &domain,
 			&embedding, &m.CreatedAt, &m.UpdatedAt, &m.AgentType, &agentContext,
 			&m.AccessScope, &slug, &parentMemoryID, &m.ChunkLevel, &m.ChunkIndex,
+			&ccSessionID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan memory: %w", err)
@@ -1223,6 +1236,7 @@ func scanMemories(rows *sql.Rows) ([]*Memory, error) {
 		m.AgentContext = agentContext.String
 		m.Slug = slug.String
 		m.ParentMemoryID = parentMemoryID.String
+		m.CCSessionID = ccSessionID.String
 		m.Embedding = embedding
 		m.Tags = ParseTags(tagsJSON)
 

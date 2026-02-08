@@ -22,13 +22,15 @@ type Memory struct {
 	AgentContext string    `json:"agent_context,omitempty"`
 	AccessScope  string    `json:"access_scope"`
 	Slug         string    `json:"slug,omitempty"`
-	// Hierarchical chunking fields (Phase 1 benchmark improvement)
+	// Hierarchical chunking fields
 	ParentMemoryID string `json:"parent_memory_id,omitempty"` // ID of parent memory (null for root)
 	ChunkLevel     int    `json:"chunk_level"`                // 0=full/root, 1=paragraph, 2=atomic
 	ChunkIndex     int    `json:"chunk_index"`                // Position within parent's chunks
 	// Multi-source ingestion fields (Schema v3)
 	SourceID   string `json:"source_id,omitempty"`   // Reference to data_sources.id
 	ExternalID string `json:"external_id,omitempty"` // Unique ID in source system (for deduplication)
+	// Chat history linkage (Schema v4)
+	CCSessionID string `json:"cc_session_id,omitempty"` // Reference to cc_sessions.id
 }
 
 // IsChunk returns true if this memory is a chunk (not a root memory)
@@ -316,5 +318,78 @@ type DataSourceUpdate struct {
 	Status           *string `json:"status,omitempty"`
 	LastSyncPosition *string `json:"last_sync_position,omitempty"`
 	ErrorMessage     *string `json:"error_message,omitempty"`
+}
+
+// =============================================================================
+// CHAT HISTORY MODELS (Schema v4)
+// =============================================================================
+
+// CCSession represents a Claude Code chat session
+type CCSession struct {
+	ID                    string     `json:"id"`
+	SessionID             string     `json:"session_id"`              // Claude session UUID from JSONL filename
+	ProjectPath           string     `json:"project_path"`            // e.g. C:\dev\active\ai\MycelicMemory
+	ProjectHash           string     `json:"project_hash"`            // hashed project dir name
+	Model                 string     `json:"model,omitempty"`         // model used
+	Title                 string     `json:"title,omitempty"`         // generated from first user prompt
+	FirstPrompt           string     `json:"first_prompt,omitempty"`  // first user message (truncated)
+	Summary               string     `json:"summary,omitempty"`       // LLM-generated summary
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+	LastActivity          *time.Time `json:"last_activity,omitempty"`
+	MessageCount          int        `json:"message_count"`
+	UserMessageCount      int        `json:"user_message_count"`
+	AssistantMessageCount int        `json:"assistant_message_count"`
+	ToolCallCount         int        `json:"tool_call_count"`
+	SourceID              string     `json:"source_id,omitempty"`
+	FilePath              string     `json:"file_path,omitempty"`
+	LastSyncPosition      string     `json:"last_sync_position,omitempty"`
+	SummaryMemoryID       string     `json:"summary_memory_id,omitempty"`
+}
+
+// CCMessage represents a message in a Claude Code chat session
+type CCMessage struct {
+	ID            string     `json:"id"`
+	SessionID     string     `json:"session_id"`     // References cc_sessions.id
+	Role          string     `json:"role"`            // 'user', 'assistant', 'system'
+	Content       string     `json:"content"`
+	Timestamp     *time.Time `json:"timestamp,omitempty"`
+	SequenceIndex int        `json:"sequence_index"`
+	HasToolUse    bool       `json:"has_tool_use"`
+	TokenCount    int        `json:"token_count"`
+}
+
+// CCToolCall represents a tool call in a Claude Code chat session
+type CCToolCall struct {
+	ID         string     `json:"id"`
+	SessionID  string     `json:"session_id"`  // References cc_sessions.id
+	MessageID  string     `json:"message_id"`  // References cc_messages.id
+	ToolName   string     `json:"tool_name"`
+	InputJSON  string     `json:"input_json,omitempty"`
+	ResultText string     `json:"result_text,omitempty"`
+	Success    bool       `json:"success"`
+	FilePath   string     `json:"filepath,omitempty"`
+	Operation  string     `json:"operation,omitempty"` // 'read', 'write', 'edit', 'execute'
+	Timestamp  *time.Time `json:"timestamp,omitempty"`
+}
+
+// CCSessionFilters represents filters for listing chat sessions
+type CCSessionFilters struct {
+	ProjectPath string `json:"project_path,omitempty"`
+	MinMessages int    `json:"min_messages,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	Offset      int    `json:"offset,omitempty"`
+}
+
+// CCSessionUpdate represents optional updates to a chat session
+type CCSessionUpdate struct {
+	Title            *string `json:"title,omitempty"`
+	Summary          *string `json:"summary,omitempty"`
+	MessageCount     *int    `json:"message_count,omitempty"`
+	UserMsgCount     *int    `json:"user_message_count,omitempty"`
+	AssistantMsgCount *int   `json:"assistant_message_count,omitempty"`
+	ToolCallCount    *int    `json:"tool_call_count,omitempty"`
+	LastSyncPosition *string `json:"last_sync_position,omitempty"`
+	SummaryMemoryID  *string `json:"summary_memory_id,omitempty"`
 }
 

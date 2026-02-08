@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/claude"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
@@ -28,15 +29,16 @@ const (
 
 // Server implements the MCP server
 type Server struct {
-	db           *database.Database
-	cfg          *config.Config
-	aiManager    *ai.Manager
-	memSvc      *memory.Service
-	searchEng   *search.Engine
-	relSvc      *relationships.Service
-	rateLimiter *ratelimit.Limiter
-	formatter    *Formatter
-	log          *logging.Logger
+	db              *database.Database
+	cfg             *config.Config
+	aiManager       *ai.Manager
+	memSvc          *memory.Service
+	searchEng       *search.Engine
+	relSvc          *relationships.Service
+	claudeIngester  *claude.Ingester
+	rateLimiter     *ratelimit.Limiter
+	formatter       *Formatter
+	log             *logging.Logger
 
 	stdin  io.Reader
 	stdout io.Writer
@@ -65,19 +67,24 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		log.Info("rate limiting enabled", "global_rps", cfg.RateLimit.Global.RequestsPerSecond)
 	}
 
+	relSvc := relationships.NewService(db, cfg)
+	claudeReader := claude.NewReader("")
+	claudeIngester := claude.NewIngester(claudeReader, db, relSvc)
+
 	return &Server{
-		db:          db,
-		cfg:         cfg,
-		aiManager:   ai.NewManager(db, cfg),
-		memSvc:      memory.NewService(db, cfg),
-		searchEng:   search.NewEngine(db, cfg),
-		relSvc:      relationships.NewService(db, cfg),
-		rateLimiter: rateLimiterInstance,
-		formatter:   NewFormatter(),
-		log:         log,
-		stdin:       os.Stdin,
-		stdout:      os.Stdout,
-		stderr:      os.Stderr,
+		db:             db,
+		cfg:            cfg,
+		aiManager:      ai.NewManager(db, cfg),
+		memSvc:         memory.NewService(db, cfg),
+		searchEng:      search.NewEngine(db, cfg),
+		relSvc:         relSvc,
+		claudeIngester: claudeIngester,
+		rateLimiter:    rateLimiterInstance,
+		formatter:      NewFormatter(),
+		log:            log,
+		stdin:          os.Stdin,
+		stdout:         os.Stdout,
+		stderr:         os.Stderr,
 	}
 }
 
@@ -450,6 +457,14 @@ func (s *Server) callTool(ctx context.Context, name string, args map[string]inte
 		return s.handleUpdateMemory(ctx, argsJSON)
 	case "delete_memory":
 		return s.handleDeleteMemory(ctx, argsJSON)
+	case "ingest_conversations":
+		return s.handleIngestConversations(ctx, argsJSON)
+	case "search_chats":
+		return s.handleSearchChats(ctx, argsJSON)
+	case "get_chat":
+		return s.handleGetChat(ctx, argsJSON)
+	case "trace_source":
+		return s.handleTraceSource(ctx, argsJSON)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -506,6 +521,10 @@ func (s *Server) getToolDefinitions() []Tool {
 					"source": {
 						Type:        "string",
 						Description: "Source of the memory",
+					},
+					"cc_session_id": {
+						Type:        "string",
+						Description: "Optional: link to a Claude Code chat session",
 					},
 				},
 				Required: []string{"content"},
@@ -781,6 +800,90 @@ func (s *Server) getToolDefinitions() []Tool {
 					},
 				},
 				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "ingest_conversations",
+			Description: "Ingest Claude Code conversations from local ~/.claude/ directory into the knowledge graph. Parses JSONL conversation files, creates session records, and optionally generates summary memories as graph nodes.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"project_path": {
+						Type:        "string",
+						Description: "Filter to specific project path (empty = all projects)",
+					},
+					"create_summaries": {
+						Type:        "boolean",
+						Description: "Create summary memories as graph nodes for each session",
+						Default:     true,
+					},
+					"min_messages": {
+						Type:        "integer",
+						Description: "Skip sessions with fewer messages than this threshold",
+						Default:     3,
+					},
+				},
+			},
+		},
+		{
+			Name:        "search_chats",
+			Description: "Search ingested Claude Code chat sessions by title, first prompt, or message content. Returns matching sessions with context snippets.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"query": {
+						Type:        "string",
+						Description: "Search query text",
+					},
+					"project_path": {
+						Type:        "string",
+						Description: "Filter to specific project path",
+					},
+					"limit": {
+						Type:        "integer",
+						Description: "Maximum number of results",
+						Default:     20,
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "get_chat",
+			Description: "Retrieve a full Claude Code chat session including messages, tool calls, and linked memories",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"session_id": {
+						Type:        "string",
+						Description: "The session ID to retrieve",
+					},
+					"include_messages": {
+						Type:        "boolean",
+						Description: "Include full message history",
+						Default:     true,
+					},
+					"include_tool_calls": {
+						Type:        "boolean",
+						Description: "Include tool call details",
+						Default:     false,
+					},
+				},
+				Required: []string{"session_id"},
+			},
+		},
+		{
+			Name:        "trace_source",
+			Description: "Trace a memory back to its source Claude Code conversation. Shows the session metadata and surrounding messages that led to this memory being created.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"memory_id": {
+						Type:        "string",
+						Description: "The memory ID to trace back to its source conversation",
+					},
+				},
+				Required: []string{"memory_id"},
 			},
 		},
 	}

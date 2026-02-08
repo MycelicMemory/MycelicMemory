@@ -55,6 +55,7 @@ type StoreOptions struct {
 	AgentContext string // Optional override
 	AccessScope  string // "session", "shared", "global"
 	Slug         string
+	CCSessionID  string // Optional: link to a Claude Code chat session
 }
 
 // StoreResult contains the result of storing a memory
@@ -66,7 +67,7 @@ type StoreResult struct {
 
 // Store creates a new memory with validation and enrichment
 // VERIFIED: Matches local-memory store_memory behavior
-// Enhanced with hierarchical chunking for better retrieval (Phase 1 benchmark improvement)
+// Enhanced with hierarchical chunking for better retrieval
 func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 	// Validate content
 	if strings.TrimSpace(opts.Content) == "" {
@@ -143,6 +144,7 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 		Slug:         opts.Slug,
 		ChunkLevel:   0, // Root level
 		ChunkIndex:   0,
+		CCSessionID:  opts.CCSessionID,
 	}
 
 	// Store in database
@@ -173,6 +175,7 @@ func (s *Service) storeWithChunks(opts *StoreOptions, content string, importance
 		Slug:         opts.Slug,
 		ChunkLevel:   0, // Root level
 		ChunkIndex:   0,
+		CCSessionID:  opts.CCSessionID,
 	}
 
 	if err := s.db.CreateMemory(parentMemory); err != nil {

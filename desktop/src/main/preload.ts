@@ -14,6 +14,7 @@ import type {
   ClaudeSession,
   ClaudeMessage,
   ClaudeToolCall,
+  ChatIngestResult,
   ExtractionJob,
   ExtractionConfig,
   DashboardStats,
@@ -30,6 +31,7 @@ import type {
   IngestResponse,
   DataSourceType,
   DataSourceStatus,
+  ClaudeChatStreamStatus,
 } from '../shared/types';
 
 // Type-safe IPC invoke wrapper
@@ -55,18 +57,22 @@ const api = {
       invoke('memory:search', options),
   },
 
-  // Claude Chat Stream operations
+  // Claude Code Chat History operations (via MycelicMemory backend)
   claude: {
     projects: (): Promise<ClaudeProject[]> =>
       invoke('claude:projects'),
-    sessions: (projectId?: string): Promise<ClaudeSession[]> =>
-      invoke('claude:sessions', projectId),
+    sessions: (projectPath?: string): Promise<ClaudeSession[]> =>
+      invoke('claude:sessions', projectPath),
     session: (id: string): Promise<ClaudeSession | null> =>
       invoke('claude:session', id),
     messages: (sessionId: string): Promise<ClaudeMessage[]> =>
       invoke('claude:messages', sessionId),
     toolCalls: (sessionId: string): Promise<ClaudeToolCall[]> =>
       invoke('claude:tool-calls', sessionId),
+    ingest: (projectPath?: string): Promise<ChatIngestResult> =>
+      invoke('claude:ingest', { project_path: projectPath }),
+    search: (query: string, projectPath?: string, limit?: number): Promise<ClaudeSession[]> =>
+      invoke('claude:search', { query, project_path: projectPath, limit }),
   },
 
   // Extraction operations
@@ -142,6 +148,32 @@ const api = {
       invoke('sources:stats', { id }),
     memories: (id: string, limit?: number, offset?: number): Promise<Memory[]> =>
       invoke('sources:memories', { id, limit, offset }),
+  },
+
+  // Claude Chat Stream daemon control
+  claudeStream: {
+    status: (): Promise<ClaudeChatStreamStatus> =>
+      invoke('claude-stream:status'),
+    isRunning: (): Promise<boolean> =>
+      invoke('claude-stream:is-running'),
+    start: (): Promise<boolean> =>
+      invoke('claude-stream:start'),
+    stop: (): Promise<boolean> =>
+      invoke('claude-stream:stop'),
+    connectSSE: (): Promise<boolean> =>
+      invoke('claude-stream:connect-sse'),
+    disconnectSSE: (): Promise<boolean> =>
+      invoke('claude-stream:disconnect-sse'),
+    getLogs: (limit?: number, level?: string): Promise<unknown[]> =>
+      invoke('claude-stream:logs', limit, level),
+    getStats: (): Promise<unknown> =>
+      invoke('claude-stream:stats'),
+    // Event listeners for SSE events
+    onEvent: (eventType: string, callback: (data: unknown) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on(`claude-stream:event:${eventType}`, handler);
+      return () => ipcRenderer.removeListener(`claude-stream:event:${eventType}`, handler);
+    },
   },
 
   // Shell operations

@@ -11,6 +11,7 @@ import { registerClaudeHandlers } from './ipc/claude.ipc';
 import { registerExtractionHandlers } from './ipc/extraction.ipc';
 import { registerConfigHandlers } from './ipc/config.ipc';
 import { initSourcesIPC } from './ipc/sources.ipc';
+import { registerClaudeChatStreamHandlers } from './ipc/claude-stream.ipc';
 import { ExtractionService } from './services/extraction-service';
 import { MycelicMemoryClient } from './services/mycelicmemory-client';
 import { AppSettings } from '../shared/types';
@@ -20,7 +21,7 @@ const store = new Store<{ settings: AppSettings }>({
   defaults: {
     settings: {
       api_url: 'http://localhost',
-      api_port: 3099,
+      api_port: 3002,
       ollama_base_url: 'http://localhost:11434',
       ollama_embedding_model: 'nomic-embed-text',
       ollama_chat_model: 'llama3.2',
@@ -123,10 +124,15 @@ function registerAllHandlers(): void {
   const client = new MycelicMemoryClient(apiBaseUrl);
 
   registerMemoryHandlers(ipcMain, apiBaseUrl);
-  registerClaudeHandlers(ipcMain, claudeDbPath);
+  registerClaudeHandlers(ipcMain, client);
   registerExtractionHandlers(ipcMain, extractionService!);
   registerConfigHandlers(ipcMain, store);
   initSourcesIPC(client); // Register data source handlers
+
+  // Register claude-chat-stream control handlers
+  if (mainWindow) {
+    registerClaudeChatStreamHandlers(ipcMain, mainWindow, path.dirname(path.dirname(claudeDbPath)));
+  }
 
   // Handle external URL opening
   ipcMain.handle('shell:open-external', async (_event, url: string) => {

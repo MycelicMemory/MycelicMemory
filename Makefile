@@ -31,14 +31,6 @@ help:
 	@echo "  make vet           - Run go vet"
 	@echo "  make dev           - Run with live reload (requires air)"
 	@echo ""
-	@echo "Benchmarks (LoCoMo):"
-	@echo "  make benchmark-setup    - Install benchmark dependencies"
-	@echo "  make benchmark-fr-quick - Run quick FR benchmark (20 questions)"
-	@echo "  make benchmark-fr       - Run full FR benchmark (1986 questions)"
-	@echo "  make benchmark-mc-quick - Run quick MC benchmark (10 questions)"
-	@echo "  make benchmark-mc       - Run full MC benchmark"
-	@echo "  make benchmark-evaluate - Evaluate MC benchmark results"
-	@echo ""
 	@echo "Utilities:"
 	@echo "  make deps          - Download dependencies"
 	@echo "  make clean         - Clean build artifacts"
@@ -158,41 +150,3 @@ verify:
 	@sqlite3 --version || (echo "❌ SQLite not installed" && exit 1)
 	@node --version || (echo "⚠️  Node.js not installed (needed for npm wrapper)")
 	@echo "✅ Environment verified"
-
-# =============================================================================
-# Benchmark Targets
-# =============================================================================
-
-.PHONY: benchmark-setup benchmark-fr-quick benchmark-fr benchmark-mc-quick benchmark-mc benchmark-evaluate
-
-# Setup benchmark dependencies
-benchmark-setup:
-	@echo "Setting up benchmark environment..."
-	cd benchmark/locomo && $(MAKE) setup
-
-# Free Response (locomo10) benchmarks
-benchmark-fr-quick: build
-	@echo "Running quick FR benchmark (20 questions)..."
-	@echo "Make sure mycelicmemory server is running on port 3099"
-	cd benchmark/locomo && $(MAKE) run-fr-quick
-
-benchmark-fr: build
-	@echo "Running full FR benchmark (1986 questions)..."
-	@echo "Make sure mycelicmemory server is running on port 3099"
-	cd benchmark/locomo && $(MAKE) run-fr
-
-# Multiple Choice (locomo_mc10) benchmarks
-benchmark-mc-quick: build
-	@echo "Running quick MC benchmark (10 questions)..."
-	@echo "Make sure mycelicmemory server is running on port 3099"
-	cd benchmark/locomo && $(MAKE) run-mc-quick
-
-benchmark-mc: build
-	@echo "Running full MC benchmark..."
-	@echo "Make sure mycelicmemory server is running on port 3099"
-	cd benchmark/locomo && $(MAKE) run-mc
-
-# Evaluate MC benchmark results
-benchmark-evaluate:
-	@echo "Evaluating MC benchmark results..."
-	cd benchmark/locomo && $(MAKE) evaluate-mc

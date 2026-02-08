@@ -9,7 +9,7 @@ package database
 // - Metadata: performance_metrics, migration_log, schema_version, sqlite_sequence
 
 // SchemaVersion is the current schema version
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 // CoreSchema contains the main table definitions
 // VERIFIED: Exact schema from ~/.local-memory/unified-memories.db
@@ -42,13 +42,15 @@ CREATE TABLE IF NOT EXISTS memories (
 	agent_context TEXT,
 	access_scope TEXT DEFAULT 'session',
 	slug TEXT,
-	-- Hierarchical chunking fields (Phase 1 benchmark improvement)
+	-- Hierarchical chunking fields
 	parent_memory_id TEXT REFERENCES memories(id) ON DELETE CASCADE,
 	chunk_level INTEGER DEFAULT 0,  -- 0=full, 1=paragraph, 2=atomic
-	chunk_index INTEGER DEFAULT 0   -- position within parent
+	chunk_index INTEGER DEFAULT 0,  -- position within parent
+	-- Chat history linkage
+	cc_session_id TEXT
 );
 
--- VERIFIED: 9 indexes on memories table (added chunk indexes for Phase 1)
+-- VERIFIED: 9 indexes on memories table
 CREATE INDEX IF NOT EXISTS idx_memories_session_id ON memories(session_id);
 CREATE INDEX IF NOT EXISTS idx_memories_domain ON memories(domain);
 CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
@@ -58,6 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_slug ON memories(slug);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_slug_unique ON memories(slug) WHERE slug IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_memories_parent ON memories(parent_memory_id);
 CREATE INDEX IF NOT EXISTS idx_memories_chunk_level ON memories(chunk_level);
+CREATE INDEX IF NOT EXISTS idx_memories_cc_session ON memories(cc_session_id);
 
 -- =============================================================================
 -- MEMORY RELATIONSHIPS TABLE
@@ -285,16 +288,92 @@ CREATE INDEX IF NOT EXISTS idx_sync_history_status ON data_source_sync_history(s
 CREATE INDEX IF NOT EXISTS idx_sync_history_started ON data_source_sync_history(started_at);
 `
 
+// ChatHistorySchema contains the Claude Code chat history tables
+// Added in schema version 4 for conversation tracking
+const ChatHistorySchema = `
+-- =============================================================================
+-- CLAUDE CODE CHAT SESSIONS TABLE
+-- Parsed from ~/.claude/projects/*/JSONL files
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS cc_sessions (
+	id TEXT PRIMARY KEY,
+	session_id TEXT NOT NULL,
+	project_path TEXT NOT NULL,
+	project_hash TEXT NOT NULL,
+	model TEXT,
+	title TEXT,
+	first_prompt TEXT,
+	summary TEXT,
+	created_at DATETIME NOT NULL,
+	updated_at DATETIME NOT NULL,
+	last_activity DATETIME,
+	message_count INTEGER DEFAULT 0,
+	user_message_count INTEGER DEFAULT 0,
+	assistant_message_count INTEGER DEFAULT 0,
+	tool_call_count INTEGER DEFAULT 0,
+	source_id TEXT,
+	file_path TEXT,
+	last_sync_position TEXT,
+	summary_memory_id TEXT,
+	FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE SET NULL,
+	FOREIGN KEY (summary_memory_id) REFERENCES memories(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cc_sessions_session_id ON cc_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_cc_sessions_project ON cc_sessions(project_path);
+CREATE INDEX IF NOT EXISTS idx_cc_sessions_hash ON cc_sessions(project_hash);
+CREATE INDEX IF NOT EXISTS idx_cc_sessions_created ON cc_sessions(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_sessions_dedup ON cc_sessions(project_hash, session_id);
+
+-- =============================================================================
+-- CLAUDE CODE MESSAGES TABLE
+-- Individual messages (append-only, mirrors JSONL structure)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS cc_messages (
+	id TEXT PRIMARY KEY,
+	session_id TEXT NOT NULL REFERENCES cc_sessions(id) ON DELETE CASCADE,
+	role TEXT NOT NULL,
+	content TEXT,
+	timestamp DATETIME,
+	sequence_index INTEGER NOT NULL,
+	has_tool_use BOOLEAN DEFAULT 0,
+	token_count INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_cc_messages_session ON cc_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_cc_messages_role ON cc_messages(role);
+CREATE INDEX IF NOT EXISTS idx_cc_messages_seq ON cc_messages(session_id, sequence_index);
+
+-- =============================================================================
+-- CLAUDE CODE TOOL CALLS TABLE
+-- Tool calls extracted from assistant messages
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS cc_tool_calls (
+	id TEXT PRIMARY KEY,
+	session_id TEXT NOT NULL REFERENCES cc_sessions(id) ON DELETE CASCADE,
+	message_id TEXT REFERENCES cc_messages(id) ON DELETE CASCADE,
+	tool_name TEXT NOT NULL,
+	input_json TEXT,
+	result_text TEXT,
+	success BOOLEAN DEFAULT 1,
+	filepath TEXT,
+	operation TEXT,
+	timestamp DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_session ON cc_tool_calls(session_id);
+CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_name ON cc_tool_calls(tool_name);
+CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_filepath ON cc_tool_calls(filepath);
+`
+
 // DataSourceTypes contains the supported source types
 var DataSourceTypes = []string{
-	"claude-stream", // Claude Code chat sessions
-	"slack",         // Slack messages
-	"email",         // Email (IMAP/Gmail)
-	"browser",       // Browser history
-	"notion",        // Notion pages
-	"obsidian",      // Obsidian vault
-	"github",        // GitHub issues/PRs
-	"custom",        // Custom/generic source
+	"claude-stream",     // Claude Code chat sessions (streaming)
+	"claude-code-local", // Claude Code local JSONL files
+	"slack",             // Slack messages
+	"email",             // Email (IMAP/Gmail)
+	"browser",           // Browser history
+	"notion",            // Notion pages
+	"obsidian",          // Obsidian vault
+	"github",            // GitHub issues/PRs
+	"custom",            // Custom/generic source
 }
 
 // DataSourceStatuses contains the valid source statuses

@@ -18,16 +18,17 @@ type MemoryResponse struct {
 
 // MemoryData represents memory data in responses
 type MemoryData struct {
-	ID        string    `json:"id"`
-	Content   string    `json:"content"`
-	Source    *string   `json:"source"`
-	Slug      *string   `json:"slug"`
-	Importance int      `json:"importance"`
-	Tags      []string  `json:"tags"`
-	SessionID string    `json:"session_id"`
-	Domain    *string   `json:"domain"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          string    `json:"id"`
+	Content     string    `json:"content"`
+	Source      *string   `json:"source"`
+	Slug        *string   `json:"slug"`
+	Importance  int       `json:"importance"`
+	Tags        []string  `json:"tags"`
+	SessionID   string    `json:"session_id"`
+	Domain      *string   `json:"domain"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	CCSessionID *string   `json:"cc_session_id,omitempty"`
 }
 
 // CreateMemoryRequest represents a memory creation request
@@ -69,6 +70,9 @@ func toMemoryData(m *database.Memory) *MemoryData {
 	}
 	if m.Domain != "" {
 		data.Domain = &m.Domain
+	}
+	if m.CCSessionID != "" {
+		data.CCSessionID = &m.CCSessionID
 	}
 
 	// Ensure tags is not nil

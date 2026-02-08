@@ -13,6 +13,7 @@ export interface Memory {
   created_at: string;
   updated_at: string;
   session_id?: string;
+  cc_session_id?: string;
 }
 
 export interface MemoryCreateInput {
@@ -59,86 +60,66 @@ export interface MemorySession {
   memory_count: number;
 }
 
-// Claude Chat Stream types
+// Claude Code Chat History types (from MycelicMemory backend)
 export interface ClaudeProject {
-  id: string;
-  original_path: string;
-  display_name?: string;
-  discovered_at: string;
-  last_activity?: string;
+  project_path: string;
+  project_hash: string;
   session_count: number;
-  message_count: number;
 }
 
 export interface ClaudeSession {
   id: string;
-  project_id: string;
-  file_path: string;
+  session_id: string;
+  project_path: string;
+  project_hash: string;
+  model?: string;
+  title?: string;
   first_prompt?: string;
   summary?: string;
-  git_branch?: string;
-  is_sidechain: boolean;
-  is_subagent: boolean;
-  parent_session_id?: string;
+  created_at: string;
+  updated_at: string;
+  last_activity?: string;
   message_count: number;
   user_message_count: number;
   assistant_message_count: number;
   tool_call_count: number;
-  started_at: string;
-  ended_at?: string;
+  source_id?: string;
+  file_path?: string;
+  summary_memory_id?: string;
 }
 
 export interface ClaudeMessage {
   id: string;
   session_id: string;
-  parent_uuid?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  message_type?: string;
-  timestamp: string;
-  cwd?: string;
-  git_branch?: string;
-  thinking_tokens?: number;
-  has_tool_calls: boolean;
+  timestamp?: string;
+  sequence_index: number;
+  has_tool_use: boolean;
+  token_count: number;
 }
 
 export interface ClaudeToolCall {
   id: string;
+  session_id: string;
   message_id: string;
-  session_id: string;
   tool_name: string;
-  tool_id?: string;
-  parameters?: string;
-  result?: string;
-  result_truncated: boolean;
-  success?: boolean;
-  error_message?: string;
-  duration_ms?: number;
-  sequence_number?: number;
-  timestamp: string;
+  input_json?: string;
+  result_text?: string;
+  success: boolean;
+  filepath?: string;
+  operation?: string;
+  timestamp?: string;
 }
 
-export interface ClaudeFileReference {
-  id: number;
-  message_id?: string;
-  session_id: string;
-  tool_call_id?: string;
-  file_path: string;
-  operation: 'read' | 'write' | 'edit' | 'delete';
-  old_content_preview?: string;
-  new_content_preview?: string;
-  lines_changed?: number;
-  timestamp: string;
-}
-
-export interface ChangeStreamEntry {
-  id: number;
-  entity_type: 'session' | 'message';
-  entity_id: string;
-  change_type: 'insert' | 'update' | 'delete';
-  payload: string;
-  created_at: string;
-  processed_by?: string;
+// Chat history ingest types
+export interface ChatIngestResult {
+  sessions_processed: number;
+  sessions_created: number;
+  sessions_updated: number;
+  messages_created: number;
+  tool_calls_created: number;
+  memories_linked: number;
 }
 
 // Extraction types
@@ -327,6 +308,34 @@ export interface ClaudeStreamSourceConfig {
   extract_file_operations: boolean;
 }
 
+// Claude Chat Stream Daemon types
+export interface ClaudeChatStreamStatus {
+  isRunning: boolean;
+  pid: number | null;
+  uptime: number;
+  startedAt: string | null;
+  apiPort: number;
+  database: {
+    messageCount: number;
+    sessionCount: number;
+    projectCount: number;
+    toolCallCount: number;
+    fileRefCount: number;
+    databaseSizeBytes: number;
+  } | null;
+  captureStats: {
+    totalMessagesIngested: number;
+    totalToolCallsIngested: number;
+    totalFileRefsIngested: number;
+  } | null;
+}
+
+export interface ClaudeChatStreamEvent {
+  type: 'status' | 'message' | 'session' | 'sync' | 'change' | 'log' | 'connected' | 'disconnected' | 'error';
+  data: unknown;
+  timestamp?: string;
+}
+
 // IPC Channel types
 export type IPCChannels = {
   // Memory operations
@@ -337,12 +346,14 @@ export type IPCChannels = {
   'memory:delete': { params: { id: string }; result: boolean };
   'memory:search': { params: SearchOptions; result: SearchResult[] };
 
-  // Claude sessions
+  // Claude chat history
   'claude:projects': { params: void; result: ClaudeProject[] };
-  'claude:sessions': { params: { project_id?: string }; result: ClaudeSession[] };
+  'claude:sessions': { params: { project_path?: string }; result: ClaudeSession[] };
   'claude:session': { params: { id: string }; result: ClaudeSession | null };
   'claude:messages': { params: { session_id: string }; result: ClaudeMessage[] };
   'claude:tool-calls': { params: { session_id: string }; result: ClaudeToolCall[] };
+  'claude:ingest': { params: { project_path?: string }; result: ChatIngestResult };
+  'claude:search': { params: { query: string; project_path?: string; limit?: number }; result: ClaudeSession[] };
 
   // Extraction
   'extraction:start': { params: { session_id: string }; result: ExtractionJob };
@@ -378,4 +389,14 @@ export type IPCChannels = {
   'sources:history': { params: { id: string; limit?: number }; result: SyncHistoryEntry[] };
   'sources:stats': { params: { id: string }; result: DataSourceStats };
   'sources:memories': { params: { id: string; limit?: number; offset?: number }; result: Memory[] };
+
+  // Claude Chat Stream daemon control
+  'claude-stream:status': { params: void; result: ClaudeChatStreamStatus };
+  'claude-stream:is-running': { params: void; result: boolean };
+  'claude-stream:start': { params: void; result: boolean };
+  'claude-stream:stop': { params: void; result: boolean };
+  'claude-stream:connect-sse': { params: void; result: boolean };
+  'claude-stream:disconnect-sse': { params: void; result: boolean };
+  'claude-stream:logs': { params: { limit?: number; level?: string }; result: unknown[] };
+  'claude-stream:stats': { params: void; result: unknown };
 };

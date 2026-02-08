@@ -207,7 +207,7 @@ export default function Extraction() {
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
                       {session.message_count} messages •{' '}
-                      {new Date(session.started_at).toLocaleDateString()}
+                      {new Date(session.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <button

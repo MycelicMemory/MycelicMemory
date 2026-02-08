@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/claude"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
@@ -316,11 +318,12 @@ func (s *Server) handleStoreMemory(ctx context.Context, argsJSON []byte) (interf
 	s.log.Debug("storing memory", "importance", importance, "tags", params.Tags, "domain", params.Domain)
 
 	result, err := s.memSvc.Store(&memory.StoreOptions{
-		Content:    params.Content,
-		Importance: importance,
-		Tags:       params.Tags,
-		Domain:     params.Domain,
-		Source:     params.Source,
+		Content:     params.Content,
+		Importance:  importance,
+		Tags:        params.Tags,
+		Domain:      params.Domain,
+		Source:       params.Source,
+		CCSessionID: params.CCSessionID,
 	})
 	if err != nil {
 		s.log.Error("failed to store memory", "error", err)
@@ -1113,4 +1116,241 @@ func (s *Server) handleDeleteMemory(ctx context.Context, argsJSON []byte) (inter
 		Success: true,
 		Message: fmt.Sprintf("Memory %s deleted successfully", params.ID),
 	}, nil
+}
+
+// Chat history handlers
+
+func (s *Server) handleIngestConversations(ctx context.Context, argsJSON []byte) (interface{}, error) {
+	var params IngestConversationsParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	createSummaries := params.CreateSummaries
+	minMessages := params.MinMessages
+	if minMessages <= 0 {
+		minMessages = 3
+	}
+
+	s.log.Info("ingesting conversations", "project_path", params.ProjectPath, "create_summaries", createSummaries, "min_messages", minMessages)
+
+	result, err := s.claudeIngester.IngestAll(ctx, &claude.IngestOptions{
+		ProjectPath:     params.ProjectPath,
+		MinMessages:     minMessages,
+		CreateSummaries: createSummaries,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("ingestion failed: %w", err)
+	}
+
+	s.log.LogOperation("ingest_conversations", "processed", result.SessionsProcessed, "created", result.SessionsCreated)
+
+	return result, nil
+}
+
+func (s *Server) handleSearchChats(ctx context.Context, argsJSON []byte) (interface{}, error) {
+	var params SearchChatsParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	if params.Query == "" {
+		return nil, fmt.Errorf("query is required")
+	}
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	s.log.Debug("searching chats", "query", params.Query, "project", params.ProjectPath, "limit", limit)
+
+	// Search sessions by title/first_prompt
+	sessions, err := s.db.ListCCSessions(&database.CCSessionFilters{
+		ProjectPath: params.ProjectPath,
+		Limit:       limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("session search failed: %w", err)
+	}
+
+	// Also search messages for content matches
+	messages, err := s.db.SearchCCMessages(params.Query, params.ProjectPath, limit)
+	if err != nil {
+		return nil, fmt.Errorf("message search failed: %w", err)
+	}
+
+	// Filter sessions that match the query in title or first_prompt
+	type ChatSearchResult struct {
+		SessionID    string `json:"session_id"`
+		Title        string `json:"title"`
+		ProjectPath  string `json:"project_path"`
+		Model        string `json:"model,omitempty"`
+		MessageCount int    `json:"message_count"`
+		CreatedAt    string `json:"created_at"`
+		FirstPrompt  string `json:"first_prompt,omitempty"`
+		MatchType    string `json:"match_type"`
+		Snippet      string `json:"snippet,omitempty"`
+	}
+
+	var results []ChatSearchResult
+	seen := make(map[string]bool)
+
+	// Add matching sessions
+	queryLower := strings.ToLower(params.Query)
+	for _, sess := range sessions {
+		if strings.Contains(strings.ToLower(sess.Title), queryLower) ||
+			strings.Contains(strings.ToLower(sess.FirstPrompt), queryLower) {
+			seen[sess.ID] = true
+			results = append(results, ChatSearchResult{
+				SessionID:    sess.ID,
+				Title:        sess.Title,
+				ProjectPath:  sess.ProjectPath,
+				Model:        sess.Model,
+				MessageCount: sess.MessageCount,
+				CreatedAt:    sess.CreatedAt.Format("2006-01-02T15:04:05Z"),
+				FirstPrompt:  truncateStr(sess.FirstPrompt, 200),
+				MatchType:    "session",
+			})
+		}
+	}
+
+	// Add sessions from matching messages
+	for _, msg := range messages {
+		if seen[msg.SessionID] {
+			continue
+		}
+		seen[msg.SessionID] = true
+
+		// Get session info
+		sess, err := s.db.GetCCSession(msg.SessionID)
+		if err != nil {
+			continue
+		}
+
+		snippet := truncateStr(msg.Content, 200)
+		results = append(results, ChatSearchResult{
+			SessionID:    sess.ID,
+			Title:        sess.Title,
+			ProjectPath:  sess.ProjectPath,
+			Model:        sess.Model,
+			MessageCount: sess.MessageCount,
+			CreatedAt:    sess.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			MatchType:    "message",
+			Snippet:      snippet,
+		})
+
+		if len(results) >= limit {
+			break
+		}
+	}
+
+	return map[string]interface{}{
+		"count":   len(results),
+		"results": results,
+	}, nil
+}
+
+func (s *Server) handleGetChat(ctx context.Context, argsJSON []byte) (interface{}, error) {
+	var params GetChatParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	if params.SessionID == "" {
+		return nil, fmt.Errorf("session_id is required")
+	}
+
+	sess, err := s.db.GetCCSession(params.SessionID)
+	if err != nil {
+		return nil, fmt.Errorf("session not found: %w", err)
+	}
+
+	response := map[string]interface{}{
+		"session": sess,
+	}
+
+	if params.IncludeMessages {
+		messages, err := s.db.GetCCMessages(params.SessionID, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get messages: %w", err)
+		}
+		response["messages"] = messages
+		response["message_count"] = len(messages)
+	}
+
+	if params.IncludeToolCalls {
+		toolCalls, err := s.db.GetCCToolCalls(params.SessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tool calls: %w", err)
+		}
+		response["tool_calls"] = toolCalls
+		response["tool_call_count"] = len(toolCalls)
+	}
+
+	// Include linked memories
+	memories, err := s.db.GetSessionMemories(params.SessionID, 50, 0)
+	if err == nil && len(memories) > 0 {
+		response["linked_memories"] = memories
+		response["linked_memory_count"] = len(memories)
+	}
+
+	return response, nil
+}
+
+func (s *Server) handleTraceSource(ctx context.Context, argsJSON []byte) (interface{}, error) {
+	var params TraceSourceParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	if params.MemoryID == "" {
+		return nil, fmt.Errorf("memory_id is required")
+	}
+
+	// Get the memory
+	mem, err := s.db.GetMemory(params.MemoryID)
+	if err != nil {
+		return nil, fmt.Errorf("memory not found: %w", err)
+	}
+
+	if mem.CCSessionID == "" {
+		return map[string]interface{}{
+			"memory_id": mem.ID,
+			"has_source": false,
+			"message":   "Memory has no linked conversation",
+		}, nil
+	}
+
+	// Get the linked session
+	sess, err := s.db.GetCCSession(mem.CCSessionID)
+	if err != nil {
+		return map[string]interface{}{
+			"memory_id":     mem.ID,
+			"cc_session_id": mem.CCSessionID,
+			"has_source":    false,
+			"message":       "Linked session not found",
+		}, nil
+	}
+
+	// Get surrounding messages
+	messages, err := s.db.GetCCMessages(mem.CCSessionID, 20, 0)
+	if err != nil {
+		messages = nil
+	}
+
+	return map[string]interface{}{
+		"memory_id":  mem.ID,
+		"has_source": true,
+		"session":    sess,
+		"messages":   messages,
+	}, nil
+}
+
+// truncateStr truncates a string to maxLen characters
+func truncateStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

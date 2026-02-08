@@ -164,6 +164,18 @@ func (s *Server) setupRoutes() {
 		api.GET("/sources/:id/history", s.getSyncHistory)
 		api.GET("/sources/:id/stats", s.getSourceStats)
 		api.GET("/sources/:id/memories", s.getSourceMemories)
+
+		// Chat History (Claude Code conversations)
+		api.POST("/chats/ingest", s.ingestConversations)
+		api.GET("/chats", s.listChatSessions)
+		api.GET("/chats/search", s.searchChatSessions)
+		api.GET("/chats/projects", s.chatProjects)
+		api.GET("/chats/:id", s.getChatSession)
+		api.GET("/chats/:id/messages", s.getChatMessages)
+		api.GET("/chats/:id/tool-calls", s.getChatToolCalls)
+
+		// Memory tracing
+		api.GET("/memories/:id/trace", s.traceMemorySource)
 	}
 }
 

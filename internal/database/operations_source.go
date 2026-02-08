@@ -532,7 +532,7 @@ func (d *Database) GetMemoriesBySource(sourceID string, limit, offset int) ([]*M
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       source_id, external_id
+		       source_id, external_id, cc_session_id
 		FROM memories
 		WHERE source_id = ?
 		ORDER BY created_at DESC
@@ -611,14 +611,14 @@ func scanMemoriesWithSource(rows *sql.Rows) ([]*Memory, error) {
 		var m Memory
 		var tagsJSON string
 		var source, sessionID, domain, agentContext, slug, parentMemoryID sql.NullString
-		var sourceID, externalID sql.NullString
+		var sourceID, externalID, ccSessionID sql.NullString
 		var embedding []byte
 
 		err := rows.Scan(
 			&m.ID, &m.Content, &source, &m.Importance, &tagsJSON, &sessionID, &domain,
 			&embedding, &m.CreatedAt, &m.UpdatedAt, &m.AgentType, &agentContext,
 			&m.AccessScope, &slug, &parentMemoryID, &m.ChunkLevel, &m.ChunkIndex,
-			&sourceID, &externalID,
+			&sourceID, &externalID, &ccSessionID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan memory: %w", err)
@@ -632,6 +632,7 @@ func scanMemoriesWithSource(rows *sql.Rows) ([]*Memory, error) {
 		m.ParentMemoryID = parentMemoryID.String
 		m.SourceID = sourceID.String
 		m.ExternalID = externalID.String
+		m.CCSessionID = ccSessionID.String
 		m.Embedding = embedding
 		m.Tags = ParseTags(tagsJSON)
 

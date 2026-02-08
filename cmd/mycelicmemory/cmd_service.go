@@ -173,6 +173,12 @@ func runStart() {
 		os.Exit(1)
 	}
 
+	// Run any pending migrations
+	if err := db.RunMigrations(); err != nil {
+		fmt.Printf("Error running migrations: %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("Database: %s\n", cfg.Database.Path)
 
 	// Register daemon state

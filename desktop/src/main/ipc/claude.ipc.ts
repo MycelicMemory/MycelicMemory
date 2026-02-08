@@ -1,77 +1,104 @@
 /**
  * Claude IPC Handlers
- * Handles Claude Chat Stream database access
+ * Uses MycelicMemory backend REST API for chat history data
  */
 
 import type { IpcMain } from 'electron';
-import { ClaudeStreamDB } from '../services/claude-stream-db';
+import { MycelicMemoryClient } from '../services/mycelicmemory-client';
 
-let db: ClaudeStreamDB | null = null;
-
-export function registerClaudeHandlers(ipcMain: IpcMain, dbPath: string): void {
-  // Initialize database connection lazily
-  function getDB(): ClaudeStreamDB {
-    if (!db) {
-      db = new ClaudeStreamDB(dbPath);
-    }
-    return db;
-  }
-
-  // List projects
+export function registerClaudeHandlers(ipcMain: IpcMain, client: MycelicMemoryClient): void {
+  // List projects (unique project paths from ingested sessions)
   ipcMain.handle('claude:projects', async () => {
     try {
-      return getDB().getProjects();
+      const response = await client.get<any>('/chats/projects');
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Failed to list Claude projects:', error);
-      throw error;
+      return [];
     }
   });
 
-  // List sessions
-  ipcMain.handle('claude:sessions', async (_event, projectId?: string) => {
+  // List sessions (optionally filtered by project_path)
+  ipcMain.handle('claude:sessions', async (_event, projectPath?: string) => {
     try {
-      return getDB().getSessions(projectId);
+      const params = new URLSearchParams();
+      if (projectPath) params.set('project_path', projectPath);
+      params.set('limit', '100');
+      const query = params.toString();
+      const response = await client.get<any>(`/chats${query ? `?${query}` : ''}`);
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Failed to list Claude sessions:', error);
-      throw error;
+      return [];
     }
   });
 
-  // Get single session
+  // Get single session with messages
   ipcMain.handle('claude:session', async (_event, id: string) => {
     try {
-      return getDB().getSession(id);
+      const response = await client.get<any>(`/chats/${id}`);
+      const data = response.data || response;
+      return data.session || data;
     } catch (error) {
       console.error('Failed to get Claude session:', error);
-      throw error;
+      return null;
     }
   });
 
   // Get messages for a session
   ipcMain.handle('claude:messages', async (_event, sessionId: string) => {
     try {
-      return getDB().getMessages(sessionId);
+      const response = await client.get<any>(`/chats/${sessionId}/messages`);
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Failed to get Claude messages:', error);
-      throw error;
+      return [];
     }
   });
 
   // Get tool calls for a session
   ipcMain.handle('claude:tool-calls', async (_event, sessionId: string) => {
     try {
-      return getDB().getToolCalls(sessionId);
+      const response = await client.get<any>(`/chats/${sessionId}/tool-calls`);
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Failed to get Claude tool calls:', error);
+      return [];
+    }
+  });
+
+  // Ingest conversations from Claude Code
+  ipcMain.handle('claude:ingest', async (_event, opts?: { project_path?: string }) => {
+    try {
+      const response = await client.post<any>('/chats/ingest', {
+        project_path: opts?.project_path || '',
+        create_summaries: true,
+        min_messages: 3,
+      });
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to ingest conversations:', error);
       throw error;
     }
   });
-}
 
-// Cleanup function for app shutdown
-export function closeClaudeDB(): void {
-  if (db) {
-    db.close();
-    db = null;
-  }
+  // Search chat sessions
+  ipcMain.handle('claude:search', async (_event, opts: { query: string; project_path?: string; limit?: number }) => {
+    try {
+      const params = new URLSearchParams();
+      params.set('query', opts.query);
+      if (opts.project_path) params.set('project_path', opts.project_path);
+      if (opts.limit) params.set('limit', opts.limit.toString());
+      const response = await client.get<any>(`/chats/search?${params.toString()}`);
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Failed to search chats:', error);
+      return [];
+    }
+  });
 }

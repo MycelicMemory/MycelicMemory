@@ -149,11 +149,12 @@ type ContentBlock struct {
 
 // StoreMemoryParams for store_memory tool
 type StoreMemoryParams struct {
-	Content    string   `json:"content"`
-	Importance int      `json:"importance,omitempty"`
-	Tags       []string `json:"tags,omitempty"`
-	Domain     string   `json:"domain,omitempty"`
-	Source     string   `json:"source,omitempty"`
+	Content     string   `json:"content"`
+	Importance  int      `json:"importance,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Domain      string   `json:"domain,omitempty"`
+	Source      string   `json:"source,omitempty"`
+	CCSessionID string   `json:"cc_session_id,omitempty"`
 }
 
 // SearchParams for search tool
@@ -243,6 +244,32 @@ type DeleteMemoryParams struct {
 // GetMemoryParams for get_memory_by_id tool
 type GetMemoryParams struct {
 	ID string `json:"id"`
+}
+
+// IngestConversationsParams for ingest_conversations tool
+type IngestConversationsParams struct {
+	ProjectPath     string `json:"project_path,omitempty"`
+	CreateSummaries bool   `json:"create_summaries,omitempty"`
+	MinMessages     int    `json:"min_messages,omitempty"`
+}
+
+// SearchChatsParams for search_chats tool
+type SearchChatsParams struct {
+	Query       string `json:"query"`
+	ProjectPath string `json:"project_path,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+}
+
+// GetChatParams for get_chat tool
+type GetChatParams struct {
+	SessionID        string `json:"session_id"`
+	IncludeMessages  bool   `json:"include_messages,omitempty"`
+	IncludeToolCalls bool   `json:"include_tool_calls,omitempty"`
+}
+
+// TraceSourceParams for trace_source tool
+type TraceSourceParams struct {
+	MemoryID string `json:"memory_id"`
 }
 
 // PromptMessage represents a message in a prompt

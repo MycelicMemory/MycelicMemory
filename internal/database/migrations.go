@@ -162,6 +162,13 @@ func (d *Database) RunMigrations() error {
 		}
 	}
 
+	// Add chat history tables
+	if version < 4 {
+		if err := MigrationV3ToV4(d.db); err != nil {
+			return fmt.Errorf("migration v3 to v4 failed: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -262,5 +269,47 @@ func MigrationV2ToV3(db *sql.DB) error {
 	}
 
 	log.Info("migration v2 to v3 completed successfully")
+	return nil
+}
+
+// MigrationV3ToV4 adds Claude Code chat history tables
+// This creates cc_sessions, cc_messages, cc_tool_calls and links memories to sessions
+func MigrationV3ToV4(db *sql.DB) error {
+	log.Info("running migration v3 to v4: adding chat history tables")
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is harmless
+
+	// 1. Create chat history tables
+	if _, err := tx.Exec(ChatHistorySchema); err != nil {
+		return fmt.Errorf("failed to create chat history tables: %w", err)
+	}
+
+	// 2. Add cc_session_id column to memories table
+	if _, err := tx.Exec("ALTER TABLE memories ADD COLUMN cc_session_id TEXT REFERENCES cc_sessions(id) ON DELETE SET NULL;"); err != nil {
+		log.Debug("alter statement skipped (may already exist)", "error", err)
+	}
+
+	// 3. Create index for cc_session_id on memories
+	if _, err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_memories_cc_session ON memories(cc_session_id);"); err != nil {
+		log.Warn("failed to create cc_session index", "error", err)
+	}
+
+	// 4. Update schema version
+	if _, err := tx.Exec(`
+		INSERT OR REPLACE INTO schema_version (version, applied_at)
+		VALUES (4, CURRENT_TIMESTAMP)
+	`); err != nil {
+		return fmt.Errorf("failed to update schema version: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit migration: %w", err)
+	}
+
+	log.Info("migration v3 to v4 completed successfully")
 	return nil
 }
