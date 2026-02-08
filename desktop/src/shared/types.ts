@@ -194,6 +194,13 @@ export interface HealthStatus {
   database: boolean;
 }
 
+// Service management types
+export interface ServiceStatus {
+  backend: { running: boolean; port?: number; version?: string; managedByUs: boolean };
+  ollama: { running: boolean; version?: string; models?: string[]; missingModels?: string[]; managedByUs: boolean };
+  qdrant: { running: boolean; version?: string; managedByUs: boolean };
+}
+
 // =============================================================================
 // DATA SOURCE TYPES (Multi-source ingestion)
 // =============================================================================
@@ -399,4 +406,11 @@ export type IPCChannels = {
   'claude-stream:disconnect-sse': { params: void; result: boolean };
   'claude-stream:logs': { params: { limit?: number; level?: string }; result: unknown[] };
   'claude-stream:stats': { params: void; result: unknown };
+
+  // Service management
+  'services:status': { params: void; result: ServiceStatus };
+  'services:start-backend': { params: void; result: boolean };
+  'services:start-ollama': { params: void; result: boolean };
+  'services:start-qdrant': { params: void; result: boolean };
+  'services:stop-backend': { params: void; result: boolean };
 };

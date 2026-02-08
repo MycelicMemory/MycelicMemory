@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Brain,
   Database,
@@ -8,6 +8,9 @@ import {
   AlertCircle,
   MessageSquare,
   FileText,
+  Play,
+  Square,
+  Loader2,
 } from 'lucide-react';
 import {
   PieChart,
@@ -20,7 +23,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import type { Memory, Domain, DashboardStats, HealthStatus } from '../../shared/types';
+import type { Memory, Domain, DashboardStats, HealthStatus, ServiceStatus } from '../../shared/types';
 
 interface StatCardProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -54,26 +57,48 @@ function StatCard({ icon: Icon, label, value, subtext, color = 'primary' }: Stat
   );
 }
 
-interface StatusIndicatorProps {
+interface ServiceRowProps {
   label: string;
-  status: boolean | string | undefined;
+  running: boolean;
   detail: string;
+  warning?: boolean;
+  onStart?: () => void;
+  starting?: boolean;
+  showStart?: boolean;
 }
 
-function StatusIndicator({ label, status, detail }: StatusIndicatorProps) {
-  const isOk = status === 'ok' || status === 'connected' || status === true;
-
+function ServiceRow({ label, running, detail, warning, onStart, starting, showStart = true }: ServiceRowProps) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-slate-700 last:border-0">
       <div className="flex items-center gap-3">
-        {isOk ? (
-          <CheckCircle className="w-5 h-5 text-green-400" />
+        {running ? (
+          warning ? (
+            <AlertCircle className="w-5 h-5 text-amber-400" />
+          ) : (
+            <CheckCircle className="w-5 h-5 text-green-400" />
+          )
         ) : (
-          <AlertCircle className="w-5 h-5 text-amber-400" />
+          <AlertCircle className="w-5 h-5 text-red-400" />
         )}
         <span className="text-slate-300">{label}</span>
       </div>
-      <span className="text-slate-400 text-sm">{detail}</span>
+      <div className="flex items-center gap-3">
+        <span className="text-slate-400 text-sm">{detail}</span>
+        {!running && showStart && onStart && (
+          <button
+            onClick={onStart}
+            disabled={starting}
+            className="flex items-center gap-1 px-2 py-1 text-xs bg-primary-500/20 text-primary-400 rounded hover:bg-primary-500/30 transition-colors disabled:opacity-50"
+          >
+            {starting ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Play className="w-3 h-3" />
+            )}
+            Start
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -83,10 +108,12 @@ const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [recentMemories, setRecentMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [startingService, setStartingService] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -94,17 +121,19 @@ export default function Dashboard() {
         setLoading(true);
         setError(null);
 
-        const [statsRes, healthRes, domainsRes, memoriesRes] = await Promise.all([
+        const [statsRes, healthRes, domainsRes, memoriesRes, servicesRes] = await Promise.all([
           window.mycelicMemory.stats.dashboard().catch(() => null),
           window.mycelicMemory.stats.health().catch(() => null),
           window.mycelicMemory.domains.list().catch(() => []),
           window.mycelicMemory.memory.list({ limit: 5 }).catch(() => []),
+          window.mycelicMemory.services?.status().catch(() => null),
         ]);
 
         setStats(statsRes);
         setHealth(healthRes);
         setDomains(domainsRes || []);
         setRecentMemories(memoriesRes || []);
+        if (servicesRes) setServiceStatus(servicesRes);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
       } finally {
@@ -114,7 +143,38 @@ export default function Dashboard() {
 
     fetchData();
     const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
+
+    // Listen for real-time service status updates
+    let cleanup: (() => void) | undefined;
+    if (window.mycelicMemory.services?.onStatusUpdate) {
+      cleanup = window.mycelicMemory.services.onStatusUpdate((status) => {
+        setServiceStatus(status);
+      });
+    }
+
+    return () => {
+      clearInterval(interval);
+      cleanup?.();
+    };
+  }, []);
+
+  const handleStartService = useCallback(async (service: 'backend' | 'ollama' | 'qdrant') => {
+    setStartingService(service);
+    try {
+      const services = window.mycelicMemory.services;
+      if (!services) return;
+      if (service === 'backend') await services.startBackend();
+      else if (service === 'ollama') await services.startOllama();
+      else if (service === 'qdrant') await services.startQdrant();
+
+      // Refresh status
+      const status = await services.status();
+      setServiceStatus(status);
+    } catch (err) {
+      console.error(`Failed to start ${service}:`, err);
+    } finally {
+      setStartingService(null);
+    }
   }, []);
 
   if (loading) {
@@ -258,29 +318,56 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* System Status */}
+        {/* Service Control Panel */}
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-semibold mb-4">System Status</h2>
-          <div>
-            <StatusIndicator
+          <h2 className="text-lg font-semibold mb-4">Services</h2>
+          <div className="space-y-1">
+            {/* Backend */}
+            <ServiceRow
               label="MycelicMemory API"
-              status={health?.api}
-              detail={health?.api ? 'Running on :3099' : 'Not connected'}
+              running={serviceStatus?.backend.running || health?.api || false}
+              detail={serviceStatus?.backend.running || health?.api
+                ? `Port ${serviceStatus?.backend.port || 3099}`
+                : 'Not running'}
+              onStart={() => handleStartService('backend')}
+              starting={startingService === 'backend'}
+              showStart={!(serviceStatus?.backend.running || health?.api)}
             />
-            <StatusIndicator
+            {/* Ollama */}
+            <ServiceRow
               label="Ollama"
-              status={health?.ollama}
-              detail={health?.ollama ? 'Connected' : 'Not available'}
+              running={serviceStatus?.ollama.running || health?.ollama || false}
+              detail={serviceStatus?.ollama.running
+                ? (serviceStatus.ollama.missingModels?.length
+                  ? `Missing: ${serviceStatus.ollama.missingModels.join(', ')}`
+                  : serviceStatus.ollama.version
+                    ? `v${serviceStatus.ollama.version}`
+                    : 'Connected')
+                : 'Not running'}
+              warning={serviceStatus?.ollama.running && (serviceStatus.ollama.missingModels?.length ?? 0) > 0}
+              onStart={() => handleStartService('ollama')}
+              starting={startingService === 'ollama'}
+              showStart={!(serviceStatus?.ollama.running || health?.ollama)}
             />
-            <StatusIndicator
+            {/* Qdrant */}
+            <ServiceRow
               label="Qdrant"
-              status={health?.qdrant}
-              detail={health?.qdrant ? 'Connected' : 'Not available'}
+              running={serviceStatus?.qdrant.running || health?.qdrant || false}
+              detail={serviceStatus?.qdrant.running
+                ? serviceStatus.qdrant.version
+                  ? `v${serviceStatus.qdrant.version}`
+                  : 'Connected'
+                : 'Not running'}
+              onStart={() => handleStartService('qdrant')}
+              starting={startingService === 'qdrant'}
+              showStart={!(serviceStatus?.qdrant.running || health?.qdrant)}
             />
-            <StatusIndicator
+            {/* Database (always running if API is running) */}
+            <ServiceRow
               label="Database"
-              status={health?.database}
+              running={health?.database ?? (serviceStatus?.backend.running ?? false)}
               detail="SQLite + FTS5"
+              showStart={false}
             />
           </div>
         </div>

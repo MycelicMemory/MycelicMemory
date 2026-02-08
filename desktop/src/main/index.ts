@@ -14,6 +14,8 @@ import { initSourcesIPC } from './ipc/sources.ipc';
 import { registerClaudeChatStreamHandlers } from './ipc/claude-stream.ipc';
 import { ExtractionService } from './services/extraction-service';
 import { MycelicMemoryClient } from './services/mycelicmemory-client';
+import { ServiceManager } from './services/service-manager';
+import { registerServicesHandlers } from './ipc/services.ipc';
 import { AppSettings } from '../shared/types';
 
 // Initialize electron-store for settings persistence
@@ -21,7 +23,7 @@ const store = new Store<{ settings: AppSettings }>({
   defaults: {
     settings: {
       api_url: 'http://localhost',
-      api_port: 3002,
+      api_port: 3099,
       ollama_base_url: 'http://localhost:11434',
       ollama_embedding_model: 'nomic-embed-text',
       ollama_chat_model: 'llama3.2',
@@ -43,6 +45,7 @@ const store = new Store<{ settings: AppSettings }>({
 
 let mainWindow: BrowserWindow | null = null;
 let extractionService: ExtractionService | null = null;
+let serviceManager: ServiceManager | null = null;
 
 function getDefaultClaudeStreamDbPath(): string {
   const platform = process.platform;
@@ -93,8 +96,17 @@ function createWindow(): void {
   });
 }
 
-function initializeServices(): void {
+async function initializeServices(): Promise<void> {
   const settings = store.get('settings');
+
+  // Initialize service manager and auto-start all services
+  serviceManager = new ServiceManager(settings);
+  await serviceManager.ensureAllServices();
+
+  // Start status polling to renderer
+  if (mainWindow) {
+    serviceManager.startStatusPolling(mainWindow);
+  }
 
   // Initialize extraction service
   extractionService = new ExtractionService({
@@ -128,6 +140,9 @@ function registerAllHandlers(): void {
   registerExtractionHandlers(ipcMain, extractionService!);
   registerConfigHandlers(ipcMain, store);
   initSourcesIPC(client); // Register data source handlers
+  if (serviceManager) {
+    registerServicesHandlers(ipcMain, serviceManager);
+  }
 
   // Register claude-chat-stream control handlers
   if (mainWindow) {
@@ -142,9 +157,9 @@ function registerAllHandlers(): void {
 }
 
 // App lifecycle
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
-  initializeServices();
+  await initializeServices();
   registerAllHandlers();
 
   app.on('activate', () => {
@@ -165,9 +180,12 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   if (extractionService) {
     extractionService.stop();
+  }
+  if (serviceManager) {
+    await serviceManager.cleanup();
   }
 });
 

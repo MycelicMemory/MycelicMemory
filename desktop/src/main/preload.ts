@@ -176,6 +176,25 @@ const api = {
     },
   },
 
+  // Service management
+  services: {
+    status: (): Promise<import('../../shared/types').ServiceStatus> =>
+      invoke('services:status'),
+    startBackend: (): Promise<boolean> =>
+      invoke('services:start-backend'),
+    startOllama: (): Promise<boolean> =>
+      invoke('services:start-ollama'),
+    startQdrant: (): Promise<boolean> =>
+      invoke('services:start-qdrant'),
+    stopBackend: (): Promise<boolean> =>
+      invoke('services:stop-backend'),
+    onStatusUpdate: (callback: (status: import('../../shared/types').ServiceStatus) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, status: import('../../shared/types').ServiceStatus) => callback(status);
+      ipcRenderer.on('services:status-update', handler);
+      return () => ipcRenderer.removeListener('services:status-update', handler);
+    },
+  },
+
   // Shell operations
   shell: {
     openExternal: (url: string): Promise<boolean> =>

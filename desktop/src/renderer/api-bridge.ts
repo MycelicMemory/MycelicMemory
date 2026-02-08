@@ -4,7 +4,7 @@
  * In Browser: Falls back to direct fetch calls for testing
  */
 
-const API_BASE = 'http://127.0.0.1:3002/api/v1';
+const API_BASE = 'http://127.0.0.1:3099/api/v1';
 
 // Check if we're in Electron
 const isElectron = typeof window !== 'undefined' && window.mycelicMemory !== undefined;
@@ -61,8 +61,13 @@ const browserApi = {
     },
     health: async () => {
       try {
-        await fetchApi<any>('/health');
-        return { api: true, ollama: false, qdrant: false, database: true };
+        const result = await fetchApi<any>('/health');
+        return {
+          api: true,
+          ollama: result.ollama ?? false,
+          qdrant: result.qdrant ?? false,
+          database: result.database ?? true,
+        };
       } catch {
         return { api: false, ollama: false, qdrant: false, database: false };
       }
@@ -144,6 +149,29 @@ const browserApi = {
     get: async () => ({}),
     set: async () => {},
     getAll: async () => ({}),
+  },
+  services: {
+    status: async () => {
+      try {
+        const health = await browserApi.stats.health();
+        return {
+          backend: { running: health.api, managedByUs: false },
+          ollama: { running: health.ollama, managedByUs: false },
+          qdrant: { running: health.qdrant, managedByUs: false },
+        };
+      } catch {
+        return {
+          backend: { running: false, managedByUs: false },
+          ollama: { running: false, managedByUs: false },
+          qdrant: { running: false, managedByUs: false },
+        };
+      }
+    },
+    startBackend: async () => false,
+    startOllama: async () => false,
+    startQdrant: async () => false,
+    stopBackend: async () => false,
+    onStatusUpdate: () => () => {},
   },
 };
 
