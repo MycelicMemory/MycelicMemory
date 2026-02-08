@@ -96,71 +96,61 @@ function createWindow(): void {
   });
 }
 
-async function initializeServices(): Promise<void> {
+function initializeServicesAndHandlers(): void {
   const settings = store.get('settings');
+  const apiBaseUrl = `${settings.api_url}:${settings.api_port}`;
+  const claudeDbPath = settings.claude_stream_db_path;
 
-  // Initialize service manager and auto-start all services
+  // Create instances immediately (no async work)
   serviceManager = new ServiceManager(settings);
-  await serviceManager.ensureAllServices();
-
-  // Start status polling to renderer
-  if (mainWindow) {
-    serviceManager.startStatusPolling(mainWindow);
-  }
-
-  // Initialize extraction service
   extractionService = new ExtractionService({
     claudeDbPath: settings.claude_stream_db_path,
-    apiUrl: `${settings.api_url}:${settings.api_port}`,
+    apiUrl: apiBaseUrl,
     config: settings.extraction,
     onProgress: (job) => {
-      // Send progress updates to renderer
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('extraction:progress', job);
       }
     },
   });
 
-  // Start auto-extraction if enabled
+  // Register ALL IPC handlers immediately so the renderer can make calls right away
+  const client = new MycelicMemoryClient(apiBaseUrl);
+  registerMemoryHandlers(ipcMain, apiBaseUrl);
+  registerClaudeHandlers(ipcMain, client);
+  registerExtractionHandlers(ipcMain, extractionService);
+  registerConfigHandlers(ipcMain, store);
+  initSourcesIPC(client);
+  registerServicesHandlers(ipcMain, serviceManager);
+
+  if (mainWindow) {
+    registerClaudeChatStreamHandlers(ipcMain, mainWindow, path.dirname(path.dirname(claudeDbPath)));
+  }
+
+  ipcMain.handle('shell:open-external', async (_event, url: string) => {
+    await shell.openExternal(url);
+    return true;
+  });
+
+  // Now start services in the background (don't block the renderer)
+  serviceManager.ensureAllServices()
+    .then(() => {
+      console.log('[Main] All services initialized');
+      if (mainWindow) {
+        serviceManager!.startStatusPolling(mainWindow);
+      }
+    })
+    .catch(err => console.error('[Main] Service initialization error:', err));
+
   if (settings.extraction.auto_extract) {
     extractionService.start();
   }
 }
 
-function registerAllHandlers(): void {
-  const settings = store.get('settings');
-  const apiBaseUrl = `${settings.api_url}:${settings.api_port}`;
-  const claudeDbPath = settings.claude_stream_db_path;
-
-  // Create MycelicMemory client for sources IPC
-  const client = new MycelicMemoryClient(apiBaseUrl);
-
-  registerMemoryHandlers(ipcMain, apiBaseUrl);
-  registerClaudeHandlers(ipcMain, client);
-  registerExtractionHandlers(ipcMain, extractionService!);
-  registerConfigHandlers(ipcMain, store);
-  initSourcesIPC(client); // Register data source handlers
-  if (serviceManager) {
-    registerServicesHandlers(ipcMain, serviceManager);
-  }
-
-  // Register claude-chat-stream control handlers
-  if (mainWindow) {
-    registerClaudeChatStreamHandlers(ipcMain, mainWindow, path.dirname(path.dirname(claudeDbPath)));
-  }
-
-  // Handle external URL opening
-  ipcMain.handle('shell:open-external', async (_event, url: string) => {
-    await shell.openExternal(url);
-    return true;
-  });
-}
-
 // App lifecycle
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   createWindow();
-  await initializeServices();
-  registerAllHandlers();
+  initializeServicesAndHandlers();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

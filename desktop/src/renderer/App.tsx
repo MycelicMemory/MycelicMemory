@@ -9,7 +9,7 @@ import {
   Activity,
   Database,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Dashboard from './pages/Dashboard';
 import MemoryBrowser from './pages/MemoryBrowser';
 import ClaudeSessions from './pages/ClaudeSessions';
@@ -46,26 +46,77 @@ function NavItem({ to, icon: Icon, label }: NavItemProps) {
 function App() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const location = useLocation();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const checkHealth = useCallback(async () => {
+    try {
+      const status = await window.mycelicMemory.stats.health();
+      setHealth(status);
+      return status.api;
+    } catch {
+      setHealth({ api: false, ollama: false, qdrant: false, database: false });
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const status = await window.mycelicMemory.stats.health();
-        setHealth(status);
-      } catch {
-        setHealth({
-          api: false,
-          ollama: false,
-          qdrant: false,
-          database: false,
-        });
+    let cancelled = false;
+
+    // Aggressive initial polling: every 3s until connected, then every 30s
+    const startPolling = async () => {
+      const connected = await checkHealth();
+
+      if (cancelled) return;
+
+      if (intervalRef.current) clearInterval(intervalRef.current);
+
+      if (connected) {
+        // Connected — slow poll to detect disconnects
+        intervalRef.current = setInterval(async () => {
+          const stillConnected = await checkHealth();
+          if (!stillConnected && !cancelled) {
+            // Lost connection — switch to fast polling
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            startPolling();
+          }
+        }, 30000);
+      } else {
+        // Disconnected — fast poll to detect connection
+        intervalRef.current = setInterval(async () => {
+          const nowConnected = await checkHealth();
+          if (nowConnected && !cancelled) {
+            // Connected — switch to slow polling
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            startPolling();
+          }
+        }, 3000);
       }
     };
 
-    checkHealth();
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    startPolling();
+
+    // Listen for service status updates (from ServiceManager via IPC)
+    let cleanupServiceListener: (() => void) | undefined;
+    if (window.mycelicMemory.services?.onStatusUpdate) {
+      cleanupServiceListener = window.mycelicMemory.services.onStatusUpdate((status) => {
+        if (status.backend.running) {
+          // Backend just came up — refresh health immediately
+          checkHealth().then((connected) => {
+            if (connected && !cancelled) {
+              if (intervalRef.current) clearInterval(intervalRef.current);
+              startPolling();
+            }
+          });
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      cleanupServiceListener?.();
+    };
+  }, [checkHealth]);
 
   const isConnected = health?.api;
 

@@ -70,15 +70,28 @@ export class ServiceManager {
   }
 
   async startBackend(): Promise<boolean> {
+    // Check if already running first (avoids daemon "already running" error)
+    if (await this.isBackendRunning()) {
+      console.log('[ServiceManager] Backend is already running');
+      return true;
+    }
+
     const binaryPath = this.findBackendBinary();
     if (!binaryPath) {
-      console.warn('[ServiceManager] Could not find mycelicmemory binary');
+      console.warn('[ServiceManager] Could not find mycelicmemory binary. Searched: CWD, parent dir, app dir, resources, PATH, common install locations.');
       return false;
     }
 
     console.log('[ServiceManager] Starting backend:', binaryPath);
 
     try {
+      // First, try to clean up any stale daemon state by running 'stop'
+      try {
+        execSync(`"${binaryPath}" stop`, { timeout: 3000, windowsHide: true, stdio: 'ignore' });
+      } catch {
+        // Expected to fail if daemon isn't running — ignore
+      }
+
       this.backendProcess = spawn(binaryPath, ['start', '--port', String(this.settings.api_port)], {
         detached: true,
         stdio: 'ignore',
@@ -89,11 +102,16 @@ export class ServiceManager {
       this.backendManagedByUs = true;
 
       // Poll for backend to come up
-      return await pollUntilReady(
+      const started = await pollUntilReady(
         () => this.isBackendRunning(),
         10000,
         500,
       );
+
+      if (!started) {
+        console.warn('[ServiceManager] Backend failed to start within 10s');
+      }
+      return started;
     } catch (err: any) {
       console.error('[ServiceManager] Failed to start backend:', err.message);
       return false;
@@ -125,6 +143,10 @@ export class ServiceManager {
     // 1. Check working directory (dev mode)
     const cwdPath = path.join(process.cwd(), binaryName);
     if (fs.existsSync(cwdPath)) return cwdPath;
+
+    // 1b. Check parent directory (dev mode: Electron runs from desktop/)
+    const parentPath = path.join(process.cwd(), '..', binaryName);
+    if (fs.existsSync(parentPath)) return path.resolve(parentPath);
 
     // 2. Check next to the Electron app
     const appDir = path.dirname(process.execPath);
