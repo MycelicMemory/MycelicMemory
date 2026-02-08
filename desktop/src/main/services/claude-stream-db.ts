@@ -10,9 +10,31 @@ import type {
   ClaudeSession,
   ClaudeMessage,
   ClaudeToolCall,
-  ClaudeFileReference,
-  ChangeStreamEntry,
 } from '../../shared/types';
+
+// Local types for claude-stream DB tables that differ from the shared API types
+interface ClaudeFileReference {
+  id: string;
+  message_id: string;
+  session_id: string;
+  tool_call_id?: string;
+  file_path: string;
+  operation?: string;
+  old_content_preview?: string;
+  new_content_preview?: string;
+  lines_changed?: number;
+  timestamp?: string;
+}
+
+interface ChangeStreamEntry {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  change_type: string;
+  payload: string;
+  created_at: string;
+  processed_by?: string;
+}
 
 export class ClaudeStreamDB {
   private db: Database.Database | null = null;
@@ -120,7 +142,7 @@ export class ClaudeStreamDB {
       ...row,
       is_sidechain: Boolean(row.is_sidechain),
       is_subagent: Boolean(row.is_subagent),
-    })) as ClaudeSession[];
+    })) as any as ClaudeSession[];
   }
 
   getSession(id: string): ClaudeSession | null {
@@ -153,7 +175,7 @@ export class ClaudeStreamDB {
       ...row,
       is_sidechain: Boolean(row.is_sidechain),
       is_subagent: Boolean(row.is_subagent),
-    } as ClaudeSession;
+    } as any as ClaudeSession;
   }
 
   // Messages
@@ -181,7 +203,7 @@ export class ClaudeStreamDB {
     return rows.map((row: Record<string, unknown>) => ({
       ...row,
       has_tool_calls: Boolean(row.has_tool_calls),
-    })) as ClaudeMessage[];
+    })) as any as ClaudeMessage[];
   }
 
   getMessage(id: string): ClaudeMessage | null {
@@ -209,7 +231,7 @@ export class ClaudeStreamDB {
     return {
       ...row,
       has_tool_calls: Boolean(row.has_tool_calls),
-    } as ClaudeMessage;
+    } as any as ClaudeMessage;
   }
 
   // Tool calls
@@ -240,7 +262,7 @@ export class ClaudeStreamDB {
       ...row,
       result_truncated: Boolean(row.result_truncated),
       success: row.success === null ? undefined : Boolean(row.success),
-    })) as ClaudeToolCall[];
+    })) as any as ClaudeToolCall[];
   }
 
   getToolCallsForMessage(messageId: string): ClaudeToolCall[] {
@@ -270,7 +292,7 @@ export class ClaudeStreamDB {
       ...row,
       result_truncated: Boolean(row.result_truncated),
       success: row.success === null ? undefined : Boolean(row.success),
-    })) as ClaudeToolCall[];
+    })) as any as ClaudeToolCall[];
   }
 
   // File references
@@ -373,7 +395,7 @@ export class ClaudeStreamDB {
       return rows.map((row: Record<string, unknown>) => ({
         ...row,
         has_tool_calls: Boolean(row.has_tool_calls),
-      })) as ClaudeMessage[];
+      })) as any as ClaudeMessage[];
     } catch {
       // Fallback to LIKE search
       const stmt = db.prepare(`
@@ -387,7 +409,7 @@ export class ClaudeStreamDB {
       return rows.map((row: Record<string, unknown>) => ({
         ...row,
         has_tool_calls: Boolean(row.has_tool_calls),
-      })) as ClaudeMessage[];
+      })) as any as ClaudeMessage[];
     }
   }
 }

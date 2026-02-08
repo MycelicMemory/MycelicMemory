@@ -32,6 +32,7 @@ import type {
   DataSourceType,
   DataSourceStatus,
   ClaudeChatStreamStatus,
+  ServiceStatus,
 } from '../shared/types';
 
 // Type-safe IPC invoke wrapper
@@ -178,7 +179,7 @@ const api = {
 
   // Service management
   services: {
-    status: (): Promise<import('../../shared/types').ServiceStatus> =>
+    status: (): Promise<ServiceStatus> =>
       invoke('services:status'),
     startBackend: (): Promise<boolean> =>
       invoke('services:start-backend'),
@@ -188,8 +189,8 @@ const api = {
       invoke('services:start-qdrant'),
     stopBackend: (): Promise<boolean> =>
       invoke('services:stop-backend'),
-    onStatusUpdate: (callback: (status: import('../../shared/types').ServiceStatus) => void): (() => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, status: import('../../shared/types').ServiceStatus) => callback(status);
+    onStatusUpdate: (callback: (status: ServiceStatus) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, status: ServiceStatus) => callback(status);
       ipcRenderer.on('services:status-update', handler);
       return () => ipcRenderer.removeListener('services:status-update', handler);
     },

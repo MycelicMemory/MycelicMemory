@@ -197,7 +197,7 @@ export class ServiceManager {
       const tagsResp = await fetchWithTimeout(`${baseUrl}/api/tags`, 5000);
       if (!tagsResp.ok) return { available: false };
 
-      const tagsData = await tagsResp.json();
+      const tagsData = await tagsResp.json() as { models?: { name: string }[] };
       const models = (tagsData.models || []).map((m: any) => m.name);
       const modelSet = new Set<string>();
       for (const m of models) {
@@ -214,7 +214,7 @@ export class ServiceManager {
       try {
         const vResp = await fetchWithTimeout(`${baseUrl}/api/version`, 3000);
         if (vResp.ok) {
-          const vData = await vResp.json();
+          const vData = await vResp.json() as { version?: string };
           version = vData.version;
         }
       } catch { /* ignore version check failure */ }
@@ -331,7 +331,7 @@ export class ServiceManager {
       try {
         const vResp = await fetchWithTimeout(this.settings.qdrant_url, 3000);
         if (vResp.ok) {
-          const vData = await vResp.json();
+          const vData = await vResp.json() as { version?: string };
           version = vData.version;
         }
       } catch { /* ignore */ }
