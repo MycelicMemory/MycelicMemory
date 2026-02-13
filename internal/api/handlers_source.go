@@ -89,6 +89,12 @@ func (s *Server) createDataSource(c *gin.Context) {
 		return
 	}
 
+	// Validate name length
+	if len(req.Name) > MaxNameLength {
+		BadRequestError(c, fmt.Sprintf("Name too long: %d characters (maximum: %d)", len(req.Name), MaxNameLength))
+		return
+	}
+
 	// Validate source type
 	if !database.IsValidDataSourceType(req.SourceType) {
 		BadRequestError(c, fmt.Sprintf("Invalid source type: %s. Valid types: %v",
@@ -122,7 +128,7 @@ func (s *Server) listDataSources(c *gin.Context) {
 	filters := &database.DataSourceFilters{
 		SourceType: c.Query("source_type"),
 		Status:     c.Query("status"),
-		Limit:      parseIntQuery(c, "limit", 50),
+		Limit:      clampLimit(parseIntQuery(c, "limit", DefaultLimit)),
 		Offset:     parseIntQuery(c, "offset", 0),
 	}
 
@@ -194,7 +200,10 @@ func (s *Server) updateDataSource(c *gin.Context) {
 	}
 
 	// Fetch updated source
-	ds, _ := s.db.GetDataSource(id)
+	ds, err := s.db.GetDataSource(id)
+	if err != nil {
+		s.log.Warn("failed to re-fetch data source after update", "id", id, "error", err)
+	}
 	SuccessResponse(c, "Data source updated successfully", toDataSourceResponse(ds))
 }
 
@@ -242,7 +251,10 @@ func (s *Server) pauseDataSource(c *gin.Context) {
 		return
 	}
 
-	ds, _ := s.db.GetDataSource(id)
+	ds, err := s.db.GetDataSource(id)
+	if err != nil {
+		s.log.Warn("failed to re-fetch data source after pause", "id", id, "error", err)
+	}
 	SuccessResponse(c, "Data source paused", toDataSourceResponse(ds))
 }
 
@@ -261,7 +273,10 @@ func (s *Server) resumeDataSource(c *gin.Context) {
 		return
 	}
 
-	ds, _ := s.db.GetDataSource(id)
+	ds, err := s.db.GetDataSource(id)
+	if err != nil {
+		s.log.Warn("failed to re-fetch data source after resume", "id", id, "error", err)
+	}
 	SuccessResponse(c, "Data source resumed", toDataSourceResponse(ds))
 }
 
@@ -340,6 +355,12 @@ func (s *Server) ingestItems(c *gin.Context) {
 	var lastCheckpoint string
 
 	for _, item := range req.Items {
+		// Skip items with oversized content
+		if len(item.Content) > MaxContentLength {
+			s.log.Warn("skipping oversized ingest item", "external_id", item.ExternalID, "size", len(item.Content), "max", MaxContentLength)
+			continue
+		}
+
 		ingestItem := toIngestItem(&item, ds.SourceType)
 
 		_, created, err := s.db.IngestMemory(id, ingestItem)
@@ -353,10 +374,14 @@ func (s *Server) ingestItems(c *gin.Context) {
 
 			// Index for semantic search if AI is available
 			if s.aiManager != nil && created {
-				mem, _ := s.db.GetMemory(item.ExternalID)
-				if mem != nil {
+				mem, err := s.db.GetMemory(item.ExternalID)
+				if err != nil {
+					s.log.Warn("failed to fetch memory for indexing", "external_id", item.ExternalID, "error", err)
+				} else if mem != nil {
 					ctx := c.Request.Context()
-					_ = s.aiManager.IndexMemory(ctx, mem)
+					if err := s.aiManager.IndexMemory(ctx, mem); err != nil {
+						s.log.Warn("failed to index ingested memory", "external_id", item.ExternalID, "error", err)
+					}
 				}
 			}
 		} else {
@@ -373,7 +398,9 @@ func (s *Server) ingestItems(c *gin.Context) {
 	}
 
 	// Update source sync time
-	_ = s.db.UpdateDataSourceSyncTime(id, time.Now(), checkpoint)
+	if err := s.db.UpdateDataSourceSyncTime(id, time.Now(), checkpoint); err != nil {
+		s.log.Warn("failed to update source sync time", "source_id", id, "error", err)
+	}
 
 	response := &IngestResponse{
 		Processed:         len(req.Items),

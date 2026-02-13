@@ -6,8 +6,11 @@ import (
 	"time"
 
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
 )
+
+var log = logging.GetLogger("memory")
 
 // Service provides the business logic layer for memory operations
 // VERIFIED: Implements all local-memory memory operations
@@ -117,11 +120,15 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 
 	// Auto-create domain if specified (optional, don't fail on error)
 	if opts.Domain != "" {
-		_ = s.ensureDomainExists(opts.Domain)
+		if err := s.ensureDomainExists(opts.Domain); err != nil {
+			log.Warn("failed to auto-create domain", "domain", opts.Domain, "error", err)
+		}
 	}
 
 	// Ensure session is tracked (optional, don't fail on error)
-	_ = s.db.EnsureSession(sessionID, agentType)
+	if err := s.db.EnsureSession(sessionID, agentType); err != nil {
+		log.Warn("failed to ensure session", "session_id", sessionID, "error", err)
+	}
 
 	content := strings.TrimSpace(opts.Content)
 
@@ -268,7 +275,9 @@ func (s *Service) Update(opts *UpdateOptions) (*database.Memory, error) {
 
 	// Auto-create domain if specified (optional, don't fail on error)
 	if opts.Domain != nil && *opts.Domain != "" {
-		_ = s.ensureDomainExists(*opts.Domain)
+		if err := s.ensureDomainExists(*opts.Domain); err != nil {
+			log.Warn("failed to auto-create domain", "domain", *opts.Domain, "error", err)
+		}
 	}
 
 	// Update in database

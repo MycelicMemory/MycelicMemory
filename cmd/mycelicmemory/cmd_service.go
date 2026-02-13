@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -191,23 +192,26 @@ func runStart() {
 	if cfg.RestAPI.Enabled {
 		server := api.NewServer(db, cfg)
 
+		// Create context for graceful shutdown
+		ctx, cancel := context.WithCancel(context.Background())
+
 		// Handle shutdown signals
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 		go func() {
 			sig := <-sigChan
-			fmt.Printf("\nReceived %v, shutting down...\n", sig)
-			d.Cleanup()
-			os.Exit(0)
+			fmt.Printf("\nReceived %v, shutting down gracefully...\n", sig)
+			cancel() // Cancel context to trigger graceful shutdown
 		}()
 
 		fmt.Printf("\nStarting REST API on %s:%d\n", cfg.RestAPI.Host, cfg.RestAPI.Port)
 		fmt.Println("Press Ctrl+C to stop")
-		if err := server.Start(); err != nil {
+		if err := server.StartWithContext(ctx, 30*time.Second); err != nil && err != context.Canceled {
 			fmt.Printf("Error starting server: %v\n", err)
 			os.Exit(1)
 		}
+		fmt.Println("Server stopped. Cleaning up...")
 	} else {
 		fmt.Println("REST API is disabled in configuration")
 	}

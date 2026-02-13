@@ -40,11 +40,13 @@ type SetupConfig struct {
 // RestAPIConfig holds REST API server configuration
 // Verified behavior: auto_port enables automatic port selection
 type RestAPIConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	AutoPort bool   `mapstructure:"auto_port"`
-	Port     int    `mapstructure:"port"`
-	Host     string `mapstructure:"host"`
-	CORS     bool   `mapstructure:"cors"`
+	Enabled      bool     `mapstructure:"enabled"`
+	AutoPort     bool     `mapstructure:"auto_port"`
+	Port         int      `mapstructure:"port"`
+	Host         string   `mapstructure:"host"`
+	CORS         bool     `mapstructure:"cors"`
+	APIKey       string   `mapstructure:"api_key"`
+	AllowOrigins []string `mapstructure:"allow_origins"`
 }
 
 // SessionConfig holds session management configuration
@@ -219,6 +221,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("rest_api.port", 3002)
 	v.SetDefault("rest_api.host", "localhost")
 	v.SetDefault("rest_api.cors", true)
+	v.SetDefault("rest_api.api_key", "")
+	v.SetDefault("rest_api.allow_origins", []string{})
 
 	v.SetDefault("session.auto_generate", true)
 	v.SetDefault("session.strategy", "git-directory")

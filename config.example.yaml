@@ -45,6 +45,16 @@ rest_api:
   # Enable CORS for browser access
   cors: true
 
+  # Optional API key for authentication (empty = no auth required)
+  # When set, all requests except /health must include:
+  #   Authorization: Bearer <key>  OR  X-API-Key: <key>
+  # api_key: ""
+
+  # Allowed CORS origins (empty = auto-detect based on host)
+  # allow_origins:
+  #   - http://localhost:3000
+  #   - tauri://localhost
+
 # Session Management
 session:
   # Automatically generate session IDs
