@@ -263,15 +263,27 @@ func (d *Database) GetStats() (*Stats, error) {
 
 	// Count tables
 	var tableCount int
-	_ = d.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
+	if err := d.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount); err != nil {
+		log.Warn("failed to count tables", "error", err)
+	}
 	stats.TableCount = tableCount
 
 	// Count records in main tables
-	_ = d.QueryRow("SELECT COUNT(*) FROM memories").Scan(&stats.MemoryCount)
-	_ = d.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&stats.RelationCount)
-	_ = d.QueryRow("SELECT COUNT(*) FROM categories").Scan(&stats.CategoryCount)
-	_ = d.QueryRow("SELECT COUNT(*) FROM domains").Scan(&stats.DomainCount)
-	_ = d.QueryRow("SELECT COUNT(*) FROM agent_sessions").Scan(&stats.SessionCount)
+	if err := d.QueryRow("SELECT COUNT(*) FROM memories").Scan(&stats.MemoryCount); err != nil {
+		log.Warn("failed to count memories", "error", err)
+	}
+	if err := d.QueryRow("SELECT COUNT(*) FROM memory_relationships").Scan(&stats.RelationCount); err != nil {
+		log.Warn("failed to count relationships", "error", err)
+	}
+	if err := d.QueryRow("SELECT COUNT(*) FROM categories").Scan(&stats.CategoryCount); err != nil {
+		log.Warn("failed to count categories", "error", err)
+	}
+	if err := d.QueryRow("SELECT COUNT(*) FROM domains").Scan(&stats.DomainCount); err != nil {
+		log.Warn("failed to count domains", "error", err)
+	}
+	if err := d.QueryRow("SELECT COUNT(*) FROM agent_sessions").Scan(&stats.SessionCount); err != nil {
+		log.Warn("failed to count sessions", "error", err)
+	}
 
 	// Get file size
 	if info, err := os.Stat(d.path); err == nil {

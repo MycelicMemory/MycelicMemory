@@ -88,10 +88,23 @@ type SessionResponse struct {
 
 // healthHandler handles GET /api/v1/health
 func (s *Server) healthHandler(c *gin.Context) {
-	response := &HealthResponse{
+	// Get AI service status
+	aiStatus := s.aiManager.GetStatus()
+
+	response := struct {
+		Status    string `json:"status"`
+		Session   string `json:"session"`
+		Timestamp string `json:"timestamp"`
+		Ollama    bool   `json:"ollama"`
+		Qdrant    bool   `json:"qdrant"`
+		Database  bool   `json:"database"`
+	}{
 		Status:    "healthy",
 		Session:   s.sessionID,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Ollama:    aiStatus.OllamaAvailable,
+		Qdrant:    aiStatus.QdrantAvailable,
+		Database:  true,
 	}
 
 	SuccessResponse(c, "Server is healthy", response)

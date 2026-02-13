@@ -113,7 +113,10 @@ func (c *OllamaClient) GenerateEmbedding(ctx context.Context, text string) ([]fl
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("embedding request failed with status %d (body unreadable: %v)", resp.StatusCode, readErr)
+		}
 		return nil, fmt.Errorf("embedding request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -173,7 +176,10 @@ func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, err
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return "", fmt.Errorf("generate request failed with status %d (body unreadable: %v)", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("generate request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -235,7 +241,10 @@ func (c *OllamaClient) Chat(ctx context.Context, messages []ChatMessage) (string
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return "", fmt.Errorf("chat request failed with status %d (body unreadable: %v)", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("chat request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/ratelimit"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
@@ -49,15 +50,63 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	// Configure CORS
 	if cfg.RestAPI.CORS {
 		log.Debug("enabling CORS")
-		router.Use(cors.New(cors.Config{
-			AllowOrigins:     []string{"*"},
-			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-			AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-			ExposeHeaders:    []string{"Content-Length"},
-			AllowCredentials: true,
-			MaxAge:           12 * time.Hour,
-		}))
+		corsConfig := cors.Config{
+			AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+			AllowHeaders:  []string{"Origin", "Content-Type", "Accept", "Authorization", "X-API-Key"},
+			ExposeHeaders: []string{"Content-Length", "Retry-After"},
+			MaxAge:        12 * time.Hour,
+		}
+
+		// Determine allowed origins
+		if len(cfg.RestAPI.AllowOrigins) > 0 {
+			corsConfig.AllowOrigins = cfg.RestAPI.AllowOrigins
+		} else if cfg.RestAPI.APIKey != "" {
+			// When auth is enabled, restrict to localhost variants
+			corsConfig.AllowOrigins = []string{
+				"http://localhost:*",
+				"http://127.0.0.1:*",
+				"https://localhost:*",
+				"https://127.0.0.1:*",
+				"tauri://localhost",
+			}
+			corsConfig.AllowWildcard = true
+		} else {
+			// No auth: allow all origins but without credentials
+			corsConfig.AllowAllOrigins = true
+		}
+
+		router.Use(cors.New(corsConfig))
 	}
+
+	// API key authentication middleware
+	if cfg.RestAPI.APIKey != "" {
+		log.Info("API key authentication enabled")
+		router.Use(APIKeyAuthMiddleware(cfg.RestAPI.APIKey))
+	}
+
+	// Rate limiting middleware
+	if cfg.RateLimit.Enabled {
+		log.Info("rate limiting enabled")
+		rlCfg := &ratelimit.Config{
+			Enabled: cfg.RateLimit.Enabled,
+			Global: ratelimit.LimitConfig{
+				RequestsPerSecond: cfg.RateLimit.Global.RequestsPerSecond,
+				BurstSize:         cfg.RateLimit.Global.BurstSize,
+			},
+		}
+		for _, tool := range cfg.RateLimit.Tools {
+			rlCfg.Tools = append(rlCfg.Tools, ratelimit.ToolLimit{
+				Name:              tool.Name,
+				RequestsPerSecond: tool.RequestsPerSecond,
+				BurstSize:         tool.BurstSize,
+			})
+		}
+		limiter := ratelimit.NewLimiter(rlCfg)
+		router.Use(RateLimitMiddleware(limiter))
+	}
+
+	// Default body size limit (1MB)
+	router.Use(MaxBodySizeMiddleware(DefaultBodyLimit))
 
 	// Create services
 	memoryService := memory.NewService(db, cfg)
@@ -157,8 +206,8 @@ func (s *Server) setupRoutes() {
 		api.POST("/sources/:id/resume", s.resumeDataSource)
 		api.POST("/sources/:id/sync", s.triggerSync)
 
-		// Ingestion
-		api.POST("/sources/:id/ingest", s.ingestItems)
+		// Ingestion (larger body size limit for bulk operations)
+		api.POST("/sources/:id/ingest", MaxBodySizeMiddleware(IngestBodyLimit), s.ingestItems)
 
 		// Source History & Stats
 		api.GET("/sources/:id/history", s.getSyncHistory)
@@ -166,7 +215,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/sources/:id/memories", s.getSourceMemories)
 
 		// Chat History (Claude Code conversations)
-		api.POST("/chats/ingest", s.ingestConversations)
+		api.POST("/chats/ingest", MaxBodySizeMiddleware(IngestBodyLimit), s.ingestConversations)
 		api.GET("/chats", s.listChatSessions)
 		api.GET("/chats/search", s.searchChatSessions)
 		api.GET("/chats/projects", s.chatProjects)
@@ -209,6 +258,59 @@ func (s *Server) Start() error {
 
 	s.log.Info("starting REST API server", "address", addr)
 	return s.httpServer.ListenAndServe()
+}
+
+// StartWithContext starts the HTTP server with graceful shutdown support
+// It blocks until the context is cancelled or the server encounters an error
+func (s *Server) StartWithContext(ctx context.Context, shutdownTimeout time.Duration) error {
+	// Initialize AI manager
+	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer initCancel()
+	if err := s.aiManager.Initialize(initCtx); err != nil {
+		s.log.Warn("AI initialization failed", "error", err)
+	}
+
+	// Determine port
+	port := s.config.RestAPI.Port
+	if s.config.RestAPI.AutoPort {
+		availablePort, err := findAvailablePort(port)
+		if err != nil {
+			s.log.Error("failed to find available port", "error", err, "start_port", port)
+			return fmt.Errorf("failed to find available port: %w", err)
+		}
+		port = availablePort
+		s.log.Debug("found available port", "port", port)
+	}
+
+	addr := fmt.Sprintf("%s:%d", s.config.RestAPI.Host, port)
+
+	s.httpServer = &http.Server{
+		Addr:    addr,
+		Handler: s.router,
+	}
+
+	// Channel for server errors
+	errChan := make(chan error, 1)
+
+	// Start server in goroutine
+	go func() {
+		s.log.Info("starting REST API server", "address", addr)
+		if err := s.httpServer.ListenAndServe(); err != http.ErrServerClosed {
+			errChan <- err
+		}
+	}()
+
+	// Wait for context cancellation or server error
+	select {
+	case <-ctx.Done():
+		s.log.Info("shutdown signal received")
+		// Graceful shutdown with timeout
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer shutdownCancel()
+		return s.Stop(shutdownCtx)
+	case err := <-errChan:
+		return fmt.Errorf("server error: %w", err)
+	}
 }
 
 // Stop gracefully stops the server
