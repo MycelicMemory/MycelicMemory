@@ -62,3 +62,18 @@ func NotFoundErrorWithID(c *gin.Context, id string) {
 func InternalError(c *gin.Context, message string) {
 	ErrorResponse(c, http.StatusInternalServerError, message)
 }
+
+// UnauthorizedError sends a 401 error
+func UnauthorizedError(c *gin.Context, message string) {
+	ErrorResponse(c, http.StatusUnauthorized, message)
+}
+
+// TooManyRequestsError sends a 429 error
+func TooManyRequestsError(c *gin.Context, message string) {
+	ErrorResponse(c, http.StatusTooManyRequests, message)
+}
+
+// PayloadTooLargeError sends a 413 error
+func PayloadTooLargeError(c *gin.Context, message string) {
+	ErrorResponse(c, http.StatusRequestEntityTooLarge, message)
+}

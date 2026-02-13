@@ -100,6 +100,20 @@ func (s *Server) createMemory(c *gin.Context) {
 		return
 	}
 
+	// Validate inputs
+	if err := validateContent(req.Content); err != nil {
+		BadRequestError(c, err.Error())
+		return
+	}
+	if err := validateImportance(req.Importance); err != nil {
+		BadRequestError(c, err.Error())
+		return
+	}
+	if err := validateTags(req.Tags); err != nil {
+		BadRequestError(c, err.Error())
+		return
+	}
+
 	result, err := s.memoryService.Store(&memory.StoreOptions{
 		Content:    req.Content,
 		Importance: req.Importance,
@@ -115,7 +129,9 @@ func (s *Server) createMemory(c *gin.Context) {
 	// Index for semantic search if AI is available
 	if s.aiManager != nil {
 		ctx := c.Request.Context()
-		_ = s.aiManager.IndexMemory(ctx, result.Memory)
+		if err := s.aiManager.IndexMemory(ctx, result.Memory); err != nil {
+			s.log.Warn("failed to index memory for search", "id", result.Memory.ID, "error", err)
+		}
 	}
 
 	// Return flat memory data to match local-memory format
@@ -140,7 +156,7 @@ func (s *Server) getMemory(c *gin.Context) {
 // listMemories handles GET /api/v1/memories
 func (s *Server) listMemories(c *gin.Context) {
 	// Parse query parameters
-	limit := parseIntQuery(c, "limit", 50)
+	limit := clampLimit(parseIntQuery(c, "limit", DefaultLimit))
 	offset := parseIntQuery(c, "offset", 0)
 	sessionID := c.Query("session_id")
 	domain := c.Query("domain")
@@ -177,6 +193,26 @@ func (s *Server) updateMemory(c *gin.Context) {
 		return
 	}
 
+	// Validate inputs (only if provided)
+	if req.Content != "" {
+		if err := validateContent(req.Content); err != nil {
+			BadRequestError(c, err.Error())
+			return
+		}
+	}
+	if req.Importance > 0 {
+		if err := validateImportance(req.Importance); err != nil {
+			BadRequestError(c, err.Error())
+			return
+		}
+	}
+	if req.Tags != nil {
+		if err := validateTags(req.Tags); err != nil {
+			BadRequestError(c, err.Error())
+			return
+		}
+	}
+
 	opts := &memory.UpdateOptions{
 		ID:   id,
 		Tags: req.Tags,
@@ -209,7 +245,9 @@ func (s *Server) updateMemory(c *gin.Context) {
 	// Re-index for semantic search if AI is available
 	if s.aiManager != nil {
 		ctx := c.Request.Context()
-		_ = s.aiManager.IndexMemory(ctx, mem)
+		if err := s.aiManager.IndexMemory(ctx, mem); err != nil {
+			s.log.Warn("failed to re-index memory for search", "id", mem.ID, "error", err)
+		}
 	}
 
 	// Return flat memory data to match local-memory format
@@ -233,7 +271,9 @@ func (s *Server) deleteMemory(c *gin.Context) {
 	// Remove from vector index if AI is available
 	if s.aiManager != nil {
 		ctx := c.Request.Context()
-		_ = s.aiManager.DeleteMemoryIndex(ctx, id)
+		if err := s.aiManager.DeleteMemoryIndex(ctx, id); err != nil {
+			s.log.Warn("failed to delete memory index", "id", id, "error", err)
+		}
 	}
 
 	// Return deleted ID and status to match local-memory format

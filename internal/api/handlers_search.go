@@ -86,7 +86,12 @@ func (s *Server) searchMemoriesGET(c *gin.Context) {
 		return
 	}
 
-	limit := parseIntQuery(c, "limit", 10)
+	if err := validateQuery(query); err != nil {
+		BadRequestError(c, err.Error())
+		return
+	}
+
+	limit := clampLimit(parseIntQuery(c, "limit", 10))
 	domain := c.Query("domain")
 	sessionID := c.Query("session_id")
 	useAI := c.Query("use_ai") == "true"
@@ -137,6 +142,19 @@ func (s *Server) searchMemoriesPOST(c *gin.Context) {
 		return
 	}
 
+	if req.Query != "" {
+		if err := validateQuery(req.Query); err != nil {
+			BadRequestError(c, err.Error())
+			return
+		}
+	}
+	if len(req.Tags) > 0 {
+		if err := validateTags(req.Tags); err != nil {
+			BadRequestError(c, err.Error())
+			return
+		}
+	}
+
 	// Determine search type
 	searchType := search.SearchTypeKeyword
 	switch req.SearchType {
@@ -154,7 +172,7 @@ func (s *Server) searchMemoriesPOST(c *gin.Context) {
 		searchType = search.SearchTypeHybrid
 	}
 
-	limit := req.Limit
+	limit := clampLimit(req.Limit)
 	if limit <= 0 {
 		limit = 10
 	}
@@ -235,7 +253,12 @@ func (s *Server) intelligentSearch(c *gin.Context) {
 		return
 	}
 
-	limit := req.Limit
+	if err := validateQuery(req.Query); err != nil {
+		BadRequestError(c, err.Error())
+		return
+	}
+
+	limit := clampLimit(req.Limit)
 	if limit <= 0 {
 		limit = 10
 	}
@@ -275,7 +298,12 @@ func (s *Server) searchByTags(c *gin.Context) {
 		return
 	}
 
-	limit := req.Limit
+	if err := validateTags(req.Tags); err != nil {
+		BadRequestError(c, err.Error())
+		return
+	}
+
+	limit := clampLimit(req.Limit)
 	if limit <= 0 {
 		limit = 50
 	}
@@ -283,6 +311,10 @@ func (s *Server) searchByTags(c *gin.Context) {
 	tagOperator := req.TagOperator
 	if tagOperator == "" {
 		tagOperator = "OR"
+	}
+	if tagOperator != "AND" && tagOperator != "OR" {
+		BadRequestError(c, "tag_operator must be 'AND' or 'OR'")
+		return
 	}
 
 	opts := &search.SearchOptions{
@@ -322,7 +354,7 @@ func (s *Server) searchByDateRange(c *gin.Context) {
 		return
 	}
 
-	limit := req.Limit
+	limit := clampLimit(req.Limit)
 	if limit <= 0 {
 		limit = 50
 	}
