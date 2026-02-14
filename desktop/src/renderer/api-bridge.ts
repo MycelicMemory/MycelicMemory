@@ -83,20 +83,6 @@ const browserApi = {
     get: async (memoryId: string) => fetchApi<any[]>(`/relationships?memory_id=${memoryId}`),
     discover: async () => fetchApi<any[]>('/relationships/discover', { method: 'POST' }),
   },
-  sources: {
-    list: async () => fetchApi<any[]>('/sources'),
-    get: async (id: string) => fetchApi<any>(`/sources/${id}`),
-    create: async (data: any) => fetchApi<any>('/sources', { method: 'POST', body: JSON.stringify(data) }),
-    update: async (id: string, data: any) => fetchApi<any>(`/sources/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    delete: async (id: string) => fetchApi<void>(`/sources/${id}`, { method: 'DELETE' }),
-    pause: async (id: string) => fetchApi<any>(`/sources/${id}/pause`, { method: 'POST' }),
-    resume: async (id: string) => fetchApi<any>(`/sources/${id}/resume`, { method: 'POST' }),
-    sync: async (id: string) => fetchApi<any>(`/sources/${id}/sync`, { method: 'POST' }),
-    history: async (id: string, limit?: number) => fetchApi<any[]>(`/sources/${id}/history${limit ? `?limit=${limit}` : ''}`),
-    stats: async (id: string) => fetchApi<any>(`/sources/${id}/stats`),
-    memories: async (id: string) => fetchApi<any[]>(`/sources/${id}/memories`),
-    ingest: async (id: string, items: any[]) => fetchApi<any>(`/sources/${id}/ingest`, { method: 'POST', body: JSON.stringify({ items }) }),
-  },
   claude: {
     projects: async () => {
       const result = await fetchApi<any[]>('/chats/projects');
@@ -136,14 +122,6 @@ const browserApi = {
       const result = await fetchApi<any[]>(`/chats/search?${params.toString()}`);
       return Array.isArray(result) ? result : [];
     },
-  },
-  extraction: {
-    start: async () => {},
-    stop: async () => {},
-    status: async () => ({ running: false, currentJob: null }),
-    getConfig: async () => ({}),
-    setConfig: async () => {},
-    onProgress: () => () => {},
   },
   config: {
     get: async () => ({}),

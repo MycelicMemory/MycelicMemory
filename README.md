@@ -1,47 +1,45 @@
-# MyclicMemory
+# MycelicMemory
 
 <p align="center">
-  <strong>AI-powered persistent memory system for Claude and other AI agents</strong>
+  <strong>Persistent memory for Claude and AI agents</strong>
 </p>
 
 <p align="center">
-  <a href="#installation">Installation</a> •
-  <a href="#connect-to-claude">Connect to Claude</a> •
-  <a href="#features">Features</a> •
-  <a href="#optional-ai-features">AI Features</a>
+  <a href="#quick-start">Quick Start</a> &bull;
+  <a href="#connect-to-claude">Connect to Claude</a> &bull;
+  <a href="#features">Features</a> &bull;
+  <a href="#desktop-app">Desktop App</a> &bull;
+  <a href="#cli-usage">CLI</a> &bull;
+  <a href="#rest-api">REST API</a>
 </p>
 
 ---
 
-MyclicMemory gives Claude persistent memory across conversations. Store knowledge, search semantically, and get AI-powered insights from your memories.
+MycelicMemory gives Claude persistent memory across conversations. Store knowledge, search semantically, build a knowledge graph, and get AI-powered insights — all running locally on your machine.
 
-**Free and open source** - no license keys, no subscriptions.
+**Free and open source** — no cloud accounts, no API keys, no subscriptions.
 
 ---
 
-## Installation
+## Quick Start
 
 ### Prerequisites
 
-**Required:**
 - **Node.js 18+** (includes npm)
+- **Ollama** (optional — enables semantic search and AI analysis)
 
-**Optional (for enhanced AI features):**
-- **Ollama** - For semantic search and AI analysis
-
-### Install via npm
+### Install
 
 ```bash
 npm install -g mycelicmemory
 ```
 
-**Important:** After installation, run `mycelicmemory` once to download the platform-specific binary:
+First run downloads the platform-specific binary automatically:
 
 ```bash
-mycelicmemory --version
+mycelicmemory --version    # Download binary + show version
+mycelicmemory doctor       # Check system dependencies
 ```
-
-The first run automatically downloads and caches the binary for your system (macOS, Linux, or Windows).
 
 ### Alternative: Install from GitHub
 
@@ -49,18 +47,11 @@ The first run automatically downloads and caches the binary for your system (mac
 npm install -g github:MycelicMemory/mycelicmemory
 ```
 
-### Verify Installation
-
-```bash
-mycelicmemory --version    # Should show version
-mycelicmemory doctor       # Check system dependencies
-```
-
 ---
 
 ## Connect to Claude
 
-MCP (Model Context Protocol) lets Claude communicate with MycelicMemory directly. Configuration depends on your platform.
+MCP (Model Context Protocol) lets Claude communicate with MycelicMemory directly.
 
 ### Step 1: Locate the Binary
 
@@ -68,7 +59,6 @@ After `npm install -g mycelicmemory`, find the native binary path:
 
 **macOS/Linux:**
 ```bash
-# The binary is inside the npm global modules directory
 BINARY_PATH="$(npm root -g)/mycelicmemory/bin/$(node -e "
   const os = require('os');
   const p = os.platform(), a = os.arch();
@@ -85,13 +75,11 @@ echo $BINARY_PATH
 
 **Windows (PowerShell):**
 ```powershell
-# Typically located at:
-# %APPDATA%\npm\node_modules\mycelicmemory\bin\mycelicmemory-windows-x64.exe
 $BinaryPath = Join-Path (npm root -g) "mycelicmemory\bin\mycelicmemory-windows-x64.exe"
 Write-Host $BinaryPath
 ```
 
-> **Why the direct binary path?** On Windows, the npm wrapper script (`mycelicmemory.cmd`) goes through `cmd.exe -> node.js -> Go binary`, which can cause stdin/stdout pipe issues in MCP mode. Using the direct binary path avoids this.
+> **Why the direct binary path?** On Windows, the npm wrapper script goes through `cmd.exe -> node.js -> Go binary`, which can cause stdin/stdout pipe issues in MCP mode. Using the direct binary avoids this.
 
 ### Step 2: Configure Claude Code (CLI)
 
@@ -121,13 +109,6 @@ Edit `~/.claude/mcp.json`:
 }
 ```
 
-Replace `YOUR_USERNAME` with your Windows username.
-
-Restart Claude Code after editing:
-```bash
-claude
-```
-
 ### Step 3: Configure Claude Desktop (Optional)
 
 Edit your config file:
@@ -138,18 +119,12 @@ Edit your config file:
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Linux | `~/.config/Claude/claude_desktop_config.json` |
 
-Use the same `mcpServers` block as above (matching your platform).
-
-Restart Claude Desktop after editing.
+Use the same `mcpServers` block as above.
 
 ### Step 4: Verify MCP Connection
 
-In Claude Code, run:
-```
-/mcp
-```
+In Claude Code, run `/mcp`. You should see `mycelicmemory` listed. Then try:
 
-You should see `mycelicmemory` listed as connected. Then ask Claude:
 - "Remember that mycelicmemory is now working"
 - "What memories do I have?"
 
@@ -161,8 +136,8 @@ You should see `mycelicmemory` listed as connected. Then ask Claude:
 
 | Tool | Description |
 |------|-------------|
-| `store_memory` | Save memories with importance (1-10), tags, and domain |
-| `search` | Semantic, keyword, tag, or hybrid search |
+| `store_memory` | Save memories with importance (1-10), tags, domain, and source |
+| `search` | Semantic, keyword, tag, hybrid, or date-range search |
 | `get_memory_by_id` | Retrieve specific memory by UUID |
 | `update_memory` | Modify content, importance, or tags |
 | `delete_memory` | Remove a memory permanently |
@@ -172,76 +147,215 @@ You should see `mycelicmemory` listed as connected. Then ask Claude:
 | Tool | Description |
 |------|-------------|
 | `analysis(question)` | Ask natural language questions about your memories |
-| `analysis(summarize)` | Generate summaries across timeframes |
+| `analysis(summarize)` | Generate summaries across timeframes (today, week, month, all) |
 | `analysis(analyze)` | Detect patterns and themes |
+| `analysis(temporal_patterns)` | Analyze how your knowledge evolved over time |
+
+### Knowledge Graph
+
+Build and explore connections between memories:
+
+| Tool | Description |
+|------|-------------|
+| `relationships(find_related)` | Find memories related to a given memory |
+| `relationships(discover)` | AI-powered automatic relationship discovery |
+| `relationships(create)` | Create explicit connections (references, expands, contradicts, similar, causes, enables, sequential) |
+| `relationships(map_graph)` | Generate a graph visualization with configurable depth |
+
+### Claude Code Chat History
+
+Ingest and search your Claude Code conversation history:
+
+| Tool | Description |
+|------|-------------|
+| `ingest_conversations` | Import sessions from `~/.claude/` JSONL files with optional summary generation |
+| `search_chats` | Search across all past conversations by title, prompt, or content |
+| `get_chat` | Retrieve full conversation with messages, tool calls, and linked memories |
+| `trace_source` | Trace any memory back to the exact conversation that created it |
 
 ### Knowledge Organization
 
 | Tool | Description |
 |------|-------------|
-| `relationships` | Create/discover connections between memories |
-| `categories` | Organize memories hierarchically |
-| `domains` | Group by knowledge domain |
-| `sessions` | Track memories by session |
+| `categories` | Create, list, and auto-categorize memories with AI |
+| `domains` | Group memories by knowledge domain with statistics |
+| `sessions` | Track memories by work session |
+
+### Auto-Memory Prompt
+
+MycelicMemory includes a built-in MCP prompt that instructs Claude to:
+1. **Search first** — check for relevant context at the start of conversations
+2. **Store continuously** — save decisions, debugging insights, preferences, and learnings
+3. **Build relationships** — connect new memories to existing ones
+
+Claude manages your knowledge base proactively without needing explicit "remember this" instructions.
+
+### Data Source Ingestion
+
+Register external data sources and ingest knowledge through the REST API:
+
+- Bulk import with deduplication (skip duplicate external IDs)
+- Checkpoint-based resumable ingestion
+- Sync history tracking and status monitoring
+- Per-source statistics and error logging
+
+---
+
+## Desktop App
+
+A standalone Electron application for visual memory management.
+
+**Pages:**
+- **Dashboard** — Memory stats, service health indicators, quick actions, activity charts
+- **Memory Browser** — Search, filter, edit, and delete memories with detail panels
+- **Claude Sessions** — Browse conversation history by project, view messages and tool calls
+- **Knowledge Graph** — Interactive network visualization of memory relationships
+- **Settings** — Configure API, Ollama models (with dropdown picker), MCP setup guide, Qdrant, theme
+
+**Service Management:**
+The desktop app automatically discovers and manages the MycelicMemory backend, Ollama, and Qdrant services.
+
+**Quick start:**
+```bash
+cd desktop
+npm install
+npm run dev
+```
+
+**Package for distribution:**
+```bash
+npm run package:win    # Windows (.exe)
+npm run package:mac    # macOS (.dmg)
+npm run package:linux  # Linux (AppImage)
+```
+
+See [`desktop/README.md`](desktop/README.md) for architecture details.
+
+---
+
+## CLI Usage
+
+```bash
+# Store memories
+mycelicmemory remember "Go interfaces are satisfied implicitly" \
+  --importance 8 --tags learning,go --domain programming
+
+# Search
+mycelicmemory search "concurrency patterns" --limit 5
+
+# AI analysis (requires Ollama)
+mycelicmemory analyze "What have I learned about testing?" --type question
+
+# Relationships
+mycelicmemory relate <id1> <id2> --type expands --strength 0.8
+mycelicmemory discover                     # AI relationship discovery
+mycelicmemory map_graph <id> --depth 3     # Graph visualization
+
+# Organization
+mycelicmemory list --domain databases
+mycelicmemory categorize <id> --auto-create
+
+# Service management
+mycelicmemory start    # Start REST API daemon
+mycelicmemory stop     # Stop daemon
+mycelicmemory status   # Show daemon status
+mycelicmemory doctor   # Health check
+```
+
+---
+
+## REST API
+
+The REST API runs at `http://localhost:3099/api/v1/` when the daemon is started.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/memories` | POST | Create memory |
+| `/memories` | GET | List memories (paginated) |
+| `/memories/:id` | GET / PUT / DELETE | CRUD by ID |
+| `/memories/search` | GET / POST | Search memories |
+| `/memories/search/intelligent` | POST | AI-powered intelligent search |
+| `/memories/:id/related` | GET | Find related memories |
+| `/memories/:id/graph` | GET | Knowledge graph for memory |
+| `/analyze` | POST | AI analysis |
+| `/relationships` | POST | Create relationship |
+| `/relationships/discover` | POST | AI relationship discovery |
+| `/categories` | GET / POST | Manage categories |
+| `/domains` | GET / POST | Manage domains |
+| `/sessions` | GET | List sessions |
+| `/stats` | GET | System statistics |
+| `/search/tags` | POST | Tag-based search (AND/OR) |
+| `/search/date-range` | POST | Date range search |
+| `/sources` | GET / POST | Data source management |
+| `/sources/:id/sync` | POST | Trigger sync |
+| `/sources/:id/ingest` | POST | Bulk ingest |
+| `/chats/ingest` | POST | Ingest Claude Code conversations |
+| `/chats` | GET | List chat sessions |
+| `/chats/search` | GET | Search conversations |
+| `/chats/:id` | GET | Get session with messages |
+
+Start the API:
+```bash
+mycelicmemory start --port 3099
+```
+
+---
+
+## Automatic Memory Hooks
+
+Capture knowledge automatically from Claude Code sessions — no manual "remember this" needed.
+
+```bash
+mkdir -p ~/.claude/hooks
+
+curl -o ~/.claude/hooks/mycelicmemory-memory-capture.py \
+  https://raw.githubusercontent.com/MycelicMemory/mycelicmemory/main/hooks/mycelicmemory-memory-capture.py
+
+curl -o ~/.claude/hooks/mycelicmemory-context-loader.py \
+  https://raw.githubusercontent.com/MycelicMemory/mycelicmemory/main/hooks/mycelicmemory-context-loader.py
+
+chmod +x ~/.claude/hooks/*.py
+```
+
+- **Memory Capture** — Stores decisions, debugging insights, and learnings automatically
+- **Context Loader** — Loads relevant memories at the start of new sessions
+
+See [Hooks Guide](docs/HOOKS.md) for configuration.
 
 ---
 
 ## Optional: AI Features
 
-MyclicMemory works without AI services, but semantic search and AI-powered analysis require **Ollama**.
+MycelicMemory works without AI services (keyword search, tags, storage, knowledge graph). For semantic search and AI analysis, add Ollama.
 
 ### Install Ollama
 
-**macOS:**
-```bash
-brew install ollama
-ollama serve
-```
+**macOS:** `brew install ollama && ollama serve`
 
-**Linux:**
-```bash
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama serve
-```
+**Linux:** `curl -fsSL https://ollama.ai/install.sh | sh && ollama serve`
 
-**Windows:**
-Download from [ollama.ai](https://ollama.ai/download)
+**Windows:** Download from [ollama.ai](https://ollama.ai/download)
 
 ### Download Models
 
 ```bash
-ollama pull nomic-embed-text   # For semantic search
-ollama pull qwen2.5:3b         # For AI analysis
+ollama pull nomic-embed-text   # Semantic search embeddings
+ollama pull qwen2.5:3b         # AI analysis
+```
+
+### Optional: Qdrant Vector Database
+
+For high-performance similarity search on large collections:
+
+```bash
+docker run -d --name qdrant -p 6333:6333 qdrant/qdrant
 ```
 
 ### Verify
 
 ```bash
 mycelicmemory doctor
-# Should show: Ollama: Available
-```
-
----
-
-## CLI Usage
-
-MyclicMemory also works as a standalone CLI:
-
-```bash
-# Store memories
-mycelicmemory remember "Go interfaces are satisfied implicitly"
-mycelicmemory remember "Important!" --importance 9 --tags learning,go
-
-# Search
-mycelicmemory search "concurrency patterns"
-
-# AI analysis (requires Ollama)
-mycelicmemory analyze "What have I learned about testing?"
-
-# Service management
-mycelicmemory start    # Start REST API daemon
-mycelicmemory stop     # Stop daemon
-mycelicmemory doctor   # Health check
 ```
 
 ---
@@ -263,13 +377,17 @@ ollama:
   base_url: http://localhost:11434
   embedding_model: nomic-embed-text
   chat_model: qwen2.5:3b
+
+qdrant:
+  enabled: false
+  url: http://localhost:6333
 ```
 
 ---
 
 ## Build from Source
 
-If you prefer to build from source (requires Go 1.23+ and a C compiler):
+Requires Go 1.23+ and a C compiler:
 
 ```bash
 git clone https://github.com/MycelicMemory/mycelicmemory.git
@@ -286,65 +404,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
 ### "command not found: mycelicmemory"
 
 Ensure npm global bin is in your PATH:
-
 ```bash
-npm root -g        # Shows the global node_modules directory
-npm bin -g         # Shows the global bin directory (add to PATH)
-```
-
-**Windows (PowerShell):**
-```powershell
-npm root -g
-# Typically: C:\Users\<user>\AppData\Roaming\npm\node_modules
+npm bin -g    # Shows the directory to add to PATH
 ```
 
 ### MCP Not Available in Claude
 
-**Step 1: Verify the binary exists and runs:**
+1. **Verify:** `mycelicmemory --version && mycelicmemory doctor`
+2. **Test MCP directly:**
+   ```bash
+   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | mycelicmemory --mcp
+   ```
+3. **Check config:** Validate `~/.claude/mcp.json` is valid JSON
+4. **Restart Claude Code** after config changes
 
-```bash
-mycelicmemory --version
-mycelicmemory doctor
-```
+### Windows: npm Wrapper Not Working
 
-**Step 2: Test MCP mode directly** (use the native binary, not the npm wrapper):
-
-macOS/Linux:
-```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | "$(npm root -g)/mycelicmemory/bin/mycelicmemory-$(uname -s | tr A-Z a-z)-$(uname -m)" --mcp
-```
-
-Windows (PowerShell):
-```powershell
-'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | & "$(npm root -g)\mycelicmemory\bin\mycelicmemory-windows-x64.exe" --mcp
-```
-
-You should see a JSON response containing `"serverInfo":{"name":"mycelicmemory"}`.
-
-**Step 3: Validate your MCP config:**
-
-macOS/Linux:
-```bash
-cat ~/.claude/mcp.json
-python3 -m json.tool ~/.claude/mcp.json
-```
-
-Windows (PowerShell):
-```powershell
-Get-Content "$env:USERPROFILE\.claude\mcp.json"
-```
-
-**Step 4: Restart Claude Code** — MCP config changes require a full restart.
-
-### Windows: npm Wrapper Not Working in MCP Mode
-
-If `"command": "mycelicmemory"` fails on Windows, use the direct binary path instead. The npm wrapper routes through `cmd.exe -> node.js -> binary`, which can break stdin/stdout piping required by MCP. See the [Connect to Claude](#connect-to-claude) section for the direct path configuration.
+Use the direct binary path instead of `mycelicmemory`. See [Connect to Claude](#step-2-configure-claude-code-cli).
 
 ### macOS Security Warning
 
-If macOS blocks the binary:
-1. Go to System Preferences > Security & Privacy > General
-2. Click "Allow Anyway" next to the mycelicmemory message
+System Preferences > Security & Privacy > General > "Allow Anyway"
 
 ### Full Diagnostics
 
@@ -357,15 +437,16 @@ mycelicmemory doctor
 ## Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md)
-- [Use Cases](docs/USE_CASES.md) - 15 detailed examples
-- [Hooks Setup](docs/HOOKS.md) - Automatic memory capture
+- [Use Cases](docs/USE_CASES.md) — 15 detailed examples
+- [Hooks Setup](docs/HOOKS.md) — Automatic memory capture
+- [Website / Full Guide](docs/WEBSITE.md) — Comprehensive documentation
 - [Contributing](CONTRIBUTING.md)
 
 ---
 
 ## License
 
-MIT License - Free and open source.
+MIT License — Free and open source.
 
 ---
 

@@ -1,15 +1,14 @@
 # MycelicMemory Desktop
 
-Desktop application for MycelicMemory - Memory extraction, browsing, and model configuration.
+Desktop application for MycelicMemory - Browse memories, visualize knowledge graphs, and manage services.
 
 ## Features
 
-- **Dashboard**: Overview of memory statistics, service health, and recent activity
+- **Dashboard**: Overview of memory statistics, service health, quick actions, and recent activity
 - **Memory Browser**: Search, filter, edit, and delete memories
 - **Claude Sessions**: Browse sessions and messages from claude-chat-stream
 - **Knowledge Graph**: Visualize memory relationships using vis-network
-- **Extraction**: Extract memories from Claude sessions automatically or manually
-- **Settings**: Configure API endpoints, models, and extraction behavior
+- **Settings**: Configure API endpoints, models, and preferences
 
 ## Prerequisites
 
@@ -48,12 +47,10 @@ src/
 │   ├── ipc/           # IPC handlers
 │   │   ├── memory.ipc.ts
 │   │   ├── claude.ipc.ts
-│   │   ├── extraction.ipc.ts
 │   │   └── config.ipc.ts
 │   └── services/      # Backend services
 │       ├── mycelicmemory-client.ts  # REST API wrapper
-│       ├── claude-stream-db.ts      # SQLite reader
-│       └── extraction-service.ts    # Memory extraction
+│       └── claude-stream-db.ts      # SQLite reader
 │
 ├── renderer/          # React frontend
 │   ├── App.tsx        # Main app with routing
@@ -62,7 +59,6 @@ src/
 │   │   ├── MemoryBrowser.tsx
 │   │   ├── ClaudeSessions.tsx
 │   │   ├── KnowledgeGraph.tsx
-│   │   ├── Extraction.tsx
 │   │   └── Settings.tsx
 │   └── styles/        # CSS styles
 │

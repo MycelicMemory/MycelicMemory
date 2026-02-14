@@ -8,11 +8,8 @@ import * as path from 'path';
 import Store from 'electron-store';
 import { registerMemoryHandlers } from './ipc/memory.ipc';
 import { registerClaudeHandlers } from './ipc/claude.ipc';
-import { registerExtractionHandlers } from './ipc/extraction.ipc';
 import { registerConfigHandlers } from './ipc/config.ipc';
-import { initSourcesIPC } from './ipc/sources.ipc';
 import { registerClaudeChatStreamHandlers } from './ipc/claude-stream.ipc';
-import { ExtractionService } from './services/extraction-service';
 import { MycelicMemoryClient } from './services/mycelicmemory-client';
 import { ServiceManager } from './services/service-manager';
 import { registerServicesHandlers } from './ipc/services.ipc';
@@ -30,13 +27,6 @@ const store = new Store<{ settings: AppSettings }>({
       qdrant_url: 'http://127.0.0.1:6333',
       qdrant_enabled: true,
       claude_stream_db_path: getDefaultClaudeStreamDbPath(),
-      extraction: {
-        auto_extract: false,
-        poll_interval_ms: 5000,
-        min_message_length: 50,
-        extract_tool_calls: true,
-        extract_file_operations: true,
-      },
       theme: 'dark',
       sidebar_collapsed: false,
     },
@@ -44,7 +34,6 @@ const store = new Store<{ settings: AppSettings }>({
 });
 
 let mainWindow: BrowserWindow | null = null;
-let extractionService: ExtractionService | null = null;
 let serviceManager: ServiceManager | null = null;
 
 function getDefaultClaudeStreamDbPath(): string {
@@ -116,24 +105,12 @@ function initializeServicesAndHandlers(): void {
 
   // Create instances immediately (no async work)
   serviceManager = new ServiceManager(settings);
-  extractionService = new ExtractionService({
-    claudeDbPath: settings.claude_stream_db_path,
-    apiUrl: apiBaseUrl,
-    config: settings.extraction,
-    onProgress: (job) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('extraction:progress', job);
-      }
-    },
-  });
 
   // Register ALL IPC handlers immediately so the renderer can make calls right away
   const client = new MycelicMemoryClient(apiBaseUrl);
   registerMemoryHandlers(ipcMain, apiBaseUrl);
   registerClaudeHandlers(ipcMain, client);
-  registerExtractionHandlers(ipcMain, extractionService);
   registerConfigHandlers(ipcMain, store);
-  initSourcesIPC(client);
   registerServicesHandlers(ipcMain, serviceManager);
 
   if (mainWindow) {
@@ -155,9 +132,6 @@ function initializeServicesAndHandlers(): void {
     })
     .catch(err => console.error('[Main] Service initialization error:', err));
 
-  if (settings.extraction.auto_extract) {
-    extractionService.start();
-  }
 }
 
 // App lifecycle
@@ -173,20 +147,12 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // Stop extraction service
-  if (extractionService) {
-    extractionService.stop();
-  }
-
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('before-quit', async () => {
-  if (extractionService) {
-    extractionService.stop();
-  }
   if (serviceManager) {
     await serviceManager.cleanup();
   }

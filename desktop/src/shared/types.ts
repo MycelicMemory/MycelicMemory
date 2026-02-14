@@ -122,26 +122,6 @@ export interface ChatIngestResult {
   memories_linked: number;
 }
 
-// Extraction types
-export interface ExtractionJob {
-  id: string;
-  session_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  messages_processed: number;
-  memories_created: number;
-  started_at?: string;
-  completed_at?: string;
-  error?: string;
-}
-
-export interface ExtractionConfig {
-  auto_extract: boolean;
-  poll_interval_ms: number;
-  min_message_length: number;
-  extract_tool_calls: boolean;
-  extract_file_operations: boolean;
-}
-
 // Relationship types (for knowledge graph)
 export interface MemoryRelationship {
   id: string;
@@ -170,9 +150,6 @@ export interface AppSettings {
   // Claude Chat Stream
   claude_stream_db_path: string;
 
-  // Extraction
-  extraction: ExtractionConfig;
-
   // UI
   theme: 'dark' | 'light' | 'system';
   sidebar_collapsed: boolean;
@@ -184,7 +161,6 @@ export interface DashboardStats {
   session_count: number;
   domain_count: number;
   this_week_count: number;
-  last_extraction?: string;
 }
 
 export interface HealthStatus {
@@ -362,12 +338,6 @@ export type IPCChannels = {
   'claude:ingest': { params: { project_path?: string }; result: ChatIngestResult };
   'claude:search': { params: { query: string; project_path?: string; limit?: number }; result: ClaudeSession[] };
 
-  // Extraction
-  'extraction:start': { params: { session_id: string }; result: ExtractionJob };
-  'extraction:status': { params: void; result: ExtractionJob[] };
-  'extraction:config': { params: void; result: ExtractionConfig };
-  'extraction:config:update': { params: ExtractionConfig; result: ExtractionConfig };
-
   // Stats & Health
   'stats:dashboard': { params: void; result: DashboardStats };
   'health:check': { params: void; result: HealthStatus };
@@ -382,20 +352,6 @@ export type IPCChannels = {
   // Relationships (for graph)
   'relationships:get': { params: { memory_id: string }; result: MemoryRelationship[] };
   'relationships:discover': { params: void; result: MemoryRelationship[] };
-
-  // Data Sources
-  'sources:list': { params: { source_type?: DataSourceType; status?: DataSourceStatus }; result: DataSource[] };
-  'sources:get': { params: { id: string }; result: DataSource | null };
-  'sources:create': { params: DataSourceCreateInput; result: DataSource };
-  'sources:update': { params: { id: string; data: DataSourceUpdateInput }; result: DataSource };
-  'sources:delete': { params: { id: string }; result: boolean };
-  'sources:pause': { params: { id: string }; result: DataSource };
-  'sources:resume': { params: { id: string }; result: DataSource };
-  'sources:sync': { params: { id: string }; result: SyncHistoryEntry };
-  'sources:ingest': { params: { id: string; request: IngestRequest }; result: IngestResponse };
-  'sources:history': { params: { id: string; limit?: number }; result: SyncHistoryEntry[] };
-  'sources:stats': { params: { id: string }; result: DataSourceStats };
-  'sources:memories': { params: { id: string; limit?: number; offset?: number }; result: Memory[] };
 
   // Claude Chat Stream daemon control
   'claude-stream:status': { params: void; result: ClaudeChatStreamStatus };
