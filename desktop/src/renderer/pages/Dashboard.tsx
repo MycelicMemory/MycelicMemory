@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Brain,
   Database,
@@ -7,9 +8,11 @@ import {
   CheckCircle,
   AlertCircle,
   MessageSquare,
-  FileText,
+  Search,
+  Plus,
+  Network,
+  ArrowRight,
   Play,
-  Square,
   Loader2,
 } from 'lucide-react';
 import {
@@ -103,9 +106,33 @@ function ServiceRow({ label, running, detail, warning, onStart, starting, showSt
   );
 }
 
+interface QuickActionProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  description: string;
+  color: string;
+  onClick: () => void;
+}
+
+function QuickAction({ icon: Icon, label, description, color, onClick }: QuickActionProps) {
+  return (
+    <button
+      onClick={onClick}
+      className="bg-slate-800 border border-slate-700 rounded-xl p-5 text-left hover:border-slate-500 hover:bg-slate-750 transition-all group"
+    >
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${color}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <h3 className="font-medium text-slate-200 group-hover:text-white transition-colors">{label}</h3>
+      <p className="text-sm text-slate-500 mt-1">{description}</p>
+    </button>
+  );
+}
+
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
@@ -249,6 +276,48 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <QuickAction
+          icon={Search}
+          label="Search Memories"
+          description="Find and browse stored memories"
+          color="bg-primary-500/20 text-primary-400"
+          onClick={() => navigate('/memories')}
+        />
+        <QuickAction
+          icon={Plus}
+          label="Add Memory"
+          description="Store a new memory manually"
+          color="bg-green-500/20 text-green-400"
+          onClick={() => navigate('/memories')}
+        />
+        <QuickAction
+          icon={Network}
+          label="Knowledge Graph"
+          description="Visualize memory connections"
+          color="bg-purple-500/20 text-purple-400"
+          onClick={() => navigate('/graph')}
+        />
+        <QuickAction
+          icon={MessageSquare}
+          label="Claude Sessions"
+          description="Browse chat history and sessions"
+          color="bg-amber-500/20 text-amber-400"
+          onClick={() => navigate('/sessions')}
+        />
+      </div>
+
+      {memoryCount === 0 && (
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 mb-8 text-center">
+          <Brain className="w-12 h-12 text-primary-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Welcome to MycelicMemory</h2>
+          <p className="text-slate-400 max-w-md mx-auto">
+            Get started by connecting Claude via MCP, or add your first memory manually using the Memory Browser.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Domain Distribution */}
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
@@ -298,7 +367,15 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Memories */}
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-semibold mb-4">Recent Memories</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Recent Memories</h2>
+            <button
+              onClick={() => navigate('/memories')}
+              className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
+            >
+              View all <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
           {recentMemories.length > 0 ? (
             <div className="space-y-3">
               {recentMemories.map((memory) => (

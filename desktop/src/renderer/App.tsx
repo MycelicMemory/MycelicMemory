@@ -4,18 +4,14 @@ import {
   Search,
   MessageSquare,
   Network,
-  Download,
   Settings,
   Activity,
-  Database,
 } from 'lucide-react';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Dashboard from './pages/Dashboard';
 import MemoryBrowser from './pages/MemoryBrowser';
 import ClaudeSessions from './pages/ClaudeSessions';
 import KnowledgeGraph from './pages/KnowledgeGraph';
-import Extraction from './pages/Extraction';
-import DataSources from './pages/DataSources';
 import SettingsPage from './pages/Settings';
 import type { HealthStatus } from '../shared/types';
 
@@ -140,11 +136,9 @@ function App() {
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           <NavItem to="/" icon={Activity} label="Dashboard" />
-          <NavItem to="/memories" icon={Search} label="Memory Browser" />
-          <NavItem to="/sessions" icon={MessageSquare} label="Claude Sessions" />
-          <NavItem to="/graph" icon={Network} label="Knowledge Graph" />
-          <NavItem to="/extraction" icon={Download} label="Extraction" />
-          <NavItem to="/sources" icon={Database} label="Data Sources" />
+          <NavItem to="/memories" icon={Search} label="Memories" />
+          <NavItem to="/sessions" icon={MessageSquare} label="Sessions" />
+          <NavItem to="/graph" icon={Network} label="Graph" />
 
           <div className="pt-4 mt-4 border-t border-slate-700">
             <NavItem to="/settings" icon={Settings} label="Settings" />
@@ -191,8 +185,6 @@ function App() {
           <Route path="/memories" element={<MemoryBrowser />} />
           <Route path="/sessions" element={<ClaudeSessions />} />
           <Route path="/graph" element={<KnowledgeGraph />} />
-          <Route path="/extraction" element={<Extraction />} />
-          <Route path="/sources" element={<DataSources />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

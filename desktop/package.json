@@ -66,6 +66,7 @@
         "to": "node_modules/better-sqlite3"
       }
     ],
+    "icon": "resources/icons/icon.png",
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
@@ -73,8 +74,7 @@
           "target": "dmg",
           "arch": ["x64", "arm64"]
         }
-      ],
-      "icon": "resources/icons/icon.icns"
+      ]
     },
     "win": {
       "target": [
@@ -82,19 +82,15 @@
           "target": "nsis",
           "arch": ["x64"]
         }
-      ],
-      "icon": "resources/icons/icon.ico"
+      ]
     },
     "linux": {
       "target": ["AppImage", "deb"],
-      "category": "Development",
-      "icon": "resources/icons"
+      "category": "Development"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "resources/icons/icon.ico",
-      "uninstallerIcon": "resources/icons/icon.ico"
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

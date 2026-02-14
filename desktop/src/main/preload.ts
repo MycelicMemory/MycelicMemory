@@ -15,22 +15,11 @@ import type {
   ClaudeMessage,
   ClaudeToolCall,
   ChatIngestResult,
-  ExtractionJob,
-  ExtractionConfig,
   DashboardStats,
   HealthStatus,
   Domain,
   AppSettings,
   MemoryRelationship,
-  DataSource,
-  DataSourceCreateInput,
-  DataSourceUpdateInput,
-  DataSourceStats,
-  SyncHistoryEntry,
-  IngestRequest,
-  IngestResponse,
-  DataSourceType,
-  DataSourceStatus,
   ClaudeChatStreamStatus,
   ServiceStatus,
 } from '../shared/types';
@@ -76,23 +65,6 @@ const api = {
       invoke('claude:search', { query, project_path: projectPath, limit }),
   },
 
-  // Extraction operations
-  extraction: {
-    start: (sessionId: string): Promise<ExtractionJob> =>
-      invoke('extraction:start', sessionId),
-    status: (): Promise<ExtractionJob[]> =>
-      invoke('extraction:status'),
-    getConfig: (): Promise<ExtractionConfig> =>
-      invoke('extraction:config'),
-    updateConfig: (config: ExtractionConfig): Promise<ExtractionConfig> =>
-      invoke('extraction:config:update', config),
-    onProgress: (callback: (job: ExtractionJob) => void): (() => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, job: ExtractionJob) => callback(job);
-      ipcRenderer.on('extraction:progress', handler);
-      return () => ipcRenderer.removeListener('extraction:progress', handler);
-    },
-  },
-
   // Stats & Health
   stats: {
     dashboard: (): Promise<DashboardStats> =>
@@ -121,34 +93,6 @@ const api = {
       invoke('settings:get'),
     update: (settings: Partial<AppSettings>): Promise<AppSettings> =>
       invoke('settings:update', settings),
-  },
-
-  // Data Sources (Multi-source ingestion)
-  sources: {
-    list: (params?: { source_type?: DataSourceType; status?: DataSourceStatus }): Promise<DataSource[]> =>
-      invoke('sources:list', params || {}),
-    get: (id: string): Promise<DataSource | null> =>
-      invoke('sources:get', { id }),
-    create: (data: DataSourceCreateInput): Promise<DataSource> =>
-      invoke('sources:create', data),
-    update: (id: string, data: DataSourceUpdateInput): Promise<DataSource> =>
-      invoke('sources:update', { id, data }),
-    delete: (id: string): Promise<boolean> =>
-      invoke('sources:delete', { id }),
-    pause: (id: string): Promise<DataSource> =>
-      invoke('sources:pause', { id }),
-    resume: (id: string): Promise<DataSource> =>
-      invoke('sources:resume', { id }),
-    sync: (id: string): Promise<SyncHistoryEntry> =>
-      invoke('sources:sync', { id }),
-    ingest: (id: string, request: IngestRequest): Promise<IngestResponse> =>
-      invoke('sources:ingest', { id, request }),
-    history: (id: string, limit?: number): Promise<SyncHistoryEntry[]> =>
-      invoke('sources:history', { id, limit }),
-    stats: (id: string): Promise<DataSourceStats> =>
-      invoke('sources:stats', { id }),
-    memories: (id: string, limit?: number, offset?: number): Promise<Memory[]> =>
-      invoke('sources:memories', { id, limit, offset }),
   },
 
   // Claude Chat Stream daemon control

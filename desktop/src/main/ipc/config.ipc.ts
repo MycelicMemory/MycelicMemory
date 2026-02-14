@@ -28,11 +28,6 @@ export function registerConfigHandlers(
       const current = store.get('settings');
       const updated = { ...current, ...updates };
 
-      // Deep merge for nested objects like extraction config
-      if (updates.extraction) {
-        updated.extraction = { ...current.extraction, ...updates.extraction };
-      }
-
       store.set('settings', updated);
       return updated;
     } catch (error) {
