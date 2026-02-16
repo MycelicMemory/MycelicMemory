@@ -6,7 +6,7 @@ require (
 	// Utilities
 	github.com/google/uuid v1.5.0
 	// Database
-	github.com/mattn/go-sqlite3 v1.14.19
+	github.com/mattn/go-sqlite3 v1.14.34
 	github.com/spf13/viper v1.18.2
 )
 
@@ -14,6 +14,7 @@ require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/text v0.27.0
 )
 
 require (
@@ -60,7 +61,6 @@ require (
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
