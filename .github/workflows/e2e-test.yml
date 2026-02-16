@@ -54,10 +54,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: mycelicmemory-linux-x64
           path: ./
@@ -68,7 +68,7 @@ jobs:
           sudo mv mycelicmemory-linux-x64 /usr/local/bin/mycelicmemory
 
       - name: Cache Ollama
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.ollama
           key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
@@ -171,7 +171,7 @@ jobs:
 
       - name: Upload server logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: server-logs-linux
           path: /tmp/server.log
@@ -181,10 +181,10 @@ jobs:
     needs: build
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: mycelicmemory-macos-arm64
           path: ./
@@ -195,7 +195,7 @@ jobs:
           sudo mv mycelicmemory-macos-arm64 /usr/local/bin/mycelicmemory
 
       - name: Cache Ollama
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.ollama
           key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
@@ -278,10 +278,10 @@ jobs:
     needs: build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: mycelicmemory-windows-x64.exe
           path: ./
@@ -294,7 +294,7 @@ jobs:
           echo "C:\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Cache Ollama
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~\.ollama
           key: ${{ runner.os }}-ollama-${{ env.OLLAMA_MODEL }}
