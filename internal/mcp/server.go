@@ -171,7 +171,7 @@ func (s *Server) handleRequest(ctx context.Context, line string) *Response {
 	case "initialize":
 		s.log.Info("handling initialize request")
 		return s.handleInitialize(req)
-	case "initialized":
+	case "initialized", "notifications/initialized":
 		s.log.Debug("received initialized notification")
 		// Notification, no response needed
 		return nil
@@ -194,6 +194,11 @@ func (s *Server) handleRequest(ctx context.Context, line string) *Response {
 			Result:  map[string]interface{}{},
 		}
 	default:
+		// JSON-RPC 2.0: notifications (no id) MUST NOT receive a response
+		if req.ID == nil {
+			s.log.Debug("ignoring unknown notification", "method", req.Method)
+			return nil
+		}
 		s.log.Warn("method not found", "method", req.Method)
 		return &Response{
 			JSONRPC: "2.0",
