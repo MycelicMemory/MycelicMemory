@@ -169,6 +169,13 @@ func (d *Database) RunMigrations() error {
 		}
 	}
 
+	// Generalize cc_* tables to source-agnostic names
+	if version < 5 {
+		if err := MigrationV4ToV5(d.db); err != nil {
+			return fmt.Errorf("migration v4 to v5 failed: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -272,6 +279,78 @@ func MigrationV2ToV3(db *sql.DB) error {
 	return nil
 }
 
+// MigrationV4ToV5 generalizes cc_* tables to source-agnostic names
+// Renames: cc_sessions → conversations, cc_messages → messages, cc_tool_calls → actions
+// Renames: memories.cc_session_id → memories.conversation_id
+func MigrationV4ToV5(db *sql.DB) error {
+	log.Info("running migration v4 to v5: generalizing table names")
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is harmless
+
+	// 1. Rename tables (SQLite supports ALTER TABLE RENAME TO)
+	renameStatements := []string{
+		"ALTER TABLE cc_sessions RENAME TO conversations;",
+		"ALTER TABLE cc_messages RENAME TO messages;",
+		"ALTER TABLE cc_tool_calls RENAME TO actions;",
+	}
+
+	for _, stmt := range renameStatements {
+		if _, err := tx.Exec(stmt); err != nil {
+			// Table may already be renamed (idempotent)
+			log.Debug("rename skipped (may already exist)", "stmt", stmt, "error", err)
+		}
+	}
+
+	// 2. Rename cc_session_id column on memories table
+	// SQLite 3.25.0+ supports ALTER TABLE RENAME COLUMN
+	if _, err := tx.Exec("ALTER TABLE memories RENAME COLUMN cc_session_id TO conversation_id;"); err != nil {
+		log.Debug("column rename skipped (may already exist)", "error", err)
+	}
+
+	// 3. Create new indexes with updated names (old indexes auto-renamed with table)
+	// The table-level indexes were auto-renamed by SQLite, but let's ensure
+	// the new naming convention indexes exist
+	indexStatements := []string{
+		"CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON conversations(session_id);",
+		"CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_path);",
+		"CREATE INDEX IF NOT EXISTS idx_conversations_hash ON conversations(project_hash);",
+		"CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at);",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_dedup ON conversations(project_hash, session_id);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_seq ON messages(session_id, sequence_index);",
+		"CREATE INDEX IF NOT EXISTS idx_actions_session ON actions(session_id);",
+		"CREATE INDEX IF NOT EXISTS idx_actions_name ON actions(tool_name);",
+		"CREATE INDEX IF NOT EXISTS idx_actions_filepath ON actions(filepath);",
+		"CREATE INDEX IF NOT EXISTS idx_memories_conversation ON memories(conversation_id);",
+	}
+
+	for _, stmt := range indexStatements {
+		if _, err := tx.Exec(stmt); err != nil {
+			log.Debug("index creation skipped (may already exist)", "stmt", stmt, "error", err)
+		}
+	}
+
+	// 4. Update schema version
+	if _, err := tx.Exec(`
+		INSERT OR REPLACE INTO schema_version (version, applied_at)
+		VALUES (5, CURRENT_TIMESTAMP)
+	`); err != nil {
+		return fmt.Errorf("failed to update schema version: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit migration: %w", err)
+	}
+
+	log.Info("migration v4 to v5 completed successfully")
+	return nil
+}
+
 // MigrationV3ToV4 adds Claude Code chat history tables
 // This creates cc_sessions, cc_messages, cc_tool_calls and links memories to sessions
 func MigrationV3ToV4(db *sql.DB) error {
@@ -283,8 +362,43 @@ func MigrationV3ToV4(db *sql.DB) error {
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback after commit is harmless
 
-	// 1. Create chat history tables
-	if _, err := tx.Exec(ChatHistorySchema); err != nil {
+	// 1. Create chat history tables (using old cc_* names, v5 migration will rename)
+	chatHistorySQL := `
+		CREATE TABLE IF NOT EXISTS cc_sessions (
+			id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project_path TEXT NOT NULL,
+			project_hash TEXT NOT NULL, model TEXT, title TEXT, first_prompt TEXT,
+			summary TEXT, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
+			last_activity DATETIME, message_count INTEGER DEFAULT 0,
+			user_message_count INTEGER DEFAULT 0, assistant_message_count INTEGER DEFAULT 0,
+			tool_call_count INTEGER DEFAULT 0, source_id TEXT, file_path TEXT,
+			last_sync_position TEXT, summary_memory_id TEXT,
+			FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE SET NULL,
+			FOREIGN KEY (summary_memory_id) REFERENCES memories(id) ON DELETE SET NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_cc_sessions_session_id ON cc_sessions(session_id);
+		CREATE INDEX IF NOT EXISTS idx_cc_sessions_project ON cc_sessions(project_path);
+		CREATE INDEX IF NOT EXISTS idx_cc_sessions_hash ON cc_sessions(project_hash);
+		CREATE INDEX IF NOT EXISTS idx_cc_sessions_created ON cc_sessions(created_at);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_sessions_dedup ON cc_sessions(project_hash, session_id);
+		CREATE TABLE IF NOT EXISTS cc_messages (
+			id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES cc_sessions(id) ON DELETE CASCADE,
+			role TEXT NOT NULL, content TEXT, timestamp DATETIME, sequence_index INTEGER NOT NULL,
+			has_tool_use BOOLEAN DEFAULT 0, token_count INTEGER DEFAULT 0
+		);
+		CREATE INDEX IF NOT EXISTS idx_cc_messages_session ON cc_messages(session_id);
+		CREATE INDEX IF NOT EXISTS idx_cc_messages_role ON cc_messages(role);
+		CREATE INDEX IF NOT EXISTS idx_cc_messages_seq ON cc_messages(session_id, sequence_index);
+		CREATE TABLE IF NOT EXISTS cc_tool_calls (
+			id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES cc_sessions(id) ON DELETE CASCADE,
+			message_id TEXT REFERENCES cc_messages(id) ON DELETE CASCADE, tool_name TEXT NOT NULL,
+			input_json TEXT, result_text TEXT, success BOOLEAN DEFAULT 1,
+			filepath TEXT, operation TEXT, timestamp DATETIME
+		);
+		CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_session ON cc_tool_calls(session_id);
+		CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_name ON cc_tool_calls(tool_name);
+		CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_filepath ON cc_tool_calls(filepath);
+	`
+	if _, err := tx.Exec(chatHistorySQL); err != nil {
 		return fmt.Errorf("failed to create chat history tables: %w", err)
 	}
 

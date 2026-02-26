@@ -98,11 +98,11 @@ func (d *Database) InitSchema() error {
 		return fmt.Errorf("failed to create core schema: %w", err)
 	}
 
-	// Execute chat history schema (cc_sessions, cc_messages, cc_tool_calls)
-	log.Debug("creating chat history schema")
-	if _, err := tx.Exec(ChatHistorySchema); err != nil {
-		log.Error("failed to create chat history schema", "error", err)
-		return fmt.Errorf("failed to create chat history schema: %w", err)
+	// Execute conversation schema (conversations, messages, actions)
+	log.Debug("creating conversation schema")
+	if _, err := tx.Exec(ConversationSchema); err != nil {
+		log.Error("failed to create conversation schema", "error", err)
+		return fmt.Errorf("failed to create conversation schema: %w", err)
 	}
 
 	// Execute FTS5 schema (virtual table, triggers)

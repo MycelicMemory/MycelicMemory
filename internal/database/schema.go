@@ -9,7 +9,7 @@ package database
 // - Metadata: performance_metrics, migration_log, schema_version, sqlite_sequence
 
 // SchemaVersion is the current schema version
-const SchemaVersion = 4
+const SchemaVersion = 5
 
 // CoreSchema contains the main table definitions
 // VERIFIED: Exact schema from ~/.local-memory/unified-memories.db
@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS memories (
 	parent_memory_id TEXT REFERENCES memories(id) ON DELETE CASCADE,
 	chunk_level INTEGER DEFAULT 0,  -- 0=full, 1=paragraph, 2=atomic
 	chunk_index INTEGER DEFAULT 0,  -- position within parent
-	-- Chat history linkage
-	cc_session_id TEXT
+	-- Conversation linkage (any source)
+	conversation_id TEXT
 );
 
 -- VERIFIED: 9 indexes on memories table
@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_slug ON memories(slug);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_slug_unique ON memories(slug) WHERE slug IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_memories_parent ON memories(parent_memory_id);
 CREATE INDEX IF NOT EXISTS idx_memories_chunk_level ON memories(chunk_level);
-CREATE INDEX IF NOT EXISTS idx_memories_cc_session ON memories(cc_session_id);
+CREATE INDEX IF NOT EXISTS idx_memories_conversation ON memories(conversation_id);
 
 -- =============================================================================
 -- MEMORY RELATIONSHIPS TABLE
@@ -288,14 +288,14 @@ CREATE INDEX IF NOT EXISTS idx_sync_history_status ON data_source_sync_history(s
 CREATE INDEX IF NOT EXISTS idx_sync_history_started ON data_source_sync_history(started_at);
 `
 
-// ChatHistorySchema contains the Claude Code chat history tables
-// Added in schema version 4 for conversation tracking
-const ChatHistorySchema = `
+// ConversationSchema contains the conversation tracking tables (generalized from cc_* tables)
+// Originally added in schema version 4 for Claude Code, generalized in v5 for all sources
+const ConversationSchema = `
 -- =============================================================================
--- CLAUDE CODE CHAT SESSIONS TABLE
--- Parsed from ~/.claude/projects/*/JSONL files
+-- CONVERSATIONS TABLE
+-- Ingested conversations from any source (Claude Code, Slack, Discord, etc.)
 -- =============================================================================
-CREATE TABLE IF NOT EXISTS cc_sessions (
+CREATE TABLE IF NOT EXISTS conversations (
 	id TEXT PRIMARY KEY,
 	session_id TEXT NOT NULL,
 	project_path TEXT NOT NULL,
@@ -318,19 +318,19 @@ CREATE TABLE IF NOT EXISTS cc_sessions (
 	FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE SET NULL,
 	FOREIGN KEY (summary_memory_id) REFERENCES memories(id) ON DELETE SET NULL
 );
-CREATE INDEX IF NOT EXISTS idx_cc_sessions_session_id ON cc_sessions(session_id);
-CREATE INDEX IF NOT EXISTS idx_cc_sessions_project ON cc_sessions(project_path);
-CREATE INDEX IF NOT EXISTS idx_cc_sessions_hash ON cc_sessions(project_hash);
-CREATE INDEX IF NOT EXISTS idx_cc_sessions_created ON cc_sessions(created_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_sessions_dedup ON cc_sessions(project_hash, session_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_session_id ON conversations(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_path);
+CREATE INDEX IF NOT EXISTS idx_conversations_hash ON conversations(project_hash);
+CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_dedup ON conversations(project_hash, session_id);
 
 -- =============================================================================
--- CLAUDE CODE MESSAGES TABLE
--- Individual messages (append-only, mirrors JSONL structure)
+-- MESSAGES TABLE
+-- Individual messages from any conversation source
 -- =============================================================================
-CREATE TABLE IF NOT EXISTS cc_messages (
+CREATE TABLE IF NOT EXISTS messages (
 	id TEXT PRIMARY KEY,
-	session_id TEXT NOT NULL REFERENCES cc_sessions(id) ON DELETE CASCADE,
+	session_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
 	role TEXT NOT NULL,
 	content TEXT,
 	timestamp DATETIME,
@@ -338,18 +338,18 @@ CREATE TABLE IF NOT EXISTS cc_messages (
 	has_tool_use BOOLEAN DEFAULT 0,
 	token_count INTEGER DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_cc_messages_session ON cc_messages(session_id);
-CREATE INDEX IF NOT EXISTS idx_cc_messages_role ON cc_messages(role);
-CREATE INDEX IF NOT EXISTS idx_cc_messages_seq ON cc_messages(session_id, sequence_index);
+CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role);
+CREATE INDEX IF NOT EXISTS idx_messages_seq ON messages(session_id, sequence_index);
 
 -- =============================================================================
--- CLAUDE CODE TOOL CALLS TABLE
--- Tool calls extracted from assistant messages
+-- ACTIONS TABLE
+-- Tool calls, reactions, and other actions extracted from messages
 -- =============================================================================
-CREATE TABLE IF NOT EXISTS cc_tool_calls (
+CREATE TABLE IF NOT EXISTS actions (
 	id TEXT PRIMARY KEY,
-	session_id TEXT NOT NULL REFERENCES cc_sessions(id) ON DELETE CASCADE,
-	message_id TEXT REFERENCES cc_messages(id) ON DELETE CASCADE,
+	session_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+	message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,
 	tool_name TEXT NOT NULL,
 	input_json TEXT,
 	result_text TEXT,
@@ -358,9 +358,9 @@ CREATE TABLE IF NOT EXISTS cc_tool_calls (
 	operation TEXT,
 	timestamp DATETIME
 );
-CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_session ON cc_tool_calls(session_id);
-CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_name ON cc_tool_calls(tool_name);
-CREATE INDEX IF NOT EXISTS idx_cc_tool_calls_filepath ON cc_tool_calls(filepath);
+CREATE INDEX IF NOT EXISTS idx_actions_session ON actions(session_id);
+CREATE INDEX IF NOT EXISTS idx_actions_name ON actions(tool_name);
+CREATE INDEX IF NOT EXISTS idx_actions_filepath ON actions(filepath);
 `
 
 // DataSourceTypes contains the supported source types

@@ -28,7 +28,7 @@ type MemoryData struct {
 	Domain      *string   `json:"domain"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
-	CCSessionID *string   `json:"cc_session_id,omitempty"`
+	ConversationID *string `json:"conversation_id,omitempty"`
 }
 
 // CreateMemoryRequest represents a memory creation request
@@ -71,8 +71,8 @@ func toMemoryData(m *database.Memory) *MemoryData {
 	if m.Domain != "" {
 		data.Domain = &m.Domain
 	}
-	if m.CCSessionID != "" {
-		data.CCSessionID = &m.CCSessionID
+	if m.ConversationID != "" {
+		data.ConversationID = &m.ConversationID
 	}
 
 	// Ensure tags is not nil

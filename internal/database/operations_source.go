@@ -532,7 +532,7 @@ func (d *Database) GetMemoriesBySource(sourceID string, limit, offset int) ([]*M
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       source_id, external_id, cc_session_id
+		       source_id, external_id, conversation_id
 		FROM memories
 		WHERE source_id = ?
 		ORDER BY created_at DESC
@@ -632,7 +632,7 @@ func scanMemoriesWithSource(rows *sql.Rows) ([]*Memory, error) {
 		m.ParentMemoryID = parentMemoryID.String
 		m.SourceID = sourceID.String
 		m.ExternalID = externalID.String
-		m.CCSessionID = ccSessionID.String
+		m.ConversationID = ccSessionID.String
 		m.Embedding = embedding
 		m.Tags = ParseTags(tagsJSON)
 

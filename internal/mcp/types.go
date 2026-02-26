@@ -154,7 +154,7 @@ type StoreMemoryParams struct {
 	Tags        []string `json:"tags,omitempty"`
 	Domain      string   `json:"domain,omitempty"`
 	Source      string   `json:"source,omitempty"`
-	CCSessionID string   `json:"cc_session_id,omitempty"`
+	ConversationID string `json:"conversation_id,omitempty"`
 }
 
 // SearchParams for search tool

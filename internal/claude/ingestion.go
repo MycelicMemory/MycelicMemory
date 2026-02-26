@@ -360,7 +360,7 @@ func (ing *Ingester) createSummaryMemory(ctx context.Context, session *database.
 		UpdatedAt:   time.Now(),
 		AgentType:   "claude-code",
 		AccessScope: "session",
-		CCSessionID: session.ID,
+		ConversationID: session.ID,
 	}
 
 	// We need to set tags JSON for the DB insert

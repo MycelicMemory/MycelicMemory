@@ -10,11 +10,11 @@ import (
 )
 
 // =============================================================================
-// CC SESSION OPERATIONS
+// CONVERSATION OPERATIONS
 // =============================================================================
 
-// CreateCCSession creates a new Claude Code chat session
-func (d *Database) CreateCCSession(s *CCSession) error {
+// CreateCCSession creates a new conversation record
+func (d *Database) CreateCCSession(s *Conversation) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -29,7 +29,7 @@ func (d *Database) CreateCCSession(s *CCSession) error {
 	s.UpdatedAt = now
 
 	_, err := d.db.Exec(`
-		INSERT INTO cc_sessions (
+		INSERT INTO conversations (
 			id, session_id, project_path, project_hash, model, title, first_prompt,
 			summary, created_at, updated_at, last_activity,
 			message_count, user_message_count, assistant_message_count, tool_call_count,
@@ -45,30 +45,30 @@ func (d *Database) CreateCCSession(s *CCSession) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to create cc_session: %w", err)
+		return fmt.Errorf("failed to create conversation: %w", err)
 	}
 
 	return nil
 }
 
-// GetCCSession retrieves a chat session by internal ID
-func (d *Database) GetCCSession(id string) (*CCSession, error) {
+// GetCCSession retrieves a conversation by internal ID
+func (d *Database) GetCCSession(id string) (*Conversation, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	return d.getCCSessionByQuery("SELECT id, session_id, project_path, project_hash, model, title, first_prompt, summary, created_at, updated_at, last_activity, message_count, user_message_count, assistant_message_count, tool_call_count, source_id, file_path, last_sync_position, summary_memory_id FROM cc_sessions WHERE id = ?", id)
+	return d.getConversationByQuery("SELECT id, session_id, project_path, project_hash, model, title, first_prompt, summary, created_at, updated_at, last_activity, message_count, user_message_count, assistant_message_count, tool_call_count, source_id, file_path, last_sync_position, summary_memory_id FROM conversations WHERE id = ?", id)
 }
 
-// GetCCSessionBySessionID retrieves a chat session by project hash + Claude session ID (dedup lookup)
-func (d *Database) GetCCSessionBySessionID(projectHash, sessionID string) (*CCSession, error) {
+// GetCCSessionBySessionID retrieves a conversation by project hash + session ID (dedup lookup)
+func (d *Database) GetCCSessionBySessionID(projectHash, sessionID string) (*Conversation, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	return d.getCCSessionByQuery("SELECT id, session_id, project_path, project_hash, model, title, first_prompt, summary, created_at, updated_at, last_activity, message_count, user_message_count, assistant_message_count, tool_call_count, source_id, file_path, last_sync_position, summary_memory_id FROM cc_sessions WHERE project_hash = ? AND session_id = ?", projectHash, sessionID)
+	return d.getConversationByQuery("SELECT id, session_id, project_path, project_hash, model, title, first_prompt, summary, created_at, updated_at, last_activity, message_count, user_message_count, assistant_message_count, tool_call_count, source_id, file_path, last_sync_position, summary_memory_id FROM conversations WHERE project_hash = ? AND session_id = ?", projectHash, sessionID)
 }
 
-func (d *Database) getCCSessionByQuery(query string, args ...interface{}) (*CCSession, error) {
-	var s CCSession
+func (d *Database) getConversationByQuery(query string, args ...interface{}) (*Conversation, error) {
+	var s Conversation
 	var model, title, firstPrompt, summary, sourceID, filePath, lastSyncPos, summaryMemID sql.NullString
 	var lastActivity sql.NullTime
 
@@ -84,7 +84,7 @@ func (d *Database) getCCSessionByQuery(query string, args ...interface{}) (*CCSe
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cc_session: %w", err)
+		return nil, fmt.Errorf("failed to get conversation: %w", err)
 	}
 
 	s.Model = model.String
@@ -102,8 +102,8 @@ func (d *Database) getCCSessionByQuery(query string, args ...interface{}) (*CCSe
 	return &s, nil
 }
 
-// ListCCSessions retrieves chat sessions with optional filters
-func (d *Database) ListCCSessions(filters *CCSessionFilters) ([]*CCSession, error) {
+// ListCCSessions retrieves conversations with optional filters
+func (d *Database) ListCCSessions(filters *ConversationFilters) ([]*Conversation, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -124,7 +124,7 @@ func (d *Database) ListCCSessions(filters *CCSessionFilters) ([]*CCSession, erro
 		       summary, created_at, updated_at, last_activity,
 		       message_count, user_message_count, assistant_message_count, tool_call_count,
 		       source_id, file_path, last_sync_position, summary_memory_id
-		FROM cc_sessions
+		FROM conversations
 	`
 
 	if len(whereClauses) > 0 {
@@ -145,15 +145,15 @@ func (d *Database) ListCCSessions(filters *CCSessionFilters) ([]*CCSession, erro
 
 	rows, err := d.db.Query(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list cc_sessions: %w", err)
+		return nil, fmt.Errorf("failed to list conversations: %w", err)
 	}
 	defer rows.Close()
 
-	return scanCCSessions(rows)
+	return scanConversations(rows)
 }
 
-// UpdateCCSession updates an existing chat session
-func (d *Database) UpdateCCSession(id string, updates *CCSessionUpdate) error {
+// UpdateCCSession updates an existing conversation
+func (d *Database) UpdateCCSession(id string, updates *ConversationUpdate) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -201,45 +201,45 @@ func (d *Database) UpdateCCSession(id string, updates *CCSessionUpdate) error {
 	args = append(args, time.Now())
 	args = append(args, id)
 
-	query := fmt.Sprintf("UPDATE cc_sessions SET %s WHERE id = ?", strings.Join(setClauses, ", "))
+	query := fmt.Sprintf("UPDATE conversations SET %s WHERE id = ?", strings.Join(setClauses, ", "))
 
 	result, err := d.db.Exec(query, args...)
 	if err != nil {
-		return fmt.Errorf("failed to update cc_session: %w", err)
+		return fmt.Errorf("failed to update conversation: %w", err)
 	}
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("cc_session not found: %s", id)
+		return fmt.Errorf("conversation not found: %s", id)
 	}
 
 	return nil
 }
 
-// DeleteCCSession removes a chat session by ID (CASCADE deletes messages and tool calls)
+// DeleteCCSession removes a conversation by ID (CASCADE deletes messages and actions)
 func (d *Database) DeleteCCSession(id string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	result, err := d.db.Exec("DELETE FROM cc_sessions WHERE id = ?", id)
+	result, err := d.db.Exec("DELETE FROM conversations WHERE id = ?", id)
 	if err != nil {
-		return fmt.Errorf("failed to delete cc_session: %w", err)
+		return fmt.Errorf("failed to delete conversation: %w", err)
 	}
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("cc_session not found: %s", id)
+		return fmt.Errorf("conversation not found: %s", id)
 	}
 
 	return nil
 }
 
 // =============================================================================
-// CC MESSAGE OPERATIONS
+// MESSAGE OPERATIONS
 // =============================================================================
 
-// CreateCCMessage creates a new message in a chat session
-func (d *Database) CreateCCMessage(m *CCMessage) error {
+// CreateCCMessage creates a new message in a conversation
+func (d *Database) CreateCCMessage(m *ConversationMessage) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -248,7 +248,7 @@ func (d *Database) CreateCCMessage(m *CCMessage) error {
 	}
 
 	_, err := d.db.Exec(`
-		INSERT INTO cc_messages (
+		INSERT INTO messages (
 			id, session_id, role, content, timestamp, sequence_index, has_tool_use, token_count
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`,
@@ -257,14 +257,14 @@ func (d *Database) CreateCCMessage(m *CCMessage) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to create cc_message: %w", err)
+		return fmt.Errorf("failed to create message: %w", err)
 	}
 
 	return nil
 }
 
-// GetCCMessages retrieves messages for a session ordered by sequence index
-func (d *Database) GetCCMessages(sessionID string, limit, offset int) ([]*CCMessage, error) {
+// GetCCMessages retrieves messages for a conversation ordered by sequence index
+func (d *Database) GetCCMessages(sessionID string, limit, offset int) ([]*ConversationMessage, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -274,21 +274,21 @@ func (d *Database) GetCCMessages(sessionID string, limit, offset int) ([]*CCMess
 
 	rows, err := d.db.Query(`
 		SELECT id, session_id, role, content, timestamp, sequence_index, has_tool_use, token_count
-		FROM cc_messages
+		FROM messages
 		WHERE session_id = ?
 		ORDER BY sequence_index ASC
 		LIMIT ? OFFSET ?
 	`, sessionID, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cc_messages: %w", err)
+		return nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 	defer rows.Close()
 
-	return scanCCMessages(rows)
+	return scanConversationMessages(rows)
 }
 
-// SearchCCMessages searches messages by content across sessions
-func (d *Database) SearchCCMessages(query string, projectPath string, limit int) ([]*CCMessage, error) {
+// SearchCCMessages searches messages by content across conversations
+func (d *Database) SearchCCMessages(query string, projectPath string, limit int) ([]*ConversationMessage, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -301,8 +301,8 @@ func (d *Database) SearchCCMessages(query string, projectPath string, limit int)
 
 	sqlQuery := `
 		SELECT m.id, m.session_id, m.role, m.content, m.timestamp, m.sequence_index, m.has_tool_use, m.token_count
-		FROM cc_messages m
-		JOIN cc_sessions s ON s.id = m.session_id
+		FROM messages m
+		JOIN conversations s ON s.id = m.session_id
 		WHERE m.content LIKE ?
 	`
 	args = append(args, searchPattern)
@@ -317,19 +317,19 @@ func (d *Database) SearchCCMessages(query string, projectPath string, limit int)
 
 	rows, err := d.db.Query(sqlQuery, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search cc_messages: %w", err)
+		return nil, fmt.Errorf("failed to search messages: %w", err)
 	}
 	defer rows.Close()
 
-	return scanCCMessages(rows)
+	return scanConversationMessages(rows)
 }
 
 // =============================================================================
-// CC TOOL CALL OPERATIONS
+// ACTION OPERATIONS
 // =============================================================================
 
-// CreateCCToolCall creates a new tool call record
-func (d *Database) CreateCCToolCall(tc *CCToolCall) error {
+// CreateCCToolCall creates a new action record
+func (d *Database) CreateCCToolCall(tc *ConversationAction) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -338,7 +338,7 @@ func (d *Database) CreateCCToolCall(tc *CCToolCall) error {
 	}
 
 	_, err := d.db.Exec(`
-		INSERT INTO cc_tool_calls (
+		INSERT INTO actions (
 			id, session_id, message_id, tool_name, input_json, result_text,
 			success, filepath, operation, timestamp
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -350,41 +350,41 @@ func (d *Database) CreateCCToolCall(tc *CCToolCall) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to create cc_tool_call: %w", err)
+		return fmt.Errorf("failed to create action: %w", err)
 	}
 
 	return nil
 }
 
-// GetCCToolCalls retrieves tool calls for a session
-func (d *Database) GetCCToolCalls(sessionID string) ([]*CCToolCall, error) {
+// GetCCToolCalls retrieves actions for a conversation
+func (d *Database) GetCCToolCalls(sessionID string) ([]*ConversationAction, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`
 		SELECT id, session_id, message_id, tool_name, input_json, result_text,
 		       success, filepath, operation, timestamp
-		FROM cc_tool_calls
+		FROM actions
 		WHERE session_id = ?
 		ORDER BY timestamp ASC
 	`, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cc_tool_calls: %w", err)
+		return nil, fmt.Errorf("failed to get actions: %w", err)
 	}
 	defer rows.Close()
 
-	return scanCCToolCalls(rows)
+	return scanConversationActions(rows)
 }
 
-// GetFileOperations retrieves file-touching tool calls for a session
-func (d *Database) GetFileOperations(sessionID string) ([]*CCToolCall, error) {
+// GetFileOperations retrieves file-touching actions for a conversation
+func (d *Database) GetFileOperations(sessionID string) ([]*ConversationAction, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`
 		SELECT id, session_id, message_id, tool_name, input_json, result_text,
 		       success, filepath, operation, timestamp
-		FROM cc_tool_calls
+		FROM actions
 		WHERE session_id = ? AND filepath IS NOT NULL AND filepath != ''
 		ORDER BY timestamp ASC
 	`, sessionID)
@@ -393,15 +393,15 @@ func (d *Database) GetFileOperations(sessionID string) ([]*CCToolCall, error) {
 	}
 	defer rows.Close()
 
-	return scanCCToolCalls(rows)
+	return scanConversationActions(rows)
 }
 
 // =============================================================================
 // CROSS-LAYER OPERATIONS
 // =============================================================================
 
-// GetSessionMemories retrieves memories linked to a chat session
-func (d *Database) GetSessionMemories(ccSessionID string, limit, offset int) ([]*Memory, error) {
+// GetSessionMemories retrieves memories linked to a conversation
+func (d *Database) GetSessionMemories(conversationID string, limit, offset int) ([]*Memory, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -413,12 +413,12 @@ func (d *Database) GetSessionMemories(ccSessionID string, limit, offset int) ([]
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       cc_session_id
+		       conversation_id
 		FROM memories
-		WHERE cc_session_id = ?
+		WHERE conversation_id = ?
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
-	`, ccSessionID, limit, offset)
+	`, conversationID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session memories: %w", err)
 	}
@@ -427,16 +427,16 @@ func (d *Database) GetSessionMemories(ccSessionID string, limit, offset int) ([]
 	return scanMemories(rows)
 }
 
-// UpdateMemoryCCSession links a memory to a chat session
-func (d *Database) UpdateMemoryCCSession(memoryID, ccSessionID string) error {
+// UpdateMemoryCCSession links a memory to a conversation
+func (d *Database) UpdateMemoryCCSession(memoryID, conversationID string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	result, err := d.db.Exec(`
-		UPDATE memories SET cc_session_id = ?, updated_at = ? WHERE id = ?
-	`, nullString(ccSessionID), time.Now(), memoryID)
+		UPDATE memories SET conversation_id = ?, updated_at = ? WHERE id = ?
+	`, nullString(conversationID), time.Now(), memoryID)
 	if err != nil {
-		return fmt.Errorf("failed to update memory cc_session: %w", err)
+		return fmt.Errorf("failed to update memory conversation: %w", err)
 	}
 
 	rows, _ := result.RowsAffected()
@@ -447,21 +447,21 @@ func (d *Database) UpdateMemoryCCSession(memoryID, ccSessionID string) error {
 	return nil
 }
 
-// LinkSessionToSummaryMemory sets the summary_memory_id on a chat session
-func (d *Database) LinkSessionToSummaryMemory(ccSessionID, summaryMemoryID string) error {
+// LinkSessionToSummaryMemory sets the summary_memory_id on a conversation
+func (d *Database) LinkSessionToSummaryMemory(conversationID, summaryMemoryID string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	result, err := d.db.Exec(`
-		UPDATE cc_sessions SET summary_memory_id = ?, updated_at = ? WHERE id = ?
-	`, summaryMemoryID, time.Now(), ccSessionID)
+		UPDATE conversations SET summary_memory_id = ?, updated_at = ? WHERE id = ?
+	`, summaryMemoryID, time.Now(), conversationID)
 	if err != nil {
-		return fmt.Errorf("failed to link session to summary memory: %w", err)
+		return fmt.Errorf("failed to link conversation to summary memory: %w", err)
 	}
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("cc_session not found: %s", ccSessionID)
+		return fmt.Errorf("conversation not found: %s", conversationID)
 	}
 
 	return nil
@@ -471,10 +471,10 @@ func (d *Database) LinkSessionToSummaryMemory(ccSessionID, summaryMemoryID strin
 // SCAN HELPERS
 // =============================================================================
 
-func scanCCSessions(rows *sql.Rows) ([]*CCSession, error) {
-	var sessions []*CCSession
+func scanConversations(rows *sql.Rows) ([]*Conversation, error) {
+	var sessions []*Conversation
 	for rows.Next() {
-		var s CCSession
+		var s Conversation
 		var model, title, firstPrompt, summary, sourceID, filePath, lastSyncPos, summaryMemID sql.NullString
 		var lastActivity sql.NullTime
 
@@ -486,7 +486,7 @@ func scanCCSessions(rows *sql.Rows) ([]*CCSession, error) {
 			&sourceID, &filePath, &lastSyncPos, &summaryMemID,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan cc_session: %w", err)
+			return nil, fmt.Errorf("failed to scan conversation: %w", err)
 		}
 
 		s.Model = model.String
@@ -506,10 +506,13 @@ func scanCCSessions(rows *sql.Rows) ([]*CCSession, error) {
 	return sessions, nil
 }
 
-func scanCCMessages(rows *sql.Rows) ([]*CCMessage, error) {
-	var messages []*CCMessage
+// scanCCSessions is an alias for backward compatibility
+var scanCCSessions = scanConversations
+
+func scanConversationMessages(rows *sql.Rows) ([]*ConversationMessage, error) {
+	var messages []*ConversationMessage
 	for rows.Next() {
-		var m CCMessage
+		var m ConversationMessage
 		var timestamp sql.NullTime
 
 		err := rows.Scan(
@@ -517,7 +520,7 @@ func scanCCMessages(rows *sql.Rows) ([]*CCMessage, error) {
 			&timestamp, &m.SequenceIndex, &m.HasToolUse, &m.TokenCount,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan cc_message: %w", err)
+			return nil, fmt.Errorf("failed to scan message: %w", err)
 		}
 
 		if timestamp.Valid {
@@ -529,10 +532,13 @@ func scanCCMessages(rows *sql.Rows) ([]*CCMessage, error) {
 	return messages, nil
 }
 
-func scanCCToolCalls(rows *sql.Rows) ([]*CCToolCall, error) {
-	var toolCalls []*CCToolCall
+// scanCCMessages is an alias for backward compatibility
+var scanCCMessages = scanConversationMessages
+
+func scanConversationActions(rows *sql.Rows) ([]*ConversationAction, error) {
+	var actions []*ConversationAction
 	for rows.Next() {
-		var tc CCToolCall
+		var tc ConversationAction
 		var messageID, inputJSON, resultText, filePath, operation sql.NullString
 		var timestamp sql.NullTime
 
@@ -542,7 +548,7 @@ func scanCCToolCalls(rows *sql.Rows) ([]*CCToolCall, error) {
 			&timestamp,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan cc_tool_call: %w", err)
+			return nil, fmt.Errorf("failed to scan action: %w", err)
 		}
 
 		tc.MessageID = messageID.String
@@ -554,7 +560,10 @@ func scanCCToolCalls(rows *sql.Rows) ([]*CCToolCall, error) {
 			tc.Timestamp = &timestamp.Time
 		}
 
-		toolCalls = append(toolCalls, &tc)
+		actions = append(actions, &tc)
 	}
-	return toolCalls, nil
+	return actions, nil
 }
+
+// scanCCToolCalls is an alias for backward compatibility
+var scanCCToolCalls = scanConversationActions

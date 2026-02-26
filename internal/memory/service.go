@@ -58,7 +58,7 @@ type StoreOptions struct {
 	AgentContext string // Optional override
 	AccessScope  string // "session", "shared", "global"
 	Slug         string
-	CCSessionID  string // Optional: link to a Claude Code chat session
+	ConversationID string // Optional: link to a conversation
 }
 
 // StoreResult contains the result of storing a memory
@@ -151,7 +151,7 @@ func (s *Service) Store(opts *StoreOptions) (*StoreResult, error) {
 		Slug:         opts.Slug,
 		ChunkLevel:   0, // Root level
 		ChunkIndex:   0,
-		CCSessionID:  opts.CCSessionID,
+		ConversationID: opts.ConversationID,
 	}
 
 	// Store in database
@@ -182,7 +182,7 @@ func (s *Service) storeWithChunks(opts *StoreOptions, content string, importance
 		Slug:         opts.Slug,
 		ChunkLevel:   0, // Root level
 		ChunkIndex:   0,
-		CCSessionID:  opts.CCSessionID,
+		ConversationID: opts.ConversationID,
 	}
 
 	if err := s.db.CreateMemory(parentMemory); err != nil {

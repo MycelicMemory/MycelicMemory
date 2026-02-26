@@ -298,7 +298,7 @@ func (t *Transformer) createSummaryMemory(_ context.Context, session *database.C
 		UpdatedAt:   time.Now(),
 		AgentType:   sourceType,
 		AccessScope: "session",
-		CCSessionID: session.ID,
+		ConversationID: session.ID,
 	}
 
 	if err := t.db.CreateMemory(mem); err != nil {
