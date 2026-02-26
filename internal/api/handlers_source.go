@@ -281,7 +281,7 @@ func (s *Server) resumeDataSource(c *gin.Context) {
 }
 
 // triggerSync handles POST /api/v1/sources/:id/sync
-// Note: This creates a sync history entry. The actual sync is triggered externally.
+// Uses the pipeline queue to run the ingestion asynchronously.
 func (s *Server) triggerSync(c *gin.Context) {
 	id := c.Param("id")
 
@@ -301,7 +301,24 @@ func (s *Server) triggerSync(c *gin.Context) {
 		return
 	}
 
-	// Create a sync history entry
+	// Check if pipeline has an adapter for this source type
+	if s.pipelineQueue != nil && s.pipelineQueue.GetAdapter(ds.SourceType) != nil {
+		// Use pipeline queue for async ingestion
+		jobID, err := s.pipelineQueue.Enqueue(c.Request.Context(), id, "incremental")
+		if err != nil {
+			InternalError(c, "Failed to enqueue sync: "+err.Error())
+			return
+		}
+		SuccessResponse(c, "Sync enqueued via pipeline", map[string]any{
+			"job_id":      jobID,
+			"source_id":   id,
+			"source_type": ds.SourceType,
+			"status":      "running",
+		})
+		return
+	}
+
+	// Fallback: create a sync history entry (legacy behavior)
 	sh := &database.DataSourceSyncHistory{
 		SourceID:  id,
 		StartedAt: time.Now(),

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MycelicMemory/mycelicmemory/internal/adapters/slack"
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
 	"github.com/MycelicMemory/mycelicmemory/internal/claude"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
@@ -74,10 +75,12 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	claudeReader := claude.NewReader("")
 	claudeIngester := claude.NewIngester(claudeReader, db, relSvc)
 
-	// Initialize universal pipeline queue with Claude adapter
+	// Initialize universal pipeline queue with adapters
 	pipelineQueue := pipeline.NewQueue(db, relSvc, pipeline.DefaultQueueConfig())
 	claudeAdapter := claude.NewAdapter(claudeReader)
 	pipelineQueue.RegisterAdapter(claudeAdapter)
+	slackAdapter := slack.NewAdapter()
+	pipelineQueue.RegisterAdapter(slackAdapter)
 
 	return &Server{
 		db:             db,

@@ -79,10 +79,78 @@ const browserApi = {
       const result = await fetchApi<any>('/domains');
       return result.domains ?? result ?? [];
     },
+    create: async (data: { name: string; description?: string }) =>
+      fetchApi<any>('/domains', { method: 'POST', body: JSON.stringify(data) }),
+    stats: async (domain: string) => fetchApi<any>(`/domains/${encodeURIComponent(domain)}/stats`),
+  },
+  categories: {
+    list: async () => fetchApi<any[]>('/categories'),
+    create: async (data: { name: string; description?: string; parent_id?: string }) =>
+      fetchApi<any>('/categories', { method: 'POST', body: JSON.stringify(data) }),
+    stats: async () => fetchApi<any>('/categories/stats'),
+    categorize: async (memoryId: string, data: { category_id: string; confidence?: number }) =>
+      fetchApi<any>(`/memories/${memoryId}/categorize`, { method: 'POST', body: JSON.stringify(data) }),
   },
   relationships: {
     get: async (memoryId: string) => fetchApi<any[]>(`/relationships?memory_id=${memoryId}`),
+    create: async (data: { source_memory_id: string; target_memory_id: string; relationship_type_enum: string; strength?: number; context?: string }) =>
+      fetchApi<any>('/relationships', { method: 'POST', body: JSON.stringify(data) }),
     discover: async () => fetchApi<any[]>('/relationships/discover', { method: 'POST' }),
+    related: async (memoryId: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', limit.toString());
+      return fetchApi<any[]>(`/memories/${memoryId}/related?${params.toString()}`);
+    },
+    graph: async (memoryId: string, depth?: number) => {
+      const params = new URLSearchParams();
+      if (depth) params.set('depth', depth.toString());
+      return fetchApi<any>(`/memories/${memoryId}/graph?${params.toString()}`);
+    },
+  },
+  analysis: {
+    analyze: async (data: { analysis_type: string; question?: string; query?: string; timeframe?: string; limit?: number; domain?: string }) =>
+      fetchApi<any>('/analyze', { method: 'POST', body: JSON.stringify(data) }),
+  },
+  sources: {
+    list: async (params?: { source_type?: string; status?: string }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.source_type) searchParams.set('source_type', params.source_type);
+      if (params?.status) searchParams.set('status', params.status);
+      const query = searchParams.toString();
+      return fetchApi<any[]>(`/sources${query ? `?${query}` : ''}`);
+    },
+    get: async (id: string) => fetchApi<any>(`/sources/${id}`),
+    create: async (data: { source_type: string; name: string; config?: string }) =>
+      fetchApi<any>('/sources', { method: 'POST', body: JSON.stringify(data) }),
+    update: async (id: string, data: { name?: string; config?: string; status?: string }) =>
+      fetchApi<any>(`/sources/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: async (id: string) => fetchApi<void>(`/sources/${id}`, { method: 'DELETE' }),
+    pause: async (id: string) => fetchApi<any>(`/sources/${id}/pause`, { method: 'POST' }),
+    resume: async (id: string) => fetchApi<any>(`/sources/${id}/resume`, { method: 'POST' }),
+    sync: async (id: string) => fetchApi<any>(`/sources/${id}/sync`, { method: 'POST' }),
+    history: async (id: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', limit.toString());
+      return fetchApi<any[]>(`/sources/${id}/history?${params.toString()}`);
+    },
+    stats: async (id: string) => fetchApi<any>(`/sources/${id}/stats`),
+    memories: async (id: string, params?: { limit?: number; offset?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.limit) searchParams.set('limit', params.limit.toString());
+      if (params?.offset) searchParams.set('offset', params.offset.toString());
+      return fetchApi<any[]>(`/sources/${id}/memories?${searchParams.toString()}`);
+    },
+  },
+  trace: {
+    source: async (memoryId: string) => fetchApi<any>(`/memories/${memoryId}/trace`),
+  },
+  search: {
+    tags: async (data: { tags: string[]; tag_operator?: string; limit?: number; domain?: string }) =>
+      fetchApi<any[]>('/search/tags', { method: 'POST', body: JSON.stringify(data) }),
+    dateRange: async (data: { start_date: string; end_date: string; limit?: number; domain?: string }) =>
+      fetchApi<any[]>('/search/date-range', { method: 'POST', body: JSON.stringify(data) }),
+    intelligent: async (data: any) =>
+      fetchApi<any[]>('/memories/search/intelligent', { method: 'POST', body: JSON.stringify(data) }),
   },
   claude: {
     projects: async () => {

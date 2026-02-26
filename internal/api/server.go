@@ -10,10 +10,13 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	slackadapter "github.com/MycelicMemory/mycelicmemory/internal/adapters/slack"
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
+	"github.com/MycelicMemory/mycelicmemory/internal/claude"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/pipeline"
 	"github.com/MycelicMemory/mycelicmemory/internal/ratelimit"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
@@ -29,6 +32,7 @@ type Server struct {
 	searchEngine  *search.Engine
 	relService    *relationships.Service
 	aiManager     *ai.Manager
+	pipelineQueue *pipeline.Queue
 	httpServer    *http.Server
 	sessionID     string
 	log           *logging.Logger
@@ -117,6 +121,14 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	// Connect AI manager to search engine
 	searchEngine.SetAIManager(aiManager)
 
+	// Initialize pipeline queue with adapters
+	pipelineQueue := pipeline.NewQueue(db, relService, pipeline.DefaultQueueConfig())
+	claudeReader := claude.NewReader("")
+	claudeAdapter := claude.NewAdapter(claudeReader)
+	pipelineQueue.RegisterAdapter(claudeAdapter)
+	slackAdapter := slackadapter.NewAdapter()
+	pipelineQueue.RegisterAdapter(slackAdapter)
+
 	// Detect session ID
 	strategy := memory.SessionStrategyGitDirectory
 	if cfg.Session.Strategy == "manual" {
@@ -135,6 +147,7 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		searchEngine:  searchEngine,
 		relService:    relService,
 		aiManager:     aiManager,
+		pipelineQueue: pipelineQueue,
 		sessionID:     sessionID,
 		log:           log,
 	}
