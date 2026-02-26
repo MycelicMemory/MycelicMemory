@@ -272,6 +272,22 @@ type TraceSourceParams struct {
 	MemoryID string `json:"memory_id"`
 }
 
+// IngestSourceParams for ingest_source tool
+type IngestSourceParams struct {
+	SourceID string `json:"source_id"`
+	Mode     string `json:"mode"` // "incremental" or "backfill"
+}
+
+// PipelineStatusParams for pipeline_status tool
+type PipelineStatusParams struct {
+	SourceID string `json:"source_id"`
+}
+
+// ListSourcesParams for list_sources tool
+type ListSourcesParams struct {
+	SourceType string `json:"source_type,omitempty"`
+}
+
 // PromptMessage represents a message in a prompt
 type PromptMessage struct {
 	Role    string       `json:"role"`

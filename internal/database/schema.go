@@ -368,6 +368,9 @@ var DataSourceTypes = []string{
 	"claude-stream",     // Claude Code chat sessions (streaming)
 	"claude-code-local", // Claude Code local JSONL files
 	"slack",             // Slack messages
+	"discord",           // Discord messages
+	"telegram",          // Telegram messages
+	"imessage",          // iMessage/SMS (macOS chat.db)
 	"email",             // Email (IMAP/Gmail)
 	"browser",           // Browser history
 	"notion",            // Notion pages

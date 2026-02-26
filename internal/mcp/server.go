@@ -15,6 +15,7 @@ import (
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/pipeline"
 	"github.com/MycelicMemory/mycelicmemory/internal/ratelimit"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
@@ -36,6 +37,8 @@ type Server struct {
 	searchEng       *search.Engine
 	relSvc          *relationships.Service
 	claudeIngester  *claude.Ingester
+	claudeReader    *claude.Reader
+	pipelineQueue   *pipeline.Queue
 	rateLimiter     *ratelimit.Limiter
 	formatter       *Formatter
 	log             *logging.Logger
@@ -71,6 +74,11 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	claudeReader := claude.NewReader("")
 	claudeIngester := claude.NewIngester(claudeReader, db, relSvc)
 
+	// Initialize universal pipeline queue with Claude adapter
+	pipelineQueue := pipeline.NewQueue(db, relSvc, pipeline.DefaultQueueConfig())
+	claudeAdapter := claude.NewAdapter(claudeReader)
+	pipelineQueue.RegisterAdapter(claudeAdapter)
+
 	return &Server{
 		db:             db,
 		cfg:            cfg,
@@ -79,6 +87,8 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		searchEng:      search.NewEngine(db, cfg),
 		relSvc:         relSvc,
 		claudeIngester: claudeIngester,
+		claudeReader:   claudeReader,
+		pipelineQueue:  pipelineQueue,
 		rateLimiter:    rateLimiterInstance,
 		formatter:      NewFormatter(),
 		log:            log,
@@ -470,6 +480,12 @@ func (s *Server) callTool(ctx context.Context, name string, args map[string]inte
 		return s.handleGetChat(ctx, argsJSON)
 	case "trace_source":
 		return s.handleTraceSource(ctx, argsJSON)
+	case "ingest_source":
+		return s.handleIngestSource(ctx, argsJSON)
+	case "pipeline_status":
+		return s.handlePipelineStatus(ctx, argsJSON)
+	case "list_sources":
+		return s.handleListSources(ctx, argsJSON)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -889,6 +905,52 @@ func (s *Server) getToolDefinitions() []Tool {
 					},
 				},
 				Required: []string{"memory_id"},
+			},
+		},
+		{
+			Name:        "ingest_source",
+			Description: "Trigger ingestion for any registered data source through the universal pipeline. Supports backfill (full history) and incremental (from checkpoint) modes. Currently supports claude-code-local with more adapters coming.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"source_id": {
+						Type:        "string",
+						Description: "Data source ID to ingest from. Use list_sources to find available sources.",
+					},
+					"mode": {
+						Type:        "string",
+						Description: "Ingestion mode: 'incremental' (from last checkpoint) or 'backfill' (full history)",
+						Default:     "incremental",
+					},
+				},
+				Required: []string{"source_id"},
+			},
+		},
+		{
+			Name:        "pipeline_status",
+			Description: "Check the status of an active or recent pipeline ingestion job.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"source_id": {
+						Type:        "string",
+						Description: "Data source ID to check status for",
+					},
+				},
+				Required: []string{"source_id"},
+			},
+		},
+		{
+			Name:        "list_sources",
+			Description: "List all configured data sources with their sync status, type, and statistics. Shows available source adapters.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"source_type": {
+						Type:        "string",
+						Description: "Filter by source type (e.g. 'claude-code-local', 'slack')",
+					},
+				},
 			},
 		},
 	}
