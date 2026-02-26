@@ -9,6 +9,7 @@ import {
   Plus,
   PanelLeftClose,
   PanelLeftOpen,
+  Database,
 } from 'lucide-react';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Dashboard from './pages/Dashboard';
@@ -16,6 +17,7 @@ import MemoryBrowser from './pages/MemoryBrowser';
 import ClaudeSessions from './pages/ClaudeSessions';
 import KnowledgeGraph from './pages/KnowledgeGraph';
 import SettingsPage from './pages/Settings';
+import DataSources from './pages/DataSources';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette } from './components/CommandPalette';
@@ -188,6 +190,7 @@ function App() {
           <NavItem to="/memories" icon={Search} label="Memories" collapsed={sidebarCollapsed} />
           <NavItem to="/sessions" icon={MessageSquare} label="Sessions" collapsed={sidebarCollapsed} />
           <NavItem to="/graph" icon={Network} label="Graph" collapsed={sidebarCollapsed} />
+          <NavItem to="/sources" icon={Database} label="Sources" collapsed={sidebarCollapsed} />
 
           <div className="pt-3 mt-3 border-t border-slate-700">
             <NavItem to="/settings" icon={Settings} label="Settings" collapsed={sidebarCollapsed} />
@@ -265,6 +268,7 @@ function App() {
             <Route path="/memories" element={<MemoryBrowser />} />
             <Route path="/sessions" element={<ClaudeSessions />} />
             <Route path="/graph" element={<KnowledgeGraph />} />
+            <Route path="/sources" element={<DataSources />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </ErrorBoundary>

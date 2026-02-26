@@ -152,14 +152,42 @@ export default function Dashboard() {
           window.mycelicMemory.stats.dashboard().catch(() => null),
           window.mycelicMemory.stats.health().catch(() => null),
           window.mycelicMemory.domains.list().catch(() => []),
-          window.mycelicMemory.memory.list({ limit: 5 }).catch(() => []),
+          window.mycelicMemory.memory.list({ limit: 50 }).catch(() => []),
           window.mycelicMemory.services?.status().catch(() => null),
         ]);
 
+        // Fetch domain stats to get real memory counts
+        const domainsList = domainsRes || [];
+        if (domainsList.length > 0 && window.mycelicMemory.domains.stats) {
+          const domainStatsResults = await Promise.all(
+            domainsList.map((d: any) =>
+              window.mycelicMemory.domains.stats(d.name).catch(() => null)
+            )
+          );
+          domainStatsResults.forEach((ds: any, i: number) => {
+            if (ds) {
+              domainsList[i] = { ...domainsList[i], memory_count: ds.memory_count || 0 };
+            }
+          });
+        }
+
+        // Compute this_week_count from memories created in last 7 days
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const allMemories = memoriesRes || [];
+        const thisWeekCount = allMemories.filter((m: any) => {
+          const created = new Date(m.created_at);
+          return created >= oneWeekAgo;
+        }).length;
+
+        if (statsRes) {
+          statsRes.this_week_count = thisWeekCount;
+        }
+
         setStats(statsRes);
         setHealth(healthRes);
-        setDomains(domainsRes || []);
-        setRecentMemories(memoriesRes || []);
+        setDomains(domainsList);
+        setRecentMemories(allMemories.slice(0, 5));
         if (servicesRes) setServiceStatus(servicesRes);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
@@ -231,17 +259,31 @@ export default function Dashboard() {
   const sessionCount = stats?.session_count || 0;
   const domainCount = domains.length;
 
-  const domainData = domains.map((d, i) => ({
-    name: d.name,
-    value: d.memory_count || Math.floor(Math.random() * 50) + 10,
-  }));
+  const domainData = domains
+    .filter((d: any) => (d.memory_count || 0) > 0)
+    .map((d: any) => ({
+      name: d.name,
+      value: d.memory_count || 0,
+    }));
 
-  const importanceData = [
-    { range: '1-3', count: 5 },
-    { range: '4-6', count: 25 },
-    { range: '7-8', count: 45 },
-    { range: '9-10', count: 15 },
-  ];
+  // Calculate importance distribution from recent memories if we have them
+  // Backend stats don't include this breakdown, so compute from what we have
+  const importanceData = (() => {
+    const buckets = [
+      { range: '1-3', count: 0 },
+      { range: '4-6', count: 0 },
+      { range: '7-8', count: 0 },
+      { range: '9-10', count: 0 },
+    ];
+    recentMemories.forEach((m) => {
+      const imp = m.importance || 5;
+      if (imp <= 3) buckets[0].count++;
+      else if (imp <= 6) buckets[1].count++;
+      else if (imp <= 8) buckets[2].count++;
+      else buckets[3].count++;
+    });
+    return buckets;
+  })();
 
   return (
     <div className="p-8 animate-fade-in">
@@ -404,7 +446,7 @@ export default function Dashboard() {
               label="MycelicMemory API"
               running={serviceStatus?.backend.running || health?.api || false}
               detail={serviceStatus?.backend.running || health?.api
-                ? `Port ${serviceStatus?.backend.port || 3099}`
+                ? `Port ${serviceStatus?.backend.port || 3002}`
                 : 'Not running'}
               onStart={() => handleStartService('backend')}
               starting={startingService === 'backend'}
