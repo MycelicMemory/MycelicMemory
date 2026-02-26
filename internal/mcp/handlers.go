@@ -323,7 +323,7 @@ func (s *Server) handleStoreMemory(ctx context.Context, argsJSON []byte) (interf
 		Tags:        params.Tags,
 		Domain:      params.Domain,
 		Source:       params.Source,
-		CCSessionID: params.CCSessionID,
+		ConversationID: params.ConversationID,
 	})
 	if err != nil {
 		s.log.Error("failed to store memory", "error", err)
@@ -1314,7 +1314,7 @@ func (s *Server) handleTraceSource(ctx context.Context, argsJSON []byte) (interf
 		return nil, fmt.Errorf("memory not found: %w", err)
 	}
 
-	if mem.CCSessionID == "" {
+	if mem.ConversationID == "" {
 		return map[string]interface{}{
 			"memory_id": mem.ID,
 			"has_source": false,
@@ -1322,19 +1322,19 @@ func (s *Server) handleTraceSource(ctx context.Context, argsJSON []byte) (interf
 		}, nil
 	}
 
-	// Get the linked session
-	sess, err := s.db.GetCCSession(mem.CCSessionID)
+	// Get the linked conversation
+	sess, err := s.db.GetCCSession(mem.ConversationID)
 	if err != nil {
 		return map[string]interface{}{
-			"memory_id":     mem.ID,
-			"cc_session_id": mem.CCSessionID,
-			"has_source":    false,
-			"message":       "Linked session not found",
+			"memory_id":       mem.ID,
+			"conversation_id": mem.ConversationID,
+			"has_source":      false,
+			"message":         "Linked conversation not found",
 		}, nil
 	}
 
 	// Get surrounding messages
-	messages, err := s.db.GetCCMessages(mem.CCSessionID, 20, 0)
+	messages, err := s.db.GetCCMessages(mem.ConversationID, 20, 0)
 	if err != nil {
 		messages = nil
 	}

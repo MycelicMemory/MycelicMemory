@@ -546,9 +546,9 @@ func (s *Server) getToolDefinitions() []Tool {
 						Type:        "string",
 						Description: "Source of the memory",
 					},
-					"cc_session_id": {
+					"conversation_id": {
 						Type:        "string",
-						Description: "Optional: link to a Claude Code chat session",
+						Description: "Optional: link to a conversation from any source",
 					},
 				},
 				Required: []string{"content"},

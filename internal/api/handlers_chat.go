@@ -289,7 +289,7 @@ func (s *Server) traceMemorySource(c *gin.Context) {
 		return
 	}
 
-	if mem.CCSessionID == "" {
+	if mem.ConversationID == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success":    true,
 			"has_source": false,
@@ -298,17 +298,17 @@ func (s *Server) traceMemorySource(c *gin.Context) {
 		return
 	}
 
-	sess, err := s.db.GetCCSession(mem.CCSessionID)
+	sess, err := s.db.GetCCSession(mem.ConversationID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success":    true,
 			"has_source": false,
-			"message":    "Linked session not found",
+			"message":    "Linked conversation not found",
 		})
 		return
 	}
 
-	messages, _ := s.db.GetCCMessages(mem.CCSessionID, 20, 0)
+	messages, _ := s.db.GetCCMessages(mem.ConversationID, 20, 0)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":    true,

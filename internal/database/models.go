@@ -29,8 +29,8 @@ type Memory struct {
 	// Multi-source ingestion fields (Schema v3)
 	SourceID   string `json:"source_id,omitempty"`   // Reference to data_sources.id
 	ExternalID string `json:"external_id,omitempty"` // Unique ID in source system (for deduplication)
-	// Chat history linkage (Schema v4)
-	CCSessionID string `json:"cc_session_id,omitempty"` // Reference to cc_sessions.id
+	// Conversation linkage (Schema v5)
+	ConversationID string `json:"conversation_id,omitempty"` // Reference to conversations.id
 }
 
 // IsChunk returns true if this memory is a chunk (not a root memory)
@@ -321,18 +321,18 @@ type DataSourceUpdate struct {
 }
 
 // =============================================================================
-// CHAT HISTORY MODELS (Schema v4)
+// CONVERSATION MODELS (Schema v5, generalized from cc_* types)
 // =============================================================================
 
-// CCSession represents a Claude Code chat session
-type CCSession struct {
+// Conversation represents an ingested conversation from any source
+type Conversation struct {
 	ID                    string     `json:"id"`
-	SessionID             string     `json:"session_id"`              // Claude session UUID from JSONL filename
-	ProjectPath           string     `json:"project_path"`            // e.g. C:\dev\active\ai\MycelicMemory
-	ProjectHash           string     `json:"project_hash"`            // hashed project dir name
-	Model                 string     `json:"model,omitempty"`         // model used
-	Title                 string     `json:"title,omitempty"`         // generated from first user prompt
-	FirstPrompt           string     `json:"first_prompt,omitempty"`  // first user message (truncated)
+	SessionID             string     `json:"session_id"`              // Source session identifier
+	ProjectPath           string     `json:"project_path"`            // Project/workspace/channel context
+	ProjectHash           string     `json:"project_hash"`            // Hashed project/space identifier
+	Model                 string     `json:"model,omitempty"`         // Model used (if applicable)
+	Title                 string     `json:"title,omitempty"`         // Generated title
+	FirstPrompt           string     `json:"first_prompt,omitempty"`  // First user message (truncated)
 	Summary               string     `json:"summary,omitempty"`       // LLM-generated summary
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
@@ -347,11 +347,11 @@ type CCSession struct {
 	SummaryMemoryID       string     `json:"summary_memory_id,omitempty"`
 }
 
-// CCMessage represents a message in a Claude Code chat session
-type CCMessage struct {
+// ConversationMessage represents a message in a conversation
+type ConversationMessage struct {
 	ID            string     `json:"id"`
-	SessionID     string     `json:"session_id"`     // References cc_sessions.id
-	Role          string     `json:"role"`            // 'user', 'assistant', 'system'
+	SessionID     string     `json:"session_id"`     // References conversations.id
+	Role          string     `json:"role"`            // 'user', 'assistant', 'bot', 'system'
 	Content       string     `json:"content"`
 	Timestamp     *time.Time `json:"timestamp,omitempty"`
 	SequenceIndex int        `json:"sequence_index"`
@@ -359,30 +359,30 @@ type CCMessage struct {
 	TokenCount    int        `json:"token_count"`
 }
 
-// CCToolCall represents a tool call in a Claude Code chat session
-type CCToolCall struct {
+// ConversationAction represents a tool call, reaction, or other action
+type ConversationAction struct {
 	ID         string     `json:"id"`
-	SessionID  string     `json:"session_id"`  // References cc_sessions.id
-	MessageID  string     `json:"message_id"`  // References cc_messages.id
+	SessionID  string     `json:"session_id"`  // References conversations.id
+	MessageID  string     `json:"message_id"`  // References messages.id
 	ToolName   string     `json:"tool_name"`
 	InputJSON  string     `json:"input_json,omitempty"`
 	ResultText string     `json:"result_text,omitempty"`
 	Success    bool       `json:"success"`
 	FilePath   string     `json:"filepath,omitempty"`
-	Operation  string     `json:"operation,omitempty"` // 'read', 'write', 'edit', 'execute'
+	Operation  string     `json:"operation,omitempty"` // 'read', 'write', 'edit', 'execute', 'reaction'
 	Timestamp  *time.Time `json:"timestamp,omitempty"`
 }
 
-// CCSessionFilters represents filters for listing chat sessions
-type CCSessionFilters struct {
+// ConversationFilters represents filters for listing conversations
+type ConversationFilters struct {
 	ProjectPath string `json:"project_path,omitempty"`
 	MinMessages int    `json:"min_messages,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 	Offset      int    `json:"offset,omitempty"`
 }
 
-// CCSessionUpdate represents optional updates to a chat session
-type CCSessionUpdate struct {
+// ConversationUpdate represents optional updates to a conversation
+type ConversationUpdate struct {
 	Title            *string `json:"title,omitempty"`
 	Summary          *string `json:"summary,omitempty"`
 	MessageCount     *int    `json:"message_count,omitempty"`
@@ -392,4 +392,11 @@ type CCSessionUpdate struct {
 	LastSyncPosition *string `json:"last_sync_position,omitempty"`
 	SummaryMemoryID  *string `json:"summary_memory_id,omitempty"`
 }
+
+// Type aliases for backward compatibility during transition
+type CCSession = Conversation
+type CCMessage = ConversationMessage
+type CCToolCall = ConversationAction
+type CCSessionFilters = ConversationFilters
+type CCSessionUpdate = ConversationUpdate
 

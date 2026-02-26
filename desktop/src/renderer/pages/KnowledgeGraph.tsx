@@ -197,8 +197,8 @@ export default function KnowledgeGraph() {
       // Find which sessions are referenced by memories
       const referencedSessionIds = new Set(
         filteredMemories
-          .filter((m) => m.cc_session_id)
-          .map((m) => m.cc_session_id!)
+          .filter((m) => m.conversation_id)
+          .map((m) => m.conversation_id!)
       );
 
       // Build a project color map
@@ -252,11 +252,11 @@ export default function KnowledgeGraph() {
     // Build session-to-memory edges (dashed orange)
     if (showSessions) {
       filteredMemories.forEach((memory) => {
-        if (memory.cc_session_id && sessionNodeMap.has(memory.cc_session_id)) {
+        if (memory.conversation_id && sessionNodeMap.has(memory.conversation_id)) {
           edges.push({
             id: `trace:${memory.id}`,
             from: memory.id,
-            to: `session:${memory.cc_session_id}`,
+            to: `session:${memory.conversation_id}`,
             color: { color: SOURCE_EDGE_COLOR },
             width: 1.5,
             arrows: 'to',
@@ -371,9 +371,9 @@ export default function KnowledgeGraph() {
 
   const domains = [...new Set(memories.map((m) => m.domain || 'general'))];
   const relationshipTypes = [...new Set(relationships.map((r) => r.relationship_type))];
-  const linkedCount = memories.filter((m) => m.cc_session_id).length;
+  const linkedCount = memories.filter((m) => m.conversation_id).length;
   const sessionNodeCount = showSessions
-    ? new Set(memories.filter((m) => m.cc_session_id).map((m) => m.cc_session_id)).size
+    ? new Set(memories.filter((m) => m.conversation_id).map((m) => m.conversation_id)).size
     : 0;
 
   return (
@@ -534,8 +534,8 @@ export default function KnowledgeGraph() {
 }
 
 function MemoryDetailPanel({ memory, sessions }: { memory: Memory; sessions: ClaudeSession[] }) {
-  const linkedSession = memory.cc_session_id
-    ? sessions.find((s) => s.id === memory.cc_session_id)
+  const linkedSession = memory.conversation_id
+    ? sessions.find((s) => s.id === memory.conversation_id)
     : null;
 
   return (

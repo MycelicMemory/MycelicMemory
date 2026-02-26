@@ -13,7 +13,7 @@ export interface Memory {
   created_at: string;
   updated_at: string;
   session_id?: string;
-  cc_session_id?: string;
+  conversation_id?: string;
 }
 
 export interface MemoryCreateInput {

@@ -48,7 +48,7 @@ func (d *Database) CreateMemory(m *Memory) error {
 			id, content, source, importance, tags, session_id, domain,
 			embedding, created_at, updated_at, agent_type, agent_context,
 			access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-			cc_session_id
+			conversation_id
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		m.ID, m.Content, nullString(m.Source), m.Importance, tagsJSON,
@@ -56,7 +56,7 @@ func (d *Database) CreateMemory(m *Memory) error {
 		m.Embedding, m.CreatedAt, m.UpdatedAt, m.AgentType, nullString(m.AgentContext),
 		m.AccessScope, nullString(m.Slug),
 		nullString(m.ParentMemoryID), m.ChunkLevel, m.ChunkIndex,
-		nullString(m.CCSessionID),
+		nullString(m.ConversationID),
 	)
 
 	if err != nil {
@@ -83,7 +83,7 @@ func (d *Database) GetMemory(id string) (*Memory, error) {
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       cc_session_id
+		       conversation_id
 		FROM memories WHERE id = ?
 	`, id).Scan(
 		&m.ID, &m.Content, &source, &m.Importance, &tagsJSON, &sessionID, &domain,
@@ -106,7 +106,7 @@ func (d *Database) GetMemory(id string) (*Memory, error) {
 	m.AgentContext = agentContext.String
 	m.Slug = slug.String
 	m.ParentMemoryID = parentMemoryID.String
-	m.CCSessionID = ccSessionID.String
+	m.ConversationID = ccSessionID.String
 	m.Embedding = embedding
 	m.Tags = ParseTags(tagsJSON)
 
@@ -244,7 +244,7 @@ func (d *Database) ListMemories(filters *MemoryFilters) ([]*Memory, error) {
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       cc_session_id
+		       conversation_id
 		FROM memories
 	`
 
@@ -548,7 +548,7 @@ func (d *Database) FindRelated(memoryID string, filters *RelationshipFilters) ([
 		SELECT DISTINCT m.id, m.content, m.source, m.importance, m.tags, m.session_id, m.domain,
 		       m.embedding, m.created_at, m.updated_at, m.agent_type, m.agent_context,
 		       m.access_scope, m.slug, m.parent_memory_id, m.chunk_level, m.chunk_index,
-		       m.cc_session_id
+		       m.conversation_id
 		FROM memories m
 		JOIN memory_relationships r ON (
 			(r.source_memory_id = ? AND r.target_memory_id = m.id) OR
@@ -796,7 +796,7 @@ func (d *Database) GetMemoriesByIDs(ids []string) ([]*Memory, error) {
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       cc_session_id
+		       conversation_id
 		FROM memories
 		WHERE id IN (%s)
 	`, strings.Join(placeholders, ", "))
@@ -1152,7 +1152,7 @@ func (d *Database) GetChildChunks(parentID string) ([]*Memory, error) {
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       cc_session_id
+		       conversation_id
 		FROM memories
 		WHERE parent_memory_id = ?
 		ORDER BY chunk_index ASC
@@ -1189,7 +1189,7 @@ func (d *Database) GetRootMemories(filters *MemoryFilters) ([]*Memory, error) {
 		SELECT id, content, source, importance, tags, session_id, domain,
 		       embedding, created_at, updated_at, agent_type, agent_context,
 		       access_scope, slug, parent_memory_id, chunk_level, chunk_index,
-		       cc_session_id
+		       conversation_id
 		FROM memories
 		WHERE ` + strings.Join(whereClauses, " AND ") + `
 		ORDER BY created_at DESC
@@ -1236,7 +1236,7 @@ func scanMemories(rows *sql.Rows) ([]*Memory, error) {
 		m.AgentContext = agentContext.String
 		m.Slug = slug.String
 		m.ParentMemoryID = parentMemoryID.String
-		m.CCSessionID = ccSessionID.String
+		m.ConversationID = ccSessionID.String
 		m.Embedding = embedding
 		m.Tags = ParseTags(tagsJSON)
 
