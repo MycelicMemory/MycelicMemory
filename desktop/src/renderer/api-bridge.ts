@@ -4,7 +4,7 @@
  * In Browser: Falls back to direct fetch calls for testing
  */
 
-const API_BASE = 'http://127.0.0.1:3099/api/v1';
+const API_BASE = 'http://127.0.0.1:3002/api/v1';
 
 // Check if we're in Electron
 const isElectron = typeof window !== 'undefined' && window.mycelicMemory !== undefined;
@@ -45,6 +45,7 @@ const browserApi = {
     },
     get: async (id: string) => fetchApi<any>(`/memories/${id}`),
     create: async (data: any) => fetchApi<any>('/memories', { method: 'POST', body: JSON.stringify(data) }),
+    store: async (data: any) => fetchApi<any>('/memories', { method: 'POST', body: JSON.stringify(data) }),
     update: async (id: string, data: any) => fetchApi<any>(`/memories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: async (id: string) => fetchApi<void>(`/memories/${id}`, { method: 'DELETE' }),
     search: async (options: any) => fetchApi<any[]>('/memories/search', { method: 'POST', body: JSON.stringify(options) }),

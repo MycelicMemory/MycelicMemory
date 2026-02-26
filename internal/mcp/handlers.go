@@ -1354,3 +1354,130 @@ func truncateStr(s string, maxLen int) string {
 	}
 	return s[:maxLen] + "..."
 }
+
+// Pipeline handlers
+
+func (s *Server) handleIngestSource(ctx context.Context, argsJSON []byte) (interface{}, error) {
+	var params IngestSourceParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	if params.SourceID == "" {
+		return nil, fmt.Errorf("source_id is required")
+	}
+
+	mode := params.Mode
+	if mode == "" {
+		mode = "incremental"
+	}
+
+	s.log.Info("pipeline ingest_source", "source_id", params.SourceID, "mode", mode)
+
+	jobID, err := s.pipelineQueue.Enqueue(ctx, params.SourceID, mode)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enqueue ingestion: %w", err)
+	}
+
+	// Wait for completion (synchronous for MCP)
+	for {
+		status := s.pipelineQueue.Status(jobID)
+		if status == nil {
+			return nil, fmt.Errorf("job disappeared: %s", jobID)
+		}
+		if status.Status == "completed" || status.Status == "failed" {
+			if status.Error != "" {
+				return map[string]interface{}{
+					"job_id": jobID,
+					"status": status.Status,
+					"error":  status.Error,
+					"result": status.Result,
+				}, nil
+			}
+			return map[string]interface{}{
+				"job_id": jobID,
+				"status": status.Status,
+				"result": status.Result,
+			}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+			continue
+		}
+	}
+}
+
+func (s *Server) handlePipelineStatus(_ context.Context, argsJSON []byte) (interface{}, error) {
+	var params PipelineStatusParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	if params.SourceID == "" {
+		return nil, fmt.Errorf("source_id is required")
+	}
+
+	// Check active job
+	job := s.pipelineQueue.StatusBySource(params.SourceID)
+
+	// Get sync history from DB
+	latestSync, err := s.db.GetLatestSyncHistory(params.SourceID)
+	if err != nil {
+		s.log.Warn("failed to get sync history", "error", err)
+	}
+
+	// Get data source stats
+	stats, err := s.db.GetDataSourceStats(params.SourceID)
+	if err != nil {
+		s.log.Warn("failed to get data source stats", "error", err)
+	}
+
+	result := map[string]interface{}{
+		"source_id":         params.SourceID,
+		"active_job":        job,
+		"latest_sync":       latestSync,
+		"stats":             stats,
+		"registered_adapters": s.pipelineQueue.ListAdapters(),
+	}
+
+	return result, nil
+}
+
+func (s *Server) handleListSources(_ context.Context, argsJSON []byte) (interface{}, error) {
+	var params ListSourcesParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	filters := &database.DataSourceFilters{
+		SourceType: params.SourceType,
+		Limit:      50,
+	}
+
+	sources, err := s.db.ListDataSources(filters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list sources: %w", err)
+	}
+
+	type sourceWithStats struct {
+		Source *database.DataSource      `json:"source"`
+		Stats  *database.DataSourceStats `json:"stats,omitempty"`
+	}
+
+	var result []sourceWithStats
+	for _, src := range sources {
+		entry := sourceWithStats{Source: src}
+		if stats, err := s.db.GetDataSourceStats(src.ID); err == nil {
+			entry.Stats = stats
+		}
+		result = append(result, entry)
+	}
+
+	return map[string]interface{}{
+		"sources":             result,
+		"registered_adapters": s.pipelineQueue.ListAdapters(),
+		"total":               len(result),
+	}, nil
+}
