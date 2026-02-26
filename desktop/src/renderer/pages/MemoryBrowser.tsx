@@ -11,6 +11,8 @@ import {
   Star,
 } from 'lucide-react';
 import type { Memory, Domain, SearchResult } from '../../shared/types';
+import { toast } from '../components/Toast';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface MemoryCardProps {
   memory: Memory;
@@ -54,11 +56,13 @@ function MemoryDetail({ memory, onClose, onUpdate, onDelete }: MemoryDetailProps
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(memory.content);
   const [editedImportance, setEditedImportance] = useState(memory.importance);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     setEditedContent(memory.content);
     setEditedImportance(memory.importance);
     setIsEditing(false);
+    setConfirmDelete(false);
   }, [memory]);
 
   const handleSave = async () => {
@@ -70,9 +74,12 @@ function MemoryDetail({ memory, onClose, onUpdate, onDelete }: MemoryDetailProps
   };
 
   const handleDelete = async () => {
-    if (confirm('Are you sure you want to delete this memory?')) {
-      await onDelete(memory.id);
-    }
+    setConfirmDelete(true);
+  };
+
+  const confirmDeleteAction = async () => {
+    setConfirmDelete(false);
+    await onDelete(memory.id);
   };
 
   return (
@@ -199,16 +206,29 @@ function MemoryDetail({ memory, onClose, onUpdate, onDelete }: MemoryDetailProps
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete Memory"
+        message="This memory will be permanently deleted. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDeleteAction}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }
 
 export default function MemoryBrowser() {
+  const PAGE_SIZE = 50;
   const [memories, setMemories] = useState<Memory[]>([]);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'keyword' | 'semantic'>('keyword');
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState({
     domain: '',
     minImportance: 1,
@@ -220,12 +240,23 @@ export default function MemoryBrowser() {
   useEffect(() => {
     fetchMemories();
     fetchDomains();
+    // Fetch total count
+    window.mycelicMemory.stats?.memory?.()
+      .then((s: { total_memories?: number }) => setTotalCount(s?.total_memories || 0))
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchMemories();
+  }, [page]);
 
   async function fetchMemories() {
     try {
       setLoading(true);
-      const response = await window.mycelicMemory.memory.list({ limit: 50 });
+      const response = await window.mycelicMemory.memory.list({
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      });
       setMemories(response || []);
     } catch (err) {
       console.error('Failed to fetch memories:', err);
@@ -268,11 +299,13 @@ export default function MemoryBrowser() {
   async function handleUpdate(id: string, data: { content?: string; importance?: number }) {
     try {
       await window.mycelicMemory.memory.update(id, data);
+      toast.success('Memory updated');
       fetchMemories();
       if (selectedMemory?.id === id) {
         setSelectedMemory({ ...selectedMemory, ...data });
       }
     } catch (err) {
+      toast.error('Failed to update memory');
       console.error('Update failed:', err);
     }
   }
@@ -280,9 +313,11 @@ export default function MemoryBrowser() {
   async function handleDelete(id: string) {
     try {
       await window.mycelicMemory.memory.delete(id);
+      toast.success('Memory deleted');
       setSelectedMemory(null);
       fetchMemories();
     } catch (err) {
+      toast.error('Failed to delete memory');
       console.error('Delete failed:', err);
     }
   }
@@ -410,9 +445,26 @@ export default function MemoryBrowser() {
           )}
         </div>
 
-        {/* Count */}
-        <div className="p-4 border-t border-slate-700 text-sm text-slate-400">
-          {filteredMemories.length} memories
+        {/* Pagination */}
+        <div className="p-3 border-t border-slate-700 flex items-center justify-between text-sm text-slate-400">
+          <span>{filteredMemories.length} shown{totalCount > 0 ? ` of ${totalCount}` : ''}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(Math.max(0, page - 1))}
+              disabled={page === 0}
+              className="px-2 py-1 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+            >
+              Prev
+            </button>
+            <span className="text-xs">Page {page + 1}</span>
+            <button
+              onClick={() => setPage(page + 1)}
+              disabled={filteredMemories.length < PAGE_SIZE}
+              className="px-2 py-1 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 

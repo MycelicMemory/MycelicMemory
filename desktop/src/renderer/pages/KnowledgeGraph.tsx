@@ -99,14 +99,38 @@ export default function KnowledgeGraph() {
   async function fetchData() {
     try {
       setLoading(true);
-      const [memoriesRes, relationsRes, sessionsRes] = await Promise.all([
+      // Load memories and sessions only - relationships are fetched per-memory or via discover button
+      // DO NOT call relationships.discover() here - it uses Ollama AI and takes 200+ seconds
+      const [memoriesRes, sessionsRes] = await Promise.all([
         window.mycelicMemory.memory.list({ limit: 200 }),
-        window.mycelicMemory.relationships.discover().catch(() => []),
         window.mycelicMemory.claude.sessions().catch(() => []),
       ]);
       setMemories(memoriesRes || []);
-      setRelationships(relationsRes || []);
       setSessions(sessionsRes || []);
+
+      // Load existing relationships for each memory that has them (fast DB queries)
+      if (memoriesRes && memoriesRes.length > 0) {
+        const allRelationships: MemoryRelationship[] = [];
+        const seen = new Set<string>();
+        // Batch: only check a subset to avoid excessive requests
+        const toCheck = memoriesRes.slice(0, 50);
+        const relResults = await Promise.allSettled(
+          toCheck.map((m: Memory) =>
+            window.mycelicMemory.relationships.get(m.id).catch(() => [])
+          )
+        );
+        for (const result of relResults) {
+          if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+            for (const rel of result.value) {
+              if (!seen.has(rel.id)) {
+                seen.add(rel.id);
+                allRelationships.push(rel);
+              }
+            }
+          }
+        }
+        setRelationships(allRelationships);
+      }
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -268,14 +292,20 @@ export default function KnowledgeGraph() {
       physics: {
         enabled: true,
         barnesHut: {
-          gravitationalConstant: -2000,
-          centralGravity: 0.3,
-          springLength: 150,
-          springConstant: 0.04,
+          gravitationalConstant: -3000,
+          centralGravity: 0.5,
+          springLength: 120,
+          springConstant: 0.06,
+          damping: 0.15,
+          avoidOverlap: 0.2,
         },
         stabilization: {
-          iterations: 100,
+          iterations: 50,
+          updateInterval: 25,
         },
+        maxVelocity: 50,
+        minVelocity: 0.75,
+        timestep: 0.5,
       },
       interaction: {
         hover: true,
