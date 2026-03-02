@@ -303,10 +303,12 @@ func (d *Database) SearchFTS(query string, filters *SearchFilters) ([]*SearchRes
 
 	// Query FTS5 table and join with memories for full data
 	// The FTS5 table stores its own content for reliable sync
+	// Select all memory columns to ensure complete Memory structs
 	sqlQuery := `
 		SELECT m.id, m.content, m.source, m.importance, m.tags, m.session_id, m.domain,
 		       m.embedding, m.created_at, m.updated_at, m.agent_type, m.agent_context,
-		       m.access_scope, m.slug,
+		       m.access_scope, m.slug, m.parent_memory_id, m.chunk_level, m.chunk_index,
+		       m.conversation_id,
 		       bm25(memories_fts) as relevance
 		FROM memories_fts fts
 		JOIN memories m ON m.id = fts.id
@@ -336,14 +338,15 @@ func (d *Database) SearchFTS(query string, filters *SearchFilters) ([]*SearchRes
 	for rows.Next() {
 		var m Memory
 		var tagsJSON string
-		var source, sessionID, domain, agentContext, slug sql.NullString
+		var source, sessionID, domain, agentContext, slug, parentMemoryID, ccSessionID sql.NullString
 		var embedding []byte
 		var relevance float64
 
 		err := rows.Scan(
 			&m.ID, &m.Content, &source, &m.Importance, &tagsJSON, &sessionID, &domain,
 			&embedding, &m.CreatedAt, &m.UpdatedAt, &m.AgentType, &agentContext,
-			&m.AccessScope, &slug, &relevance,
+			&m.AccessScope, &slug, &parentMemoryID, &m.ChunkLevel, &m.ChunkIndex,
+			&ccSessionID, &relevance,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan search result: %w", err)
@@ -354,6 +357,8 @@ func (d *Database) SearchFTS(query string, filters *SearchFilters) ([]*SearchRes
 		m.Domain = domain.String
 		m.AgentContext = agentContext.String
 		m.Slug = slug.String
+		m.ParentMemoryID = parentMemoryID.String
+		m.ConversationID = ccSessionID.String
 		m.Embedding = embedding
 		m.Tags = ParseTags(tagsJSON)
 

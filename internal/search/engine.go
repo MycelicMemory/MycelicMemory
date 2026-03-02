@@ -240,6 +240,12 @@ func (e *Engine) semanticSearch(opts *SearchOptions) ([]*SearchResult, error) {
 		})
 	}
 
+	// If semantic search returned vector results but all GetMemory calls failed
+	// (e.g., schema mismatch), fall back to keyword search
+	if len(results) == 0 && len(semanticResults) > 0 {
+		return e.keywordSearch(opts)
+	}
+
 	return results, nil
 }
 
