@@ -21,6 +21,11 @@ type OllamaClient struct {
 	chatModel      string
 	httpClient     *http.Client
 	enabled        bool
+
+	// Cached availability to avoid repeated HTTP checks
+	cachedAvailable    bool
+	cachedAvailableAt  time.Time
+	availableCacheTTL  time.Duration
 }
 
 // NewOllamaClient creates a new Ollama client
@@ -46,13 +51,21 @@ func NewOllamaClient(cfg *config.OllamaConfig) *OllamaClient {
 		client.chatModel = "qwen2.5:3b"
 	}
 
+	client.availableCacheTTL = 60 * time.Second
+
 	return client
 }
 
-// IsAvailable checks if Ollama is available and responsive
+// IsAvailable checks if Ollama is available and responsive.
+// Results are cached for 60 seconds to avoid redundant HTTP calls.
 func (c *OllamaClient) IsAvailable() bool {
 	if !c.enabled {
 		return false
+	}
+
+	// Return cached result if still fresh
+	if !c.cachedAvailableAt.IsZero() && time.Since(c.cachedAvailableAt) < c.availableCacheTTL {
+		return c.cachedAvailable
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -60,16 +73,22 @@ func (c *OllamaClient) IsAvailable() bool {
 
 	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/api/tags", nil)
 	if err != nil {
+		c.cachedAvailable = false
+		c.cachedAvailableAt = time.Now()
 		return false
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.cachedAvailable = false
+		c.cachedAvailableAt = time.Now()
 		return false
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode == http.StatusOK
+	c.cachedAvailable = resp.StatusCode == http.StatusOK
+	c.cachedAvailableAt = time.Now()
+	return c.cachedAvailable
 }
 
 // EmbeddingRequest represents a request to generate embeddings

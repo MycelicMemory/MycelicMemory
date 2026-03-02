@@ -24,15 +24,21 @@ type Manager struct {
 	config      *config.Config
 	mu          sync.RWMutex
 	initialized bool
+
+	// Cached status to avoid cloud API calls on every health check
+	cachedStatus   *Status
+	cachedStatusAt time.Time
+	statusCacheTTL time.Duration
 }
 
 // NewManager creates a new AI manager
 func NewManager(db *database.Database, cfg *config.Config) *Manager {
 	return &Manager{
-		ollama: NewOllamaClient(&cfg.Ollama),
-		qdrant: vector.NewQdrantClient(&cfg.Qdrant),
-		db:     db,
-		config: cfg,
+		ollama:         NewOllamaClient(&cfg.Ollama),
+		qdrant:         vector.NewQdrantClient(&cfg.Qdrant),
+		db:             db,
+		config:         cfg,
+		statusCacheTTL: 60 * time.Second,
 	}
 }
 
@@ -80,8 +86,14 @@ type Status struct {
 	VectorCount     int64  `json:"vector_count,omitempty"`
 }
 
-// GetStatus returns the current status of AI services
+// GetStatus returns the current status of AI services.
+// Results are cached for 60 seconds to avoid repeated cloud API calls.
 func (m *Manager) GetStatus() *Status {
+	// Return cached status if fresh
+	if m.cachedStatus != nil && time.Since(m.cachedStatusAt) < m.statusCacheTTL {
+		return m.cachedStatus
+	}
+
 	status := &Status{
 		OllamaEnabled:   m.ollama.IsEnabled(),
 		OllamaAvailable: m.ollama.IsAvailable(),
@@ -101,6 +113,8 @@ func (m *Manager) GetStatus() *Status {
 		}
 	}
 
+	m.cachedStatus = status
+	m.cachedStatusAt = time.Now()
 	return status
 }
 
@@ -236,6 +250,60 @@ func (m *Manager) IndexMemory(ctx context.Context, memory *database.Memory) erro
 	memory.Embedding = float64SliceToBytes(embedding)
 
 	return nil
+}
+
+// BatchIndexMemories generates embeddings for a batch of memories and upserts
+// all vectors to Qdrant in a single API call. Returns the count of successfully
+// indexed memories and any individual errors.
+func (m *Manager) BatchIndexMemories(ctx context.Context, memories []*database.Memory) (indexed int, errors []error) {
+	if !m.ollama.IsEnabled() || !m.qdrant.IsEnabled() {
+		return 0, nil
+	}
+
+	if !m.ollama.IsAvailable() || !m.qdrant.IsAvailable() {
+		return 0, nil
+	}
+
+	// Generate embeddings one at a time (Ollama is local) and collect points
+	var points []vector.Point
+	for _, mem := range memories {
+		select {
+		case <-ctx.Done():
+			return indexed, append(errors, ctx.Err())
+		default:
+		}
+
+		embedding, err := m.ollama.GenerateEmbedding(ctx, mem.Content)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("embed %s: %w", mem.ID, err))
+			continue
+		}
+
+		points = append(points, vector.Point{
+			ID:     mem.ID,
+			Vector: embedding,
+			Payload: map[string]interface{}{
+				"content":    mem.Content,
+				"session_id": mem.SessionID,
+				"domain":     mem.Domain,
+				"importance": mem.Importance,
+				"created_at": mem.CreatedAt.Format(time.RFC3339),
+			},
+		})
+
+		mem.Embedding = float64SliceToBytes(embedding)
+	}
+
+	// Single batch upsert to Qdrant Cloud
+	if len(points) > 0 {
+		if err := m.qdrant.UpsertPoints(ctx, points); err != nil {
+			errors = append(errors, fmt.Errorf("batch upsert: %w", err))
+			return 0, errors
+		}
+		indexed = len(points)
+	}
+
+	return indexed, errors
 }
 
 // DeleteMemoryIndex removes a memory from the vector index

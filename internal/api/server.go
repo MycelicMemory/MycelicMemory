@@ -18,6 +18,7 @@ import (
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
 	"github.com/MycelicMemory/mycelicmemory/internal/pipeline"
 	"github.com/MycelicMemory/mycelicmemory/internal/ratelimit"
+	"github.com/MycelicMemory/mycelicmemory/internal/recall"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
@@ -32,6 +33,7 @@ type Server struct {
 	searchEngine  *search.Engine
 	relService    *relationships.Service
 	aiManager     *ai.Manager
+	recallEngine  *recall.Engine
 	pipelineQueue *pipeline.Queue
 	httpServer    *http.Server
 	sessionID     string
@@ -121,6 +123,9 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	// Connect AI manager to search engine
 	searchEngine.SetAIManager(aiManager)
 
+	// Create recall engine
+	recallEngine := recall.NewEngine(db, cfg, aiManager, searchEngine, relService)
+
 	// Initialize pipeline queue with adapters
 	pipelineQueue := pipeline.NewQueue(db, relService, pipeline.DefaultQueueConfig())
 	claudeReader := claude.NewReader("")
@@ -147,6 +152,7 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		searchEngine:  searchEngine,
 		relService:    relService,
 		aiManager:     aiManager,
+		recallEngine:  recallEngine,
 		pipelineQueue: pipelineQueue,
 		sessionID:     sessionID,
 		log:           log,
@@ -180,6 +186,7 @@ func (s *Server) setupRoutes() {
 
 		// AI Operations
 		api.POST("/analyze", s.analyze)
+		api.POST("/recall", s.handleRecall)
 
 		// Relationships
 		api.POST("/relationships", s.createRelationship)

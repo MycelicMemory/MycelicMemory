@@ -18,6 +18,7 @@ import (
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
 	"github.com/MycelicMemory/mycelicmemory/internal/pipeline"
 	"github.com/MycelicMemory/mycelicmemory/internal/ratelimit"
+	"github.com/MycelicMemory/mycelicmemory/internal/recall"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
 	"github.com/MycelicMemory/mycelicmemory/pkg/config"
@@ -37,6 +38,7 @@ type Server struct {
 	memSvc          *memory.Service
 	searchEng       *search.Engine
 	relSvc          *relationships.Service
+	recallEng       *recall.Engine
 	claudeIngester  *claude.Ingester
 	claudeReader    *claude.Reader
 	pipelineQueue   *pipeline.Queue
@@ -82,13 +84,19 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 	slackAdapter := slack.NewAdapter()
 	pipelineQueue.RegisterAdapter(slackAdapter)
 
+	aiManager := ai.NewManager(db, cfg)
+	searchEng := search.NewEngine(db, cfg)
+	searchEng.SetAIManager(aiManager)
+	recallEng := recall.NewEngine(db, cfg, aiManager, searchEng, relSvc)
+
 	return &Server{
 		db:             db,
 		cfg:            cfg,
-		aiManager:      ai.NewManager(db, cfg),
+		aiManager:      aiManager,
 		memSvc:         memory.NewService(db, cfg),
-		searchEng:      search.NewEngine(db, cfg),
+		searchEng:      searchEng,
 		relSvc:         relSvc,
+		recallEng:      recallEng,
 		claudeIngester: claudeIngester,
 		claudeReader:   claudeReader,
 		pipelineQueue:  pipelineQueue,
@@ -302,13 +310,21 @@ func (s *Server) handlePromptsGet(req Request) *Response {
 		}
 	}
 
-	promptContent := `# MyclicMemory Automatic Memory System
+	promptContent := `# MycelicMemory Automatic Memory System
 
 You have access to persistent memory. Use it proactively to build and leverage a knowledge base.
 
-## AUTOMATIC SEARCH (Do this first!)
-At the START of conversations, search for relevant context:
-- Search for memories related to the user's topic/question
+## PROACTIVE RECALL (Do this first!)
+At the START of every conversation, call context_recall with:
+- context: What the user is asking about or working on
+- files: File paths mentioned or being edited
+- project: Current project name
+This surfaces relevant past decisions, debugging insights, and project conventions
+using semantic search, keyword matching, and knowledge graph traversal.
+
+## AUTOMATIC SEARCH (For targeted queries)
+Use the search tool for specific targeted queries:
+- Search for memories related to a specific topic
 - Check for past decisions, preferences, and learnings before answering
 
 ## AUTOMATIC STORAGE (Do this continuously)
@@ -489,6 +505,10 @@ func (s *Server) callTool(ctx context.Context, name string, args map[string]inte
 		return s.handlePipelineStatus(ctx, argsJSON)
 	case "list_sources":
 		return s.handleListSources(ctx, argsJSON)
+	case "context_recall":
+		return s.handleContextRecall(ctx, argsJSON)
+	case "reindex_memories":
+		return s.handleReindexMemories(ctx, argsJSON)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -952,6 +972,60 @@ func (s *Server) getToolDefinitions() []Tool {
 					"source_type": {
 						Type:        "string",
 						Description: "Filter by source type (e.g. 'claude-code-local', 'slack')",
+					},
+				},
+			},
+		},
+		{
+			Name: "context_recall",
+			Description: "Proactively recall relevant memories for the current task context. " +
+				"Call at the START of conversations or when switching tasks. " +
+				"Combines semantic search, keyword matching, and knowledge graph " +
+				"traversal to surface the most relevant memories.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"context": {
+						Type:        "string",
+						Description: "Current task description or recent conversation context",
+					},
+					"files": {
+						Type:        "array",
+						Description: "File paths being worked on",
+						Items:       &Property{Type: "string"},
+					},
+					"project": {
+						Type:        "string",
+						Description: "Project name or path",
+					},
+					"limit": {
+						Type:        "integer",
+						Description: "Max results (default 10)",
+						Default:     10,
+					},
+					"depth": {
+						Type:        "integer",
+						Description: "Graph expansion depth (default 1)",
+						Default:     1,
+					},
+				},
+				Required: []string{"context"},
+			},
+		},
+		{
+			Name:        "reindex_memories",
+			Description: "Re-index all memories into the vector database for semantic search. Use after connecting Qdrant or if vectors are missing.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"batch_size": {
+						Type:        "integer",
+						Description: "Memories per batch (default 50)",
+						Default:     50,
+					},
+					"domain": {
+						Type:        "string",
+						Description: "Optional: only reindex memories in this domain",
 					},
 				},
 			},

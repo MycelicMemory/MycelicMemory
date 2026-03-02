@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MycelicMemory/mycelicmemory/internal/recall"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -55,6 +56,10 @@ func (f *Formatter) FormatToolResponse(toolName string, result interface{}, dura
 		sb.WriteString(f.formatCategories(result))
 	case "stats":
 		sb.WriteString(f.formatStats(result))
+	case "context_recall":
+		sb.WriteString(f.formatContextRecall(result))
+	case "reindex_memories":
+		sb.WriteString(f.formatReindex(result))
 	default:
 		// Fallback to JSON
 		jsonBytes, _ := json.MarshalIndent(result, "", "  ")
@@ -98,6 +103,8 @@ func (f *Formatter) getToolIcon(toolName string) string {
 		"domains":          "🏷️",
 		"categories":       "📂",
 		"stats":            "📈",
+		"context_recall":   "🧭",
+		"reindex_memories": "🔄",
 	}
 	if icon, ok := icons[toolName]; ok {
 		return icon
@@ -127,6 +134,8 @@ func (f *Formatter) getToolTagline(toolName string) string {
 		"domains":          "Organizing knowledge by domain",
 		"categories":       "Hierarchical memory organization",
 		"stats":            "System metrics and analytics",
+		"context_recall":   "Surfacing relevant memories for your current context",
+		"reindex_memories": "Re-indexing memories into the vector database",
 	}
 	if tagline, ok := taglines[toolName]; ok {
 		return fmt.Sprintf("*%s*", tagline)
@@ -660,6 +669,11 @@ func (f *Formatter) getSuggestions(toolName string, result interface{}) []string
 			"Try `map_graph` to visualize the knowledge network",
 			"Create manual relationships for important connections",
 		},
+		"context_recall": {
+			"Store new insights with `store_memory`",
+			"Explore connections with `relationships`",
+			"Use `search` for targeted queries",
+		},
 	}
 
 	if s, ok := suggestions[toolName]; ok {
@@ -735,6 +749,123 @@ func (f *Formatter) formatRelType(relType string) string {
 		return icon
 	}
 	return relType
+}
+
+func (f *Formatter) formatContextRecall(result interface{}) string {
+	var sb strings.Builder
+
+	data, ok := result.(*recall.RecallResult)
+	if !ok {
+		return f.fallbackJSON(result)
+	}
+
+	// Summary header
+	sb.WriteString(fmt.Sprintf("**Mode:** `%s` | **Found:** %d | **Graph expanded:** %d\n\n",
+		data.SearchMode, data.TotalFound, data.GraphExpanded))
+
+	if len(data.Memories) == 0 {
+		sb.WriteString("```\nNo relevant memories found for this context.\n```\n")
+		sb.WriteString("\n💡 Build your knowledge base with `store_memory`.")
+		return sb.String()
+	}
+
+	// Collect domains for summary
+	domains := make(map[string]bool)
+	for _, m := range data.Memories {
+		if m.Memory.Domain != "" {
+			domains[m.Memory.Domain] = true
+		}
+	}
+	if len(domains) > 0 {
+		domainList := make([]string, 0, len(domains))
+		for d := range domains {
+			domainList = append(domainList, d)
+		}
+		sb.WriteString(fmt.Sprintf("**Domains:** %s\n\n", strings.Join(domainList, ", ")))
+	}
+
+	// Format each memory
+	for i, rm := range data.Memories {
+		scoreBar := f.makeProgressBar(rm.Score, 10)
+		scorePercent := int(rm.Score * 100)
+
+		sb.WriteString(fmt.Sprintf("### %d. `%s` [%s]\n", i+1, f.truncateID(rm.Memory.ID), rm.MatchType))
+		sb.WriteString(fmt.Sprintf("**Score:** %s %d%%\n\n", scoreBar, scorePercent))
+		sb.WriteString(fmt.Sprintf("> %s\n\n", f.truncateContent(rm.Memory.Content, 300)))
+
+		sb.WriteString("```yaml\n")
+		sb.WriteString(fmt.Sprintf("importance: %d/10\n", rm.Memory.Importance))
+		if len(rm.Memory.Tags) > 0 {
+			sb.WriteString(fmt.Sprintf("tags: [%s]\n", strings.Join(rm.Memory.Tags, ", ")))
+		}
+		if rm.Memory.Domain != "" {
+			sb.WriteString(fmt.Sprintf("domain: %s\n", rm.Memory.Domain))
+		}
+		sb.WriteString(fmt.Sprintf("age: %s\n", f.formatAge(rm.Memory.CreatedAt.Format(time.RFC3339))))
+		sb.WriteString("```\n")
+
+		if len(rm.RelationChain) > 0 {
+			sb.WriteString("**Relation chain:**\n")
+			for _, link := range rm.RelationChain {
+				sb.WriteString(fmt.Sprintf("  `%s` —[%s %.0f%%]→ `%s`\n",
+					f.truncateID(link.FromID), link.Type, link.Strength*100, f.truncateID(link.ToID)))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	// Timing summary
+	sb.WriteString(fmt.Sprintf("**Timing:** embed=%dms semantic=%dms keyword=%dms graph=%dms rerank=%dms",
+		data.Timing.EmbeddingMs, data.Timing.SemanticMs,
+		data.Timing.KeywordMs, data.Timing.GraphMs, data.Timing.RerankMs))
+
+	return sb.String()
+}
+
+func (f *Formatter) formatReindex(result interface{}) string {
+	var sb strings.Builder
+
+	data, ok := result.(map[string]interface{})
+	if !ok {
+		return f.fallbackJSON(result)
+	}
+
+	sb.WriteString("🔄 **Reindex Complete**\n\n")
+	sb.WriteString("```yaml\n")
+	for _, key := range []string{"total", "indexed", "skipped", "errors", "elapsed_ms"} {
+		if v, ok := data[key]; ok {
+			sb.WriteString(fmt.Sprintf("%s: %v\n", key, v))
+		}
+	}
+	sb.WriteString("```")
+
+	return sb.String()
+}
+
+func (f *Formatter) formatAge(timeStr string) string {
+	formats := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05-07:00",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, timeStr); err == nil {
+			days := int(time.Since(t).Hours() / 24)
+			if days == 0 {
+				return "today"
+			} else if days == 1 {
+				return "1 day"
+			} else if days < 30 {
+				return fmt.Sprintf("%d days", days)
+			} else if days < 365 {
+				return fmt.Sprintf("%d months", days/30)
+			}
+			return fmt.Sprintf("%d years", days/365)
+		}
+	}
+	return "unknown"
 }
 
 func (f *Formatter) fallbackJSON(result interface{}) string {

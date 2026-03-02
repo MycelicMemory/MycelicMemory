@@ -79,6 +79,7 @@ type QdrantConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
 	AutoDetect bool   `mapstructure:"auto_detect"`
 	URL        string `mapstructure:"url"`
+	APIKey     string `mapstructure:"api_key"`
 }
 
 // RateLimitConfig holds rate limiting configuration
@@ -239,6 +240,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("qdrant.enabled", true)
 	v.SetDefault("qdrant.auto_detect", true)
 	v.SetDefault("qdrant.url", "http://localhost:6333")
+	v.SetDefault("qdrant.api_key", "")
 
 	v.SetDefault("rate_limit.enabled", true)
 	v.SetDefault("rate_limit.global.requests_per_second", 100)

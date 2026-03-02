@@ -144,6 +144,10 @@ const browserApi = {
   trace: {
     source: async (memoryId: string) => fetchApi<any>(`/memories/${memoryId}/trace`),
   },
+  recall: {
+    query: async (data: { context: string; files?: string[]; project?: string; limit?: number; depth?: number }) =>
+      fetchApi<any>('/recall', { method: 'POST', body: JSON.stringify(data) }),
+  },
   search: {
     tags: async (data: { tags: string[]; tag_operator?: string; limit?: number; domain?: string }) =>
       fetchApi<any[]>('/search/tags', { method: 'POST', body: JSON.stringify(data) }),

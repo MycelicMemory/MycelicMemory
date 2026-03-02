@@ -13,19 +13,25 @@ import (
 )
 
 // QdrantClient provides vector storage capabilities via Qdrant
-// VERIFIED: Matches local-memory Qdrant integration
 type QdrantClient struct {
 	baseURL        string
+	apiKey         string
 	collectionName string
 	httpClient     *http.Client
 	enabled        bool
 	dimension      int // 768 for nomic-embed-text
+
+	// Cached availability to avoid repeated cloud API calls
+	cachedAvailable   bool
+	cachedAvailableAt time.Time
+	availableCacheTTL time.Duration
 }
 
 // NewQdrantClient creates a new Qdrant client
 func NewQdrantClient(cfg *config.QdrantConfig) *QdrantClient {
 	client := &QdrantClient{
 		baseURL:        cfg.URL,
+		apiKey:         cfg.APIKey,
 		collectionName: "mycelicmemory-memories",
 		enabled:        cfg.Enabled,
 		dimension:      768, // nomic-embed-text dimension
@@ -39,13 +45,29 @@ func NewQdrantClient(cfg *config.QdrantConfig) *QdrantClient {
 		client.baseURL = "http://localhost:6333"
 	}
 
+	client.availableCacheTTL = 60 * time.Second
+
 	return client
 }
 
-// IsAvailable checks if Qdrant is available
+// setHeaders sets standard headers on an HTTP request, including API key auth
+func (c *QdrantClient) setHeaders(req *http.Request) {
+	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("api-key", c.apiKey)
+	}
+}
+
+// IsAvailable checks if Qdrant is available.
+// Results are cached for 60 seconds to avoid redundant cloud API calls.
 func (c *QdrantClient) IsAvailable() bool {
 	if !c.enabled {
 		return false
+	}
+
+	// Return cached result if still fresh
+	if !c.cachedAvailableAt.IsZero() && time.Since(c.cachedAvailableAt) < c.availableCacheTTL {
+		return c.cachedAvailable
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -53,20 +75,26 @@ func (c *QdrantClient) IsAvailable() bool {
 
 	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/collections", nil)
 	if err != nil {
+		c.cachedAvailable = false
+		c.cachedAvailableAt = time.Now()
 		return false
 	}
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.cachedAvailable = false
+		c.cachedAvailableAt = time.Now()
 		return false
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode == http.StatusOK
+	c.cachedAvailable = resp.StatusCode == http.StatusOK
+	c.cachedAvailableAt = time.Now()
+	return c.cachedAvailable
 }
 
 // InitCollection creates the collection if it doesn't exist
-// VERIFIED: HNSW configuration (m=16, ef_construct=100)
 func (c *QdrantClient) InitCollection(ctx context.Context) error {
 	if !c.enabled {
 		return fmt.Errorf("qdrant is not enabled")
@@ -89,8 +117,8 @@ func (c *QdrantClient) InitCollection(ctx context.Context) error {
 			"distance": "Cosine",
 		},
 		"hnsw_config": map[string]interface{}{
-			"m":            16,  // VERIFIED from local-memory
-			"ef_construct": 100, // VERIFIED from local-memory
+			"m":            16,
+			"ef_construct": 100,
 		},
 	}
 
@@ -104,7 +132,7 @@ func (c *QdrantClient) InitCollection(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -126,6 +154,7 @@ func (c *QdrantClient) collectionExists(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -173,7 +202,7 @@ func (c *QdrantClient) UpsertPoints(ctx context.Context, points []Point) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -203,10 +232,10 @@ type SearchResult struct {
 
 // SearchOptions contains options for vector search
 type SearchOptions struct {
-	Vector    []float64
-	Limit     int
-	MinScore  float64
-	Filter    map[string]interface{}
+	Vector      []float64
+	Limit       int
+	MinScore    float64
+	Filter      map[string]interface{}
 	WithPayload bool
 }
 
@@ -249,7 +278,7 @@ func (c *QdrantClient) Search(ctx context.Context, opts *SearchOptions) ([]Searc
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -317,7 +346,7 @@ func (c *QdrantClient) Delete(ctx context.Context, ids []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -344,6 +373,7 @@ func (c *QdrantClient) GetPoint(ctx context.Context, id string) (*Point, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -381,8 +411,8 @@ func (c *QdrantClient) GetPoint(ctx context.Context, id string) (*Point, error) 
 
 // CollectionInfo represents collection statistics
 type CollectionInfo struct {
-	VectorCount int64 `json:"vectors_count"`
-	PointsCount int64 `json:"points_count"`
+	VectorCount int64  `json:"vectors_count"`
+	PointsCount int64  `json:"points_count"`
 	Status      string `json:"status"`
 }
 
@@ -397,6 +427,7 @@ func (c *QdrantClient) GetCollectionInfo(ctx context.Context) (*CollectionInfo, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

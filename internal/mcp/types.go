@@ -288,6 +288,21 @@ type ListSourcesParams struct {
 	SourceType string `json:"source_type,omitempty"`
 }
 
+// ContextRecallParams for context_recall tool
+type ContextRecallParams struct {
+	Context string   `json:"context"`
+	Files   []string `json:"files,omitempty"`
+	Project string   `json:"project,omitempty"`
+	Limit   int      `json:"limit,omitempty"`
+	Depth   int      `json:"depth,omitempty"`
+}
+
+// ReindexParams for reindex_memories tool
+type ReindexParams struct {
+	BatchSize int    `json:"batch_size,omitempty"`
+	Domain    string `json:"domain,omitempty"`
+}
+
 // PromptMessage represents a message in a prompt
 type PromptMessage struct {
 	Role    string       `json:"role"`

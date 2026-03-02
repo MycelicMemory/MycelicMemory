@@ -11,6 +11,7 @@ import (
 	"github.com/MycelicMemory/mycelicmemory/internal/claude"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
+	"github.com/MycelicMemory/mycelicmemory/internal/recall"
 	"github.com/MycelicMemory/mycelicmemory/internal/relationships"
 	"github.com/MycelicMemory/mycelicmemory/internal/search"
 )
@@ -331,6 +332,13 @@ func (s *Server) handleStoreMemory(ctx context.Context, argsJSON []byte) (interf
 	}
 
 	s.log.LogOperation("store_memory", "memory_id", result.Memory.ID, "content_length", len(params.Content))
+
+	// Index for semantic search if AI is available
+	if s.aiManager != nil {
+		if err := s.aiManager.IndexMemory(ctx, result.Memory); err != nil {
+			s.log.Warn("failed to index memory", "id", result.Memory.ID, "error", err)
+		}
+	}
 
 	return &StoreMemoryResponse{
 		Success:   true,
@@ -1479,5 +1487,103 @@ func (s *Server) handleListSources(_ context.Context, argsJSON []byte) (interfac
 		"sources":             result,
 		"registered_adapters": s.pipelineQueue.ListAdapters(),
 		"total":               len(result),
+	}, nil
+}
+
+func (s *Server) handleContextRecall(ctx context.Context, argsJSON []byte) (interface{}, error) {
+	var params ContextRecallParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	if params.Context == "" {
+		return nil, fmt.Errorf("context is required")
+	}
+
+	result, err := s.recallEng.Recall(ctx, &recall.RecallRequest{
+		Context: params.Context,
+		Files:   params.Files,
+		Project: params.Project,
+		Limit:   params.Limit,
+		Depth:   params.Depth,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("recall failed: %w", err)
+	}
+
+	return result, nil
+}
+
+func (s *Server) handleReindexMemories(ctx context.Context, argsJSON []byte) (interface{}, error) {
+	var params ReindexParams
+	if err := json.Unmarshal(argsJSON, &params); err != nil {
+		return nil, fmt.Errorf("invalid parameters: %w", err)
+	}
+
+	if s.aiManager == nil {
+		return nil, fmt.Errorf("AI manager not available — Ollama and Qdrant required for indexing")
+	}
+
+	batchSize := params.BatchSize
+	if batchSize <= 0 {
+		batchSize = 50
+	}
+
+	var total, indexed, errorCount int
+	offset := 0
+	startTime := time.Now()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return map[string]interface{}{
+				"total":      total,
+				"indexed":    indexed,
+				"errors":     errorCount,
+				"cancelled":  true,
+				"elapsed_ms": time.Since(startTime).Milliseconds(),
+			}, nil
+		default:
+		}
+
+		filters := &database.MemoryFilters{
+			Limit:  batchSize,
+			Offset: offset,
+		}
+		if params.Domain != "" {
+			filters.Domain = params.Domain
+		}
+
+		memories, err := s.db.ListMemories(filters)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list memories: %w", err)
+		}
+
+		if len(memories) == 0 {
+			break
+		}
+
+		total += len(memories)
+
+		// Batch: generate embeddings locally via Ollama, then single upsert to Qdrant Cloud
+		batchIndexed, errs := s.aiManager.BatchIndexMemories(ctx, memories)
+		indexed += batchIndexed
+		for _, e := range errs {
+			s.log.Warn("batch index error", "error", e)
+			errorCount++
+		}
+
+		offset += len(memories)
+
+		if len(memories) < batchSize {
+			break
+		}
+	}
+
+	return map[string]interface{}{
+		"total":      total,
+		"indexed":    indexed,
+		"errors":     errorCount,
+		"elapsed_ms": time.Since(startTime).Milliseconds(),
 	}, nil
 }
