@@ -4,7 +4,7 @@
  */
 
 import type { IpcMain } from 'electron';
-import { dialog } from 'electron';
+import { dialog, BrowserWindow } from 'electron';
 import { MycelicMemoryClient } from '../services/mycelicmemory-client';
 import type { MemoryCreateInput, MemoryUpdateInput, SearchOptions } from '../../shared/types';
 
@@ -187,16 +187,20 @@ export function registerMemoryHandlers(ipcMain: IpcMain, apiBaseUrl: string): vo
     }
   });
 
-  ipcMain.handle('databases:export', async (_event, name: string) => {
+  ipcMain.handle('databases:export', async (event, name: string) => {
     try {
-      const result = await dialog.showSaveDialog({
+      const win = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow();
+      const dialogOpts: Electron.SaveDialogOptions = {
         title: `Export database "${name}"`,
         defaultPath: `${name}.db`,
         filters: [
           { name: 'SQLite Database', extensions: ['db'] },
           { name: 'All Files', extensions: ['*'] },
         ],
-      });
+      };
+      const result = win
+        ? await dialog.showSaveDialog(win, dialogOpts)
+        : await dialog.showSaveDialog(dialogOpts);
       if (result.canceled || !result.filePath) return null;
 
       await client.post<any>(`/databases/${encodeURIComponent(name)}/export`, {
@@ -209,16 +213,20 @@ export function registerMemoryHandlers(ipcMain: IpcMain, apiBaseUrl: string): vo
     }
   });
 
-  ipcMain.handle('databases:import', async () => {
+  ipcMain.handle('databases:import', async (event) => {
     try {
-      const result = await dialog.showOpenDialog({
+      const win = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow();
+      const dialogOpts: Electron.OpenDialogOptions = {
         title: 'Import database',
         filters: [
           { name: 'SQLite Database', extensions: ['db'] },
           { name: 'All Files', extensions: ['*'] },
         ],
         properties: ['openFile'],
-      });
+      };
+      const result = win
+        ? await dialog.showOpenDialog(win, dialogOpts)
+        : await dialog.showOpenDialog(dialogOpts);
       if (result.canceled || result.filePaths.length === 0) return null;
 
       // Return the selected path — the renderer will prompt for a name
