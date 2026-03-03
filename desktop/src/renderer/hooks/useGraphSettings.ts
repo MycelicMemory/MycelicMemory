@@ -32,11 +32,13 @@ export function useGraphSettings(networkRef: React.MutableRefObject<any>) {
     setPhysics(next);
     if (!networkRef.current) return;
 
-    // Apply new physics options — keep physics enabled, don't call stabilize()
-    // The network will continuously simulate with the new parameters
+    // Update physics solver parameters and restart simulation.
+    // vis-network's setOptions() only calls init() internally — it does NOT
+    // restart a frozen simulation. We must call startSimulation() explicitly.
     networkRef.current.setOptions({
       physics: {
         enabled: true,
+        solver: 'forceAtlas2Based',
         forceAtlas2Based: {
           gravitationalConstant: next.gravitationalConstant,
           centralGravity: next.centralGravity,
@@ -47,9 +49,11 @@ export function useGraphSettings(networkRef: React.MutableRefObject<any>) {
         },
         maxVelocity: next.maxVelocity,
         timestep: next.timestep,
-        stabilization: false,
+        stabilization: { enabled: false },
       },
     });
+    // Kick the simulation alive — required after setOptions on a stopped network
+    networkRef.current.startSimulation();
   }, [networkRef]);
 
   const applyStyle = useCallback((next: GraphStyleSettings) => {

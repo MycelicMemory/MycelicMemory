@@ -104,6 +104,7 @@ function buildNetworkOptions(physics: typeof DEFAULT_PHYSICS, style: typeof DEFA
     },
     physics: {
       enabled: true,
+      solver: 'forceAtlas2Based',
       forceAtlas2Based: {
         gravitationalConstant: physics.gravitationalConstant,
         centralGravity: physics.centralGravity,
