@@ -4,6 +4,7 @@
  */
 
 import type { IpcMain } from 'electron';
+import { dialog } from 'electron';
 import { MycelicMemoryClient } from '../services/mycelicmemory-client';
 import type { MemoryCreateInput, MemoryUpdateInput, SearchOptions } from '../../shared/types';
 
@@ -182,6 +183,58 @@ export function registerMemoryHandlers(ipcMain: IpcMain, apiBaseUrl: string): vo
       return response.data || response;
     } catch (error) {
       console.error('Failed to archive database:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:export', async (_event, name: string) => {
+    try {
+      const result = await dialog.showSaveDialog({
+        title: `Export database "${name}"`,
+        defaultPath: `${name}.db`,
+        filters: [
+          { name: 'SQLite Database', extensions: ['db'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
+      if (result.canceled || !result.filePath) return null;
+
+      await client.post<any>(`/databases/${encodeURIComponent(name)}/export`, {
+        path: result.filePath,
+      });
+      return { path: result.filePath };
+    } catch (error) {
+      console.error('Failed to export database:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:import', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Import database',
+        filters: [
+          { name: 'SQLite Database', extensions: ['db'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+        properties: ['openFile'],
+      });
+      if (result.canceled || result.filePaths.length === 0) return null;
+
+      // Return the selected path — the renderer will prompt for a name
+      return { path: result.filePaths[0] };
+    } catch (error) {
+      console.error('Failed to open import dialog:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:import-confirm', async (_event, data: { path: string; name: string }) => {
+    try {
+      const response = await client.post<any>('/databases/import', data);
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to import database:', error);
       throw error;
     }
   });

@@ -14,6 +14,8 @@ import {
   Check,
   Info,
   ChevronDown,
+  Download,
+  Upload,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { AppSettings, HealthStatus, ServiceStatus, DatabaseInfo } from '../../shared/types';
@@ -350,6 +352,10 @@ function DatabaseManagement() {
   const [databases, setDatabases] = useState<DatabaseInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importPath, setImportPath] = useState('');
+  const [importName, setImportName] = useState('');
+  const [importing, setImporting] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
@@ -420,6 +426,53 @@ function DatabaseManagement() {
     }
   }
 
+  async function handleExport(name: string) {
+    try {
+      const result = await window.mycelicMemory.databases.export(name);
+      if (result?.path) {
+        toast.success(`Exported to ${result.path}`);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to export database');
+    }
+  }
+
+  async function handleImportPick() {
+    try {
+      const result = await window.mycelicMemory.databases.import();
+      if (result?.path) {
+        setImportPath(result.path);
+        // Suggest a name from the filename
+        const filename = result.path.replace(/\\/g, '/').split('/').pop() || '';
+        const suggested = filename.replace(/\.db$/i, '');
+        setImportName(suggested);
+        setShowImport(true);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to open file picker');
+    }
+  }
+
+  async function handleImportConfirm() {
+    if (!importName.trim() || !importPath) return;
+    try {
+      setImporting(true);
+      await window.mycelicMemory.databases.importConfirm({
+        path: importPath,
+        name: importName.trim(),
+      });
+      toast.success(`Imported "${importName.trim()}"`);
+      setShowImport(false);
+      setImportPath('');
+      setImportName('');
+      fetchDatabases();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to import database');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -467,6 +520,13 @@ function DatabaseManagement() {
                             Switch
                           </button>
                         )}
+                        <button
+                          onClick={() => handleExport(db.name)}
+                          title="Export to file"
+                          className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors"
+                        >
+                          <Download className="w-3 h-3 inline mr-1" />Export
+                        </button>
                         <button
                           onClick={() => handleArchive(db.name)}
                           className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors"
@@ -529,13 +589,52 @@ function DatabaseManagement() {
                 </button>
               </div>
             </div>
+          ) : showImport ? (
+            <div className="space-y-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
+              <p className="text-xs text-slate-400">
+                Importing: <span className="text-slate-200 font-mono">{importPath.replace(/\\/g, '/').split('/').pop()}</span>
+              </p>
+              <div>
+                <label className="text-xs text-slate-400">Database Name</label>
+                <input
+                  type="text"
+                  value={importName}
+                  onChange={(e) => setImportName(e.target.value)}
+                  placeholder="my-imported-db"
+                  className="w-full mt-1 p-2 bg-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleImportConfirm}
+                  disabled={importing || !importName.trim()}
+                  className="px-3 py-1.5 text-sm bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {importing ? 'Importing...' : 'Import'}
+                </button>
+                <button
+                  onClick={() => { setShowImport(false); setImportPath(''); setImportName(''); }}
+                  className="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           ) : (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="px-3 py-1.5 text-sm bg-primary-500/20 text-primary-400 rounded-lg hover:bg-primary-500/30 transition-colors"
-            >
-              + Create New Database
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCreate(true)}
+                className="px-3 py-1.5 text-sm bg-primary-500/20 text-primary-400 rounded-lg hover:bg-primary-500/30 transition-colors"
+              >
+                + Create New Database
+              </button>
+              <button
+                onClick={handleImportPick}
+                className="px-3 py-1.5 text-sm bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5 inline mr-1" />Import Database
+              </button>
+            </div>
           )}
         </>
       )}

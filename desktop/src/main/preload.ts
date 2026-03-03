@@ -104,6 +104,12 @@ const api = {
       invoke('databases:switch', name),
     archive: (name: string): Promise<{ backup_path: string }> =>
       invoke('databases:archive', name),
+    export: (name: string): Promise<{ path: string } | null> =>
+      invoke('databases:export', name),
+    import: (): Promise<{ path: string } | null> =>
+      invoke('databases:import'),
+    importConfirm: (data: { path: string; name: string }): Promise<DatabaseInfo> =>
+      invoke('databases:import-confirm', data),
   },
 
   // Settings

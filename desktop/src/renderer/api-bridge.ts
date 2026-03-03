@@ -216,6 +216,10 @@ const browserApi = {
     delete: async (name: string) => fetchApi<void>(`/databases/${encodeURIComponent(name)}`, { method: 'DELETE' }),
     switch: async (name: string) => fetchApi<any>(`/databases/${encodeURIComponent(name)}/switch`, { method: 'POST' }),
     archive: async (name: string) => fetchApi<any>(`/databases/${encodeURIComponent(name)}/archive`, { method: 'POST' }),
+    export: async (_name: string) => { throw new Error('Export requires the desktop app'); },
+    import: async () => { throw new Error('Import requires the desktop app'); },
+    importConfirm: async (data: { path: string; name: string }) =>
+      fetchApi<any>('/databases/import', { method: 'POST', body: JSON.stringify(data) }),
   },
   models: {
     list: async () => fetchApi<any>('/models'),

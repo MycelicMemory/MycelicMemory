@@ -373,6 +373,9 @@ export type IPCChannels = {
   'databases:delete': { params: { name: string }; result: boolean };
   'databases:switch': { params: { name: string }; result: boolean };
   'databases:archive': { params: { name: string }; result: { backup_path: string } };
+  'databases:export': { params: { name: string }; result: { path: string } | null };
+  'databases:import': { params: void; result: { path: string } | null };
+  'databases:import-confirm': { params: { path: string; name: string }; result: DatabaseInfo };
 
   // Claude Chat Stream daemon control
   'claude-stream:status': { params: void; result: ClaudeChatStreamStatus };
