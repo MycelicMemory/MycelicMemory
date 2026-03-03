@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Network, RefreshCw, ZoomIn, ZoomOut, Maximize2, MessageSquare, Layers, Eye, EyeOff } from 'lucide-react';
 import type { Memory, MemoryRelationship, ClaudeSession } from '../../shared/types';
@@ -45,7 +45,6 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
   enables: '#ec4899',
 };
 
-// Improvement 10: Expanded with actual project domains
 const DOMAIN_COLORS: Record<string, string> = {
   general: '#6366f1',
   architecture: '#3b82f6',
@@ -70,20 +69,61 @@ const DOMAIN_COLORS: Record<string, string> = {
   conversations: '#f97316',
 };
 
-// Distinct colors for session nodes by project
 const SESSION_COLORS = [
-  '#f97316', // orange
-  '#06b6d4', // cyan
-  '#a855f7', // purple
-  '#ec4899', // pink
-  '#84cc16', // lime
-  '#eab308', // yellow
-  '#14b8a6', // teal
-  '#f43f5e', // rose
+  '#f97316', '#06b6d4', '#a855f7', '#ec4899',
+  '#84cc16', '#eab308', '#14b8a6', '#f43f5e',
 ];
 
-const SESSION_NODE_COLOR = '#f97316'; // orange for all session nodes
-const SOURCE_EDGE_COLOR = '#f97316'; // orange dashed edge for session links
+const SESSION_NODE_COLOR = '#f97316';
+const SOURCE_EDGE_COLOR = '#f97316';
+
+// Extracted as a stable constant — no need to recreate on every render
+const NETWORK_OPTIONS = {
+  nodes: {
+    font: { color: '#f1f5f9', size: 12 },
+    borderWidth: 2,
+    borderWidthSelected: 4,
+    scaling: {
+      label: {
+        enabled: true,
+        min: 8,
+        max: 20,
+        drawThreshold: 8,
+        maxVisible: 20,
+      },
+    },
+  },
+  edges: {
+    font: { color: '#94a3b8', size: 10, strokeWidth: 0 },
+    smooth: { type: 'dynamic' as const },
+  },
+  physics: {
+    enabled: true,
+    forceAtlas2Based: {
+      gravitationalConstant: -80,
+      centralGravity: 0.005,
+      springLength: 230,
+      springConstant: 0.08,
+      damping: 0.4,
+      avoidOverlap: 0.8,
+    },
+    stabilization: {
+      enabled: true,
+      iterations: 300,
+      updateInterval: 25,
+      fit: true,
+    },
+    maxVelocity: 30,
+    minVelocity: 0.1,
+    timestep: 0.35,
+  },
+  interaction: {
+    hover: true,
+    tooltipDelay: 200,
+    zoomView: true,
+    dragView: true,
+  },
+};
 
 type SelectedItem =
   | { type: 'memory'; data: Memory }
@@ -94,6 +134,16 @@ export default function KnowledgeGraph() {
   const networkRef = useRef<any>(null);
   const nodesDataSetRef = useRef<any>(null);
   const edgesDataSetRef = useRef<any>(null);
+  const visModuleRef = useRef<any>(null);
+
+  // Fix 3: Refs for tracking dimmed/hidden state (smart hover diffing)
+  const dimmedNodesRef = useRef<Set<string>>(new Set());
+  const hiddenEdgesRef = useRef<Set<string>>(new Set());
+
+  // Fix 2: Refs for stable event handler closures (no stacking)
+  const memoriesRef = useRef<Memory[]>([]);
+  const sessionNodeMapRef = useRef<Map<string, ClaudeSession>>(new Map());
+
   const [memories, setMemories] = useState<Memory[]>([]);
   const [relationships, setRelationships] = useState<MemoryRelationship[]>([]);
   const [sessions, setSessions] = useState<ClaudeSession[]>([]);
@@ -108,27 +158,45 @@ export default function KnowledgeGraph() {
     relationshipType: '',
   });
 
+  // Keep refs in sync so event handlers always see current data
+  useEffect(() => { memoriesRef.current = memories; }, [memories]);
+
+  // Memoize render-phase computations (previously recomputed every render)
+  const domains = useMemo(
+    () => [...new Set(memories.map((m) => m.domain || 'general'))],
+    [memories]
+  );
+  const relationshipTypes = useMemo(
+    () => [...new Set(relationships.map((r) => r.relationship_type))],
+    [relationships]
+  );
+  const { orphanCount, linkedCount, sessionNodeCount } = useMemo(() => {
+    const connectedIds = new Set<string>();
+    relationships.forEach((rel) => {
+      connectedIds.add(rel.source_memory_id);
+      connectedIds.add(rel.target_memory_id);
+    });
+    if (showSessions) {
+      memories.forEach((m) => {
+        if (m.conversation_id) connectedIds.add(m.id);
+      });
+    }
+    return {
+      orphanCount: memories.filter((m) => !connectedIds.has(m.id)).length,
+      linkedCount: memories.filter((m) => m.conversation_id).length,
+      sessionNodeCount: showSessions
+        ? new Set(memories.filter((m) => m.conversation_id).map((m) => m.conversation_id)).size
+        : 0,
+    };
+  }, [memories, relationships, showSessions]);
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    if (memories.length > 0 && containerRef.current) {
-      initializeNetwork();
-    }
-    return () => {
-      if (networkRef.current) {
-        networkRef.current.destroy();
-        networkRef.current = null;
-      }
-    };
-  }, [memories, relationships, sessions, filter, showSessions, showOrphans, clustered]);
-
   async function fetchData() {
     try {
       setLoading(true);
-      // Load memories and sessions only - relationships are fetched per-memory or via discover button
-      // DO NOT call relationships.discover() here - it uses Ollama AI and takes 200+ seconds
       const [memoriesRes, sessionsRes] = await Promise.all([
         window.mycelicMemory.memory.list({ limit: 200 }),
         window.mycelicMemory.claude.sessions().catch(() => []),
@@ -136,14 +204,12 @@ export default function KnowledgeGraph() {
       setMemories(memoriesRes || []);
       setSessions(sessionsRes || []);
 
-      // Load all relationships in a single call (much faster than per-memory fetching)
       try {
         const allRels = await window.mycelicMemory.relationships.getAll({ limit: 1000 });
         if (Array.isArray(allRels)) {
           setRelationships(allRels);
         }
       } catch {
-        // Fallback: if getAll not available, try per-memory approach
         if (memoriesRes && memoriesRes.length > 0) {
           const allRelationships: MemoryRelationship[] = [];
           const seen = new Set<string>();
@@ -176,7 +242,6 @@ export default function KnowledgeGraph() {
   async function handleDiscoverRelationships() {
     try {
       setDiscovering(true);
-      // Discover runs keyword-based discovery on the backend, then returns all relationships
       const allRels = await window.mycelicMemory.relationships.discover();
       if (Array.isArray(allRels)) {
         setRelationships(allRels);
@@ -190,12 +255,8 @@ export default function KnowledgeGraph() {
     }
   }
 
-  const initializeNetwork = useCallback(async () => {
-    if (!containerRef.current) return;
-
-    const vis = await import('vis-network/standalone');
-
-    // Filter memories
+  // Pure computation: build nodes + edges from current state
+  const buildGraphData = useCallback(() => {
     let filteredMemories = [...memories];
     let filteredRelationships = relationships;
 
@@ -213,21 +274,20 @@ export default function KnowledgeGraph() {
       );
     }
 
-    // Improvement 4: Pre-compute edge degree per node
+    // Pre-compute edge degree per node
     const degreeMap = new Map<string, number>();
     filteredRelationships.forEach((rel) => {
       degreeMap.set(rel.source_memory_id, (degreeMap.get(rel.source_memory_id) || 0) + 1);
       degreeMap.set(rel.target_memory_id, (degreeMap.get(rel.target_memory_id) || 0) + 1);
     });
 
-    // Improvement 9: Orphan filtering
+    // Orphan filtering
     if (!showOrphans) {
       const connectedNodeIds = new Set<string>();
       filteredRelationships.forEach((rel) => {
         connectedNodeIds.add(rel.source_memory_id);
         connectedNodeIds.add(rel.target_memory_id);
       });
-      // Session links also count as connections
       if (showSessions) {
         filteredMemories.forEach((m) => {
           if (m.conversation_id) connectedNodeIds.add(m.id);
@@ -240,23 +300,18 @@ export default function KnowledgeGraph() {
     const nodes: NetworkNode[] = filteredMemories.map((memory) => {
       const isSessionSummary = memory.source === 'claude-code-session';
       const degree = degreeMap.get(memory.id) || 0;
-
-      // Improvement 4: Combined score from importance + degree
       const combinedScore = (memory.importance / 10) * 0.6 + (Math.min(degree, 15) / 15) * 0.4;
       const nodeSize = isSessionSummary ? 18 : 8 + combinedScore * 32;
-
       const domainColor = DOMAIN_COLORS[memory.domain || 'general'] || DOMAIN_COLORS.general;
       const bgColor = isSessionSummary ? SESSION_NODE_COLOR : domainColor;
 
       return {
         id: memory.id,
-        // Improvement 5: Shorter labels (20 chars)
         label: memory.content.substring(0, 20) + (memory.content.length > 20 ? '...' : ''),
         title: memory.content,
         color: {
           background: bgColor,
           border: isSessionSummary ? '#ea580c' : '#1e293b',
-          // Improvement 8: Hover/selection styling
           highlight: { background: bgColor, border: '#f1f5f9' },
           hover: { background: bgColor, border: '#60a5fa' },
         },
@@ -265,29 +320,22 @@ export default function KnowledgeGraph() {
       };
     });
 
-    // Build session nodes (if enabled)
+    // Build session nodes
     const sessionNodeMap = new Map<string, ClaudeSession>();
     if (showSessions) {
-      // Find which sessions are referenced by memories
       const referencedSessionIds = new Set(
-        filteredMemories
-          .filter((m) => m.conversation_id)
-          .map((m) => m.conversation_id!)
+        filteredMemories.filter((m) => m.conversation_id).map((m) => m.conversation_id!)
       );
-
-      // Build a project color map
       const projectColors = new Map<string, string>();
       let colorIdx = 0;
 
       sessions.forEach((s) => {
         if (referencedSessionIds.has(s.id)) {
           sessionNodeMap.set(s.id, s);
-
           if (!projectColors.has(s.project_hash)) {
             projectColors.set(s.project_hash, SESSION_COLORS[colorIdx % SESSION_COLORS.length]);
             colorIdx++;
           }
-
           const projectColor = projectColors.get(s.project_hash)!;
           const projectName = s.project_path.split(/[/\\]/).pop() || s.project_hash;
           const label = s.title
@@ -312,7 +360,7 @@ export default function KnowledgeGraph() {
       });
     }
 
-    // Improvement 6: Edge styling — reduce visual noise
+    // Build relationship edges
     const edges: NetworkEdge[] = filteredRelationships.map((rel) => {
       const edgeColor = RELATIONSHIP_COLORS[rel.relationship_type] || '#6366f1';
       const opacity = 0.5 + (rel.strength || 0.5) * 0.5;
@@ -328,7 +376,7 @@ export default function KnowledgeGraph() {
       };
     });
 
-    // Build session-to-memory edges (dashed orange)
+    // Build session-to-memory edges
     if (showSessions) {
       filteredMemories.forEach((memory) => {
         if (memory.conversation_id && sessionNodeMap.has(memory.conversation_id)) {
@@ -345,201 +393,215 @@ export default function KnowledgeGraph() {
       });
     }
 
-    const nodesDataSet = new vis.DataSet(nodes);
-    const edgesDataSet = new vis.DataSet(edges);
-    nodesDataSetRef.current = nodesDataSet;
-    edgesDataSetRef.current = edgesDataSet;
+    return { nodes, edges, sessionNodeMap, filteredMemories };
+  }, [memories, relationships, sessions, filter, showSessions, showOrphans]);
 
-    const data = { nodes: nodesDataSet, edges: edgesDataSet };
-
-    const options = {
-      nodes: {
-        font: {
-          color: '#f1f5f9',
-          size: 12,
-        },
-        borderWidth: 2,
-        // Improvement 8: Selected border width
-        borderWidthSelected: 4,
-        // Improvement 5: Dynamic label visibility
-        scaling: {
-          label: {
-            enabled: true,
-            min: 8,
-            max: 20,
-            drawThreshold: 8,
-            maxVisible: 20,
-          },
-        },
-      },
-      edges: {
-        font: {
-          color: '#94a3b8',
-          size: 10,
-          strokeWidth: 0,
-        },
-        // Improvement 6: Dynamic smooth type
-        smooth: {
-          type: 'dynamic',
-        },
-      },
-      // Improvement 1: Physics engine overhaul — forceAtlas2Based
-      physics: {
-        enabled: true,
-        forceAtlas2Based: {
-          gravitationalConstant: -80,
-          centralGravity: 0.005,
-          springLength: 230,
-          springConstant: 0.08,
-          damping: 0.4,
-          avoidOverlap: 0.8,
-        },
-        stabilization: {
-          enabled: true,
-          iterations: 300,
-          updateInterval: 25,
-          fit: true,
-        },
-        maxVelocity: 30,
-        minVelocity: 0.1,
-        timestep: 0.35,
-      },
-      interaction: {
-        hover: true,
-        tooltipDelay: 200,
-        zoomView: true,
-        dragView: true,
-      },
-    };
-
-    if (networkRef.current) {
-      networkRef.current.destroy();
-    }
-
-    // Re-check after async import
-    if (!containerRef.current) return;
-
-    networkRef.current = new vis.Network(containerRef.current, data, options);
-
-    // Improvement 2: Stabilize-then-freeze — stop physics after layout settles
-    networkRef.current.on('stabilizationIterationsDone', () => {
-      networkRef.current?.setOptions({ physics: { enabled: false } });
-      networkRef.current?.fit();
+  // Fix 2: Register event handlers ONCE — uses refs for current data, not closures over stale state
+  const registerEventHandlers = useCallback((network: any) => {
+    // Stabilize-then-freeze
+    network.on('stabilizationIterationsDone', () => {
+      network.setOptions({ physics: { enabled: false } });
+      network.fit();
     });
 
-    networkRef.current.on('dragStart', () => {
-      networkRef.current?.setOptions({ physics: { enabled: true } });
+    network.on('dragStart', () => {
+      network.setOptions({ physics: { enabled: true } });
     });
 
-    networkRef.current.on('dragEnd', () => {
+    network.on('dragEnd', () => {
       setTimeout(() => {
-        networkRef.current?.setOptions({ physics: { enabled: false } });
+        network.setOptions({ physics: { enabled: false } });
       }, 1500);
     });
 
-    // Improvement 3: Neighbourhood highlighting on hover
-    networkRef.current.on('hoverNode', (params: { node: string }) => {
+    // Fix 3: Smart hover diffing — only update the delta between previous and current hover state
+    network.on('hoverNode', (params: { node: string }) => {
+      const nodesDS = nodesDataSetRef.current;
+      const edgesDS = edgesDataSetRef.current;
+      if (!nodesDS || !edgesDS) return;
+
       const hoveredId = params.node;
       const connectedNodes = new Set<string>(
-        networkRef.current.getConnectedNodes(hoveredId) as string[]
+        network.getConnectedNodes(hoveredId) as string[]
       );
       connectedNodes.add(hoveredId);
-      const connectedEdgeIds = new Set<string>(
-        networkRef.current.getConnectedEdges(hoveredId) as string[]
+      const connectedEdges = new Set<string>(
+        network.getConnectedEdges(hoveredId) as string[]
       );
 
+      // Diff nodes: only update items whose dim state changed
+      const newDimmed = new Set<string>();
       const nodeUpdates: { id: string; opacity: number }[] = [];
-      nodesDataSet.forEach((node: NetworkNode) => {
-        if (!connectedNodes.has(node.id)) {
-          nodeUpdates.push({ id: node.id, opacity: 0.15 });
+
+      nodesDS.forEach((node: NetworkNode) => {
+        const shouldDim = !connectedNodes.has(node.id);
+        const wasDimmed = dimmedNodesRef.current.has(node.id);
+        if (shouldDim) {
+          newDimmed.add(node.id);
+          if (!wasDimmed) nodeUpdates.push({ id: node.id, opacity: 0.15 });
+        } else if (wasDimmed) {
+          nodeUpdates.push({ id: node.id, opacity: 1.0 });
         }
       });
-      if (nodeUpdates.length > 0) nodesDataSet.update(nodeUpdates);
+      dimmedNodesRef.current = newDimmed;
+      if (nodeUpdates.length > 0) nodesDS.update(nodeUpdates);
 
+      // Diff edges: only update items whose hidden state changed
+      const newHidden = new Set<string>();
       const edgeUpdates: { id: string; hidden: boolean }[] = [];
-      edgesDataSet.forEach((edge: NetworkEdge) => {
-        if (!connectedEdgeIds.has(edge.id)) {
-          edgeUpdates.push({ id: edge.id, hidden: true });
+
+      edgesDS.forEach((edge: NetworkEdge) => {
+        const shouldHide = !connectedEdges.has(edge.id);
+        const wasHidden = hiddenEdgesRef.current.has(edge.id);
+        if (shouldHide) {
+          newHidden.add(edge.id);
+          if (!wasHidden) edgeUpdates.push({ id: edge.id, hidden: true });
+        } else if (wasHidden) {
+          edgeUpdates.push({ id: edge.id, hidden: false });
         }
       });
-      if (edgeUpdates.length > 0) edgesDataSet.update(edgeUpdates);
+      hiddenEdgesRef.current = newHidden;
+      if (edgeUpdates.length > 0) edgesDS.update(edgeUpdates);
     });
 
-    networkRef.current.on('blurNode', () => {
-      const nodeUpdates: { id: string; opacity: number }[] = [];
-      nodesDataSet.forEach((node: NetworkNode) => {
-        nodeUpdates.push({ id: node.id, opacity: 1.0 });
-      });
-      if (nodeUpdates.length > 0) nodesDataSet.update(nodeUpdates);
+    network.on('blurNode', () => {
+      const nodesDS = nodesDataSetRef.current;
+      const edgesDS = edgesDataSetRef.current;
+      if (!nodesDS || !edgesDS) return;
 
-      const edgeUpdates: { id: string; hidden: boolean }[] = [];
-      edgesDataSet.forEach((edge: NetworkEdge) => {
-        edgeUpdates.push({ id: edge.id, hidden: false });
-      });
-      if (edgeUpdates.length > 0) edgesDataSet.update(edgeUpdates);
+      // Only restore previously dimmed/hidden items — no full iteration
+      if (dimmedNodesRef.current.size > 0) {
+        nodesDS.update(
+          Array.from(dimmedNodesRef.current).map((id) => ({ id, opacity: 1.0 }))
+        );
+        dimmedNodesRef.current.clear();
+      }
+      if (hiddenEdgesRef.current.size > 0) {
+        edgesDS.update(
+          Array.from(hiddenEdgesRef.current).map((id) => ({ id, hidden: false }))
+        );
+        hiddenEdgesRef.current.clear();
+      }
     });
 
-    // Selection handlers
-    networkRef.current.on('selectNode', (params: { nodes: string[] }) => {
+    // Selection handlers use refs for always-current data
+    network.on('selectNode', (params: { nodes: string[] }) => {
       const nodeId = params.nodes[0];
-
-      // Check if it's a session node
       if (nodeId.startsWith('session:')) {
         const sessId = nodeId.replace('session:', '');
-        const session = sessionNodeMap.get(sessId);
+        const session = sessionNodeMapRef.current.get(sessId);
         if (session) {
           setSelectedItem({ type: 'session', data: session });
         }
         return;
       }
-
-      // It's a memory node
-      const memory = memories.find((m) => m.id === nodeId);
+      const memory = memoriesRef.current.find((m) => m.id === nodeId);
       if (memory) {
         setSelectedItem({ type: 'memory', data: memory });
       }
     });
 
-    networkRef.current.on('deselectNode', () => {
+    network.on('deselectNode', () => {
       setSelectedItem(null);
     });
 
-    // Improvement 7: Apply domain clustering if enabled
-    if (clustered) {
-      const domainSet = new Set(filteredMemories.map((m) => m.domain || 'general'));
-      domainSet.forEach((domain) => {
-        const domainMemoryIds = new Set(
-          filteredMemories
-            .filter((m) => (m.domain || 'general') === domain)
-            .map((m) => m.id)
+    // Cluster double-click — safe to always register, does nothing when no clusters exist
+    network.on('doubleClick', (params: { nodes: string[] }) => {
+      if (params.nodes.length === 1 && network.isCluster(params.nodes[0])) {
+        network.openCluster(params.nodes[0]);
+      }
+    });
+  }, []);
+
+  // Fix 1: Main effect — create network ONCE, update DataSets on subsequent changes
+  useEffect(() => {
+    if (memories.length === 0 || !containerRef.current) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // Cache the vis-network import across renders
+      if (!visModuleRef.current) {
+        visModuleRef.current = await import('vis-network/standalone');
+      }
+      if (cancelled || !containerRef.current) return;
+
+      const vis = visModuleRef.current;
+      const { nodes, edges, sessionNodeMap, filteredMemories } = buildGraphData();
+      sessionNodeMapRef.current = sessionNodeMap;
+
+      if (!networkRef.current) {
+        // FIRST TIME: create network + DataSets + register all event handlers once
+        const nodesDS = new vis.DataSet(nodes);
+        const edgesDS = new vis.DataSet(edges);
+        nodesDataSetRef.current = nodesDS;
+        edgesDataSetRef.current = edgesDS;
+
+        networkRef.current = new vis.Network(
+          containerRef.current!,
+          { nodes: nodesDS, edges: edgesDS },
+          NETWORK_OPTIONS
         );
-        const count = domainMemoryIds.size;
-        if (count < 2) return;
+        registerEventHandlers(networkRef.current);
+      } else {
+        // SUBSEQUENT: incremental DataSet update — NO destroy/recreate
+        dimmedNodesRef.current.clear();
+        hiddenEdgesRef.current.clear();
+        nodesDataSetRef.current.clear();
+        nodesDataSetRef.current.add(nodes);
+        edgesDataSetRef.current.clear();
+        edgesDataSetRef.current.add(edges);
+      }
 
-        networkRef.current.cluster({
-          joinCondition: (nodeOptions: { id: string }) => domainMemoryIds.has(nodeOptions.id),
-          clusterNodeProperties: {
-            id: `cluster:${domain}`,
-            label: `${domain} (${count})`,
-            color: {
-              background: DOMAIN_COLORS[domain] || DOMAIN_COLORS.general,
-              border: '#f1f5f9',
+      // Apply clustering if enabled
+      if (clustered && networkRef.current) {
+        const domainSet = new Set(filteredMemories.map((m) => m.domain || 'general'));
+        domainSet.forEach((domain) => {
+          const domainMemoryIds = new Set(
+            filteredMemories
+              .filter((m) => (m.domain || 'general') === domain)
+              .map((m) => m.id)
+          );
+          const count = domainMemoryIds.size;
+          if (count < 2) return;
+
+          networkRef.current.cluster({
+            joinCondition: (nodeOptions: { id: string }) => domainMemoryIds.has(nodeOptions.id),
+            clusterNodeProperties: {
+              id: `cluster:${domain}`,
+              label: `${domain} (${count})`,
+              color: {
+                background: DOMAIN_COLORS[domain] || DOMAIN_COLORS.general,
+                border: '#f1f5f9',
+              },
+              shape: 'dot',
+              size: 35,
+              font: { color: '#f1f5f9', size: 14 },
+              borderWidth: 3,
             },
-            shape: 'dot',
-            size: 35,
-            font: { color: '#f1f5f9', size: 14 },
-            borderWidth: 3,
-          },
+          });
         });
-      });
+      }
 
-      networkRef.current.on('doubleClick', (params: { nodes: string[] }) => {
-        if (params.nodes.length === 1 && networkRef.current.isCluster(params.nodes[0])) {
-          networkRef.current.openCluster(params.nodes[0]);
-        }
-      });
-    }
-  }, [memories, relationships, sessions, filter, showSessions, showOrphans, clustered]);
+      // Re-stabilize layout (brief physics burst, then freeze)
+      if (networkRef.current) {
+        networkRef.current.setOptions({ physics: { enabled: true } });
+        networkRef.current.stabilize(150);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [memories, relationships, sessions, filter, showSessions, showOrphans, clustered, buildGraphData, registerEventHandlers]);
+
+  // Cleanup on unmount only — network is never destroyed mid-lifecycle
+  useEffect(() => {
+    return () => {
+      if (networkRef.current) {
+        networkRef.current.destroy();
+        networkRef.current = null;
+      }
+    };
+  }, []);
 
   function handleZoomIn() {
     if (networkRef.current) {
@@ -560,30 +622,6 @@ export default function KnowledgeGraph() {
       networkRef.current.fit();
     }
   }
-
-  const domains = [...new Set(memories.map((m) => m.domain || 'general'))];
-  const relationshipTypes = [...new Set(relationships.map((r) => r.relationship_type))];
-  const linkedCount = memories.filter((m) => m.conversation_id).length;
-  const sessionNodeCount = showSessions
-    ? new Set(memories.filter((m) => m.conversation_id).map((m) => m.conversation_id)).size
-    : 0;
-
-  // Compute orphan count for toolbar display
-  const orphanNodeIds = new Set<string>();
-  const connectedIds = new Set<string>();
-  relationships.forEach((rel) => {
-    connectedIds.add(rel.source_memory_id);
-    connectedIds.add(rel.target_memory_id);
-  });
-  if (showSessions) {
-    memories.forEach((m) => {
-      if (m.conversation_id) connectedIds.add(m.id);
-    });
-  }
-  memories.forEach((m) => {
-    if (!connectedIds.has(m.id)) orphanNodeIds.add(m.id);
-  });
-  const orphanCount = orphanNodeIds.size;
 
   return (
     <div className="h-screen flex flex-col bg-slate-900">
@@ -641,7 +679,7 @@ export default function KnowledgeGraph() {
             Chats
           </button>
 
-          {/* Improvement 7: Cluster Toggle */}
+          {/* Cluster Toggle */}
           <button
             onClick={() => setClustered(!clustered)}
             className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
@@ -655,7 +693,7 @@ export default function KnowledgeGraph() {
             Cluster
           </button>
 
-          {/* Improvement 9: Orphan Toggle */}
+          {/* Orphan Toggle */}
           <button
             onClick={() => setShowOrphans(!showOrphans)}
             className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors ${
@@ -739,7 +777,7 @@ export default function KnowledgeGraph() {
         )}
       </div>
 
-      {/* Improvement 10: Enhanced legend with actual domain colors */}
+      {/* Legend */}
       <div className="p-3 border-t border-slate-700 flex items-center gap-4 flex-wrap">
         <span className="text-xs text-slate-500">Domains:</span>
         {domains.map((domain) => (
