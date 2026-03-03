@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { Network, RefreshCw, ZoomIn, ZoomOut, Maximize2, MessageSquare, Layers, Eye, EyeOff } from 'lucide-react';
-import type { Memory, MemoryRelationship, ClaudeSession } from '../../shared/types';
+import { Network, RefreshCw, ZoomIn, ZoomOut, Maximize2, MessageSquare, Layers, Eye, EyeOff, Search, X, Settings2 } from 'lucide-react';
+import type { Memory, MemoryRelationship, ClaudeSession, GraphView, GraphFilterState } from '../../shared/types';
+import GraphContextMenu, { type ContextMenuAction } from '../components/graph/GraphContextMenu';
+import GraphDisplaySettings from '../components/graph/GraphDisplaySettings';
+import GraphViewManager from '../components/graph/GraphViewManager';
+import { useGraphSettings, DEFAULT_PHYSICS, DEFAULT_STYLE } from '../hooks/useGraphSettings';
+import { useGraphViews } from '../hooks/useGraphViews';
 
 // Note: vis-network types
 interface NetworkNode {
@@ -77,53 +82,54 @@ const SESSION_COLORS = [
 const SESSION_NODE_COLOR = '#f97316';
 const SOURCE_EDGE_COLOR = '#f97316';
 
-// Extracted as a stable constant — no need to recreate on every render
-const NETWORK_OPTIONS = {
-  nodes: {
-    font: { color: '#f1f5f9', size: 12 },
-    borderWidth: 2,
-    borderWidthSelected: 4,
-    scaling: {
-      label: {
-        enabled: true,
-        min: 8,
-        max: 20,
-        drawThreshold: 8,
-        maxVisible: 20,
+function buildNetworkOptions(physics: typeof DEFAULT_PHYSICS, style: typeof DEFAULT_STYLE) {
+  return {
+    nodes: {
+      font: { color: '#f1f5f9', size: style.nodeFontSize },
+      borderWidth: style.nodeBorderWidth,
+      borderWidthSelected: 4,
+      scaling: {
+        label: {
+          enabled: true,
+          min: 8,
+          max: 20,
+          drawThreshold: 8,
+          maxVisible: 20,
+        },
       },
     },
-  },
-  edges: {
-    font: { color: '#94a3b8', size: 10, strokeWidth: 0 },
-    smooth: { type: 'dynamic' as const },
-  },
-  physics: {
-    enabled: true,
-    forceAtlas2Based: {
-      gravitationalConstant: -80,
-      centralGravity: 0.005,
-      springLength: 230,
-      springConstant: 0.08,
-      damping: 0.4,
-      avoidOverlap: 0.8,
+    edges: {
+      font: { color: '#94a3b8', size: style.edgeFontSize, strokeWidth: 0 },
+      smooth: { type: style.edgeSmoothType as any },
     },
-    stabilization: {
+    physics: {
       enabled: true,
-      iterations: 300,
-      updateInterval: 25,
-      fit: true,
+      forceAtlas2Based: {
+        gravitationalConstant: physics.gravitationalConstant,
+        centralGravity: physics.centralGravity,
+        springLength: physics.springLength,
+        springConstant: physics.springConstant,
+        damping: physics.damping,
+        avoidOverlap: physics.avoidOverlap,
+      },
+      stabilization: {
+        enabled: true,
+        iterations: 300,
+        updateInterval: 25,
+        fit: true,
+      },
+      maxVelocity: physics.maxVelocity,
+      minVelocity: 0.1,
+      timestep: physics.timestep,
     },
-    maxVelocity: 30,
-    minVelocity: 0.1,
-    timestep: 0.35,
-  },
-  interaction: {
-    hover: true,
-    tooltipDelay: 200,
-    zoomView: true,
-    dragView: true,
-  },
-};
+    interaction: {
+      hover: true,
+      tooltipDelay: 200,
+      zoomView: true,
+      dragView: true,
+    },
+  };
+}
 
 type SelectedItem =
   | { type: 'memory'; data: Memory }
@@ -157,9 +163,27 @@ export default function KnowledgeGraph() {
     domain: '',
     relationshipType: '',
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [renderedCounts, setRenderedCounts] = useState({ nodes: 0, edges: 0 });
+
+  // New state for context menu, hidden/pinned nodes, display settings
+  const [contextMenu, setContextMenu] = useState<{
+    x: number; y: number; nodeId: string | null; nodeType: 'memory' | 'session' | null;
+  } | null>(null);
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  const [pinnedMemoryIds, setPinnedMemoryIds] = useState<Set<string>>(new Set());
+  const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+
+  // Hooks
+  const { physics, style, applyPhysics, applyStyle, resetToDefaults } = useGraphSettings(networkRef);
+  const { views, activeViewId, saveView, deleteView } = useGraphViews();
 
   // Keep refs in sync so event handlers always see current data
   useEffect(() => { memoriesRef.current = memories; }, [memories]);
+
+  // Ref for hiddenNodeIds so context menu handler always sees current value
+  const hiddenNodeIdsRef = useRef(hiddenNodeIds);
+  useEffect(() => { hiddenNodeIdsRef.current = hiddenNodeIds; }, [hiddenNodeIds]);
 
   // Memoize render-phase computations (previously recomputed every render)
   const domains = useMemo(
@@ -255,6 +279,50 @@ export default function KnowledgeGraph() {
     }
   }
 
+  function handleSearch(query: string) {
+    setSearchQuery(query);
+    if (!networkRef.current || !nodesDataSetRef.current) return;
+
+    const nodesDS = nodesDataSetRef.current;
+
+    if (!query.trim()) {
+      // Clear search — restore all nodes to full opacity
+      const updates: { id: string; opacity: number }[] = [];
+      nodesDS.forEach((node: NetworkNode) => {
+        updates.push({ id: node.id, opacity: 1.0 });
+      });
+      if (updates.length > 0) nodesDS.update(updates);
+      return;
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const matchingIds = new Set<string>();
+    memoriesRef.current.forEach((m) => {
+      if (
+        m.content.toLowerCase().includes(lowerQuery) ||
+        (m.domain || '').toLowerCase().includes(lowerQuery) ||
+        (m.tags || []).some((t) => t.toLowerCase().includes(lowerQuery))
+      ) {
+        matchingIds.add(m.id);
+      }
+    });
+
+    // Dim non-matching, highlight matching
+    const updates: { id: string; opacity: number }[] = [];
+    nodesDS.forEach((node: NetworkNode) => {
+      updates.push({
+        id: node.id,
+        opacity: matchingIds.has(node.id) ? 1.0 : 0.15,
+      });
+    });
+    if (updates.length > 0) nodesDS.update(updates);
+
+    // Focus camera on first match
+    if (matchingIds.size > 0 && matchingIds.size <= 20) {
+      networkRef.current.fit({ nodes: Array.from(matchingIds), animation: true });
+    }
+  }
+
   // Pure computation: build nodes + edges from current state
   const buildGraphData = useCallback(() => {
     let filteredMemories = [...memories];
@@ -296,6 +364,14 @@ export default function KnowledgeGraph() {
       filteredMemories = filteredMemories.filter((m) => connectedNodeIds.has(m.id));
     }
 
+    // Hidden nodes filter
+    if (hiddenNodeIds.size > 0) {
+      filteredMemories = filteredMemories.filter((m) => !hiddenNodeIds.has(m.id));
+      filteredRelationships = filteredRelationships.filter(
+        (r) => !hiddenNodeIds.has(r.source_memory_id) && !hiddenNodeIds.has(r.target_memory_id)
+      );
+    }
+
     // Build memory nodes
     const nodes: NetworkNode[] = filteredMemories.map((memory) => {
       const isSessionSummary = memory.source === 'claude-code-session';
@@ -305,10 +381,20 @@ export default function KnowledgeGraph() {
       const domainColor = DOMAIN_COLORS[memory.domain || 'general'] || DOMAIN_COLORS.general;
       const bgColor = isSessionSummary ? SESSION_NODE_COLOR : domainColor;
 
+      const contentPreview = memory.content.length > 120
+        ? memory.content.substring(0, 120) + '...'
+        : memory.content;
+      const tooltip = [
+        `[${memory.domain || 'general'}] importance: ${memory.importance}/10`,
+        `connections: ${degree}`,
+        '',
+        contentPreview,
+      ].join('\n');
+
       return {
         id: memory.id,
         label: memory.content.substring(0, 20) + (memory.content.length > 20 ? '...' : ''),
-        title: memory.content,
+        title: tooltip,
         color: {
           background: bgColor,
           border: isSessionSummary ? '#ea580c' : '#1e293b',
@@ -330,7 +416,7 @@ export default function KnowledgeGraph() {
       let colorIdx = 0;
 
       sessions.forEach((s) => {
-        if (referencedSessionIds.has(s.id)) {
+        if (referencedSessionIds.has(s.id) && !hiddenNodeIds.has(`session:${s.id}`)) {
           sessionNodeMap.set(s.id, s);
           if (!projectColors.has(s.project_hash)) {
             projectColors.set(s.project_hash, SESSION_COLORS[colorIdx % SESSION_COLORS.length]);
@@ -368,10 +454,10 @@ export default function KnowledgeGraph() {
         id: rel.id,
         from: rel.source_memory_id,
         to: rel.target_memory_id,
-        title: rel.relationship_type,
+        title: `${rel.relationship_type} (strength: ${(rel.strength || 0.5).toFixed(2)})`,
         color: { color: edgeColor, opacity, hover: edgeColor },
-        width: 0.8,
-        hoverWidth: 2,
+        width: 0.5 + (rel.strength || 0.5) * 2.5,
+        hoverWidth: 3,
         arrows: { to: { enabled: true, scaleFactor: 0.5 } },
       };
     });
@@ -394,7 +480,7 @@ export default function KnowledgeGraph() {
     }
 
     return { nodes, edges, sessionNodeMap, filteredMemories };
-  }, [memories, relationships, sessions, filter, showSessions, showOrphans]);
+  }, [memories, relationships, sessions, filter, showSessions, showOrphans, hiddenNodeIds]);
 
   // Fix 2: Register event handlers ONCE — uses refs for current data, not closures over stale state
   const registerEventHandlers = useCallback((network: any) => {
@@ -412,6 +498,29 @@ export default function KnowledgeGraph() {
       setTimeout(() => {
         network.setOptions({ physics: { enabled: false } });
       }, 1500);
+    });
+
+    // Context menu on right-click
+    network.on('oncontext', (params: { event: MouseEvent; pointer: { DOM: { x: number; y: number } } }) => {
+      params.event.preventDefault();
+      const nodeId = network.getNodeAt(params.pointer.DOM) as string | undefined;
+      let nodeType: 'memory' | 'session' | null = null;
+      let resolvedNodeId: string | null = nodeId ?? null;
+
+      if (nodeId) {
+        nodeType = nodeId.startsWith('session:') ? 'session' : 'memory';
+      }
+
+      // Use the container's bounding rect to get viewport-relative coords
+      const container = network.body.container as HTMLElement;
+      const rect = container.getBoundingClientRect();
+
+      setContextMenu({
+        x: rect.left + params.pointer.DOM.x,
+        y: rect.top + params.pointer.DOM.y,
+        nodeId: resolvedNodeId,
+        nodeType,
+      });
     });
 
     // Fix 3: Smart hover diffing — only update the delta between previous and current hover state
@@ -529,6 +638,7 @@ export default function KnowledgeGraph() {
       const vis = visModuleRef.current;
       const { nodes, edges, sessionNodeMap, filteredMemories } = buildGraphData();
       sessionNodeMapRef.current = sessionNodeMap;
+      setRenderedCounts({ nodes: nodes.length, edges: edges.length });
 
       if (!networkRef.current) {
         // FIRST TIME: create network + DataSets + register all event handlers once
@@ -537,10 +647,11 @@ export default function KnowledgeGraph() {
         nodesDataSetRef.current = nodesDS;
         edgesDataSetRef.current = edgesDS;
 
+        const initialOptions = buildNetworkOptions(physics, style);
         networkRef.current = new vis.Network(
           containerRef.current!,
           { nodes: nodesDS, edges: edgesDS },
-          NETWORK_OPTIONS
+          initialOptions
         );
         registerEventHandlers(networkRef.current);
       } else {
@@ -591,7 +702,7 @@ export default function KnowledgeGraph() {
     })();
 
     return () => { cancelled = true; };
-  }, [memories, relationships, sessions, filter, showSessions, showOrphans, clustered, buildGraphData, registerEventHandlers]);
+  }, [memories, relationships, sessions, filter, showSessions, showOrphans, clustered, hiddenNodeIds, buildGraphData, registerEventHandlers]);
 
   // Cleanup on unmount only — network is never destroyed mid-lifecycle
   useEffect(() => {
@@ -623,6 +734,129 @@ export default function KnowledgeGraph() {
     }
   }
 
+  // Context menu action handler
+  function handleContextMenuAction(action: ContextMenuAction) {
+    if (!contextMenu) return;
+    const { nodeId } = contextMenu;
+
+    switch (action) {
+      case 'focus-neighborhood': {
+        if (!nodeId || !networkRef.current) break;
+        const connected = networkRef.current.getConnectedNodes(nodeId) as string[];
+        networkRef.current.fit({ nodes: [nodeId, ...connected], animation: true });
+        break;
+      }
+      case 'show-only-connected': {
+        if (!nodeId || !networkRef.current) break;
+        const connected = new Set(networkRef.current.getConnectedNodes(nodeId) as string[]);
+        connected.add(nodeId);
+        // Hide everything not connected
+        const toHide = new Set(hiddenNodeIds);
+        memoriesRef.current.forEach((m) => {
+          if (!connected.has(m.id)) toHide.add(m.id);
+        });
+        setHiddenNodeIds(toHide);
+        break;
+      }
+      case 'hide-node': {
+        if (!nodeId) break;
+        setHiddenNodeIds((prev) => new Set(prev).add(nodeId));
+        toast.success('Node hidden');
+        break;
+      }
+      case 'pin-to-view': {
+        if (!nodeId) break;
+        setPinnedMemoryIds((prev) => new Set(prev).add(nodeId));
+        toast.success('Node pinned to view');
+        break;
+      }
+      case 'unpin-from-view': {
+        if (!nodeId) break;
+        setPinnedMemoryIds((prev) => {
+          const next = new Set(prev);
+          next.delete(nodeId);
+          return next;
+        });
+        toast.success('Node unpinned');
+        break;
+      }
+      case 'copy-content': {
+        if (!nodeId) break;
+        const mem = memoriesRef.current.find((m) => m.id === nodeId);
+        if (mem) {
+          navigator.clipboard.writeText(mem.content);
+          toast.success('Content copied');
+        }
+        break;
+      }
+      case 'copy-id': {
+        if (!nodeId) break;
+        const rawId = nodeId.startsWith('session:') ? nodeId.replace('session:', '') : nodeId;
+        navigator.clipboard.writeText(rawId);
+        toast.success('ID copied');
+        break;
+      }
+      case 'show-all-hidden': {
+        setHiddenNodeIds(new Set());
+        toast.success('All hidden nodes restored');
+        break;
+      }
+      case 'reset-view': {
+        setHiddenNodeIds(new Set());
+        setPinnedMemoryIds(new Set());
+        setFilter({ domain: '', relationshipType: '' });
+        setSearchQuery('');
+        handleSearch('');
+        resetToDefaults();
+        toast.success('View reset');
+        break;
+      }
+      case 'fit-all': {
+        handleFit();
+        break;
+      }
+    }
+    setContextMenu(null);
+  }
+
+  // Load a saved view
+  function handleLoadView(view: GraphView) {
+    // Restore filters
+    setFilter({
+      domain: view.filter.domain,
+      relationshipType: view.filter.relationshipType,
+    });
+    setSearchQuery(view.filter.searchQuery);
+    setShowSessions(view.filter.showSessions);
+    setShowOrphans(view.filter.showOrphans);
+    setClustered(view.filter.clustered);
+
+    // Restore hidden/pinned
+    setHiddenNodeIds(new Set(view.hiddenNodeIds || []));
+    setPinnedMemoryIds(new Set(view.pinnedMemoryIds || []));
+
+    // Restore physics/style
+    applyPhysics(view.physics);
+    applyStyle(view.style);
+
+    // Apply search highlight after a tick (needs nodesDS to be populated)
+    if (view.filter.searchQuery) {
+      setTimeout(() => handleSearch(view.filter.searchQuery), 100);
+    }
+
+    toast.success(`Loaded view: ${view.name}`);
+  }
+
+  // Current filter state for view saving
+  const currentFilterState: GraphFilterState = {
+    domain: filter.domain,
+    relationshipType: filter.relationshipType,
+    searchQuery,
+    showSessions,
+    showOrphans,
+    clustered,
+  };
+
   return (
     <div className="h-screen flex flex-col bg-slate-900">
       {/* Toolbar */}
@@ -630,11 +864,28 @@ export default function KnowledgeGraph() {
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold">Knowledge Graph</h1>
           <span className="text-sm text-slate-400">
-            {memories.length} memories
-            {sessionNodeCount > 0 && ` + ${sessionNodeCount} chats`}
-            {` \u2022 ${relationships.length} connections`}
-            {linkedCount > 0 && ` \u2022 ${linkedCount} traced`}
+            {renderedCounts.nodes} nodes &bull; {renderedCounts.edges} edges
+            {renderedCounts.nodes !== memories.length && ` (${memories.length} total)`}
+            {hiddenNodeIds.size > 0 && ` \u2022 ${hiddenNodeIds.size} hidden`}
           </span>
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search nodes..."
+              className="pl-8 pr-7 py-1.5 w-44 bg-slate-800 border border-slate-700 rounded-lg text-sm placeholder:text-slate-500 focus:outline-none focus:border-slate-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => handleSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {/* Filters */}
@@ -742,6 +993,33 @@ export default function KnowledgeGraph() {
             <RefreshCw className={`w-4 h-4 ${discovering ? 'animate-spin' : ''}`} />
             Discover
           </button>
+
+          {/* Display Settings Toggle */}
+          <button
+            onClick={() => setShowDisplaySettings(!showDisplaySettings)}
+            className={`p-2 rounded-lg transition-colors ${
+              showDisplaySettings
+                ? 'bg-indigo-500/20 text-indigo-400'
+                : 'hover:bg-slate-700'
+            }`}
+            title="Display Settings"
+          >
+            <Settings2 className="w-4 h-4" />
+          </button>
+
+          {/* View Manager */}
+          <GraphViewManager
+            views={views}
+            activeViewId={activeViewId}
+            currentFilter={currentFilterState}
+            currentPhysics={physics}
+            currentStyle={style}
+            hiddenNodeIds={Array.from(hiddenNodeIds)}
+            pinnedMemoryIds={Array.from(pinnedMemoryIds)}
+            onLoadView={handleLoadView}
+            onSave={saveView}
+            onDelete={deleteView}
+          />
         </div>
       </div>
 
@@ -762,6 +1040,32 @@ export default function KnowledgeGraph() {
             </div>
           ) : (
             <div ref={containerRef} className="w-full h-full" />
+          )}
+
+          {/* Display Settings Panel */}
+          {showDisplaySettings && (
+            <GraphDisplaySettings
+              physics={physics}
+              style={style}
+              onPhysicsChange={applyPhysics}
+              onStyleChange={applyStyle}
+              onReset={resetToDefaults}
+              onClose={() => setShowDisplaySettings(false)}
+            />
+          )}
+
+          {/* Context Menu */}
+          {contextMenu && (
+            <GraphContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              nodeId={contextMenu.nodeId}
+              nodeType={contextMenu.nodeType}
+              isPinned={contextMenu.nodeId ? pinnedMemoryIds.has(contextMenu.nodeId) : false}
+              hiddenCount={hiddenNodeIds.size}
+              onAction={handleContextMenuAction}
+              onClose={() => setContextMenu(null)}
+            />
           )}
         </div>
 
