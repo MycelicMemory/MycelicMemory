@@ -173,6 +173,17 @@ Ingest and search your Claude Code conversation history:
 | `get_chat` | Retrieve full conversation with messages, tool calls, and linked memories |
 | `trace_source` | Trace any memory back to the exact conversation that created it |
 
+### Active Memory Agent
+
+Context-aware recall that combines multiple signals for intelligent memory retrieval:
+
+| Tool | Description |
+|------|-------------|
+| `context_recall` | Multi-signal recall: semantic + keyword + graph + importance + recency |
+| `reindex_memories` | Re-generate vector embeddings for all memories |
+
+Scoring weights: 40% semantic, 20% keyword, 15% importance, 15% recency, 10% graph connections. Gracefully degrades when Ollama or Qdrant are unavailable.
+
 ### Knowledge Organization
 
 | Tool | Description |
@@ -190,14 +201,30 @@ MycelicMemory includes a built-in MCP prompt that instructs Claude to:
 
 Claude manages your knowledge base proactively without needing explicit "remember this" instructions.
 
-### Data Source Ingestion
+### Universal Data Pipeline
 
-Register external data sources and ingest knowledge through the REST API:
+Register external data sources and ingest knowledge through a unified pipeline:
 
+| Tool | Description |
+|------|-------------|
+| `ingest_source` | Trigger ingestion for any registered data source |
+| `pipeline_status` | Check status of active/recent ingestion jobs |
+| `list_sources` | List all configured data sources with sync status |
+
+- **Supported adapters**: Claude Code (local JSONL), Slack workspace exports, and more
 - Bulk import with deduplication (skip duplicate external IDs)
-- Checkpoint-based resumable ingestion
+- Checkpoint-based resumable ingestion (incremental and backfill modes)
 - Sync history tracking and status monitoring
 - Per-source statistics and error logging
+
+### Multi-Database Management
+
+Run multiple isolated knowledge bases and switch between them:
+
+- Create, switch, archive, delete, import, and export databases
+- WAL checkpoint before archive/switch ensures data integrity
+- Hot-reload on switch — no server restart needed
+- Desktop sidebar database selector for quick switching
 
 ---
 
@@ -207,10 +234,11 @@ A standalone Electron application for visual memory management.
 
 **Pages:**
 - **Dashboard** — Memory stats, service health indicators, quick actions, activity charts
-- **Memory Browser** — Search, filter, edit, and delete memories with detail panels
+- **Memory Browser** — Search, filter, edit, and delete memories with paginated detail panels
 - **Claude Sessions** — Browse conversation history by project, view messages and tool calls
-- **Knowledge Graph** — Interactive network visualization of memory relationships
-- **Settings** — Configure API, Ollama models (with dropdown picker), MCP setup guide, Qdrant, theme
+- **Knowledge Graph** — Interactive force-directed visualization with domain clustering, neighbourhood highlighting, orphan filtering, and stabilize-then-freeze physics
+- **Data Sources** — Register, sync, and monitor external data source ingestion pipelines
+- **Settings** — Configure API, Ollama models (with dropdown picker), database management (create/switch/archive/import/export), MCP setup guide, Qdrant
 
 **Service Management:**
 The desktop app automatically discovers and manages the MycelicMemory backend, Ollama, and Qdrant services.
@@ -255,8 +283,19 @@ mycelicmemory map_graph <id> --depth 3     # Graph visualization
 mycelicmemory list --domain databases
 mycelicmemory categorize <id> --auto-create
 
+# Database management
+mycelicmemory db list                      # List all databases
+mycelicmemory db create staging            # Create new database
+mycelicmemory db switch staging            # Switch active database
+mycelicmemory db archive default           # Create timestamped backup
+mycelicmemory db import ./backup.db prod   # Import .db file as named database
+mycelicmemory db export staging ./out.db   # Export database to file
+mycelicmemory db delete staging            # Remove database
+mycelicmemory db info staging              # Show database details
+
 # Service management
 mycelicmemory start    # Start REST API daemon
+mycelicmemory start --db staging   # Start with specific database
 mycelicmemory stop     # Stop daemon
 mycelicmemory status   # Show daemon status
 mycelicmemory doctor   # Health check
@@ -276,8 +315,10 @@ The REST API runs at `http://localhost:3099/api/v1/` when the daemon is started.
 | `/memories/:id` | GET / PUT / DELETE | CRUD by ID |
 | `/memories/search` | GET / POST | Search memories |
 | `/memories/search/intelligent` | POST | AI-powered intelligent search |
+| `/memories/reindex` | POST | Re-generate all vector embeddings |
 | `/memories/:id/related` | GET | Find related memories |
 | `/memories/:id/graph` | GET | Knowledge graph for memory |
+| `/recall` | POST | Active memory agent — multi-signal recall |
 | `/analyze` | POST | AI analysis |
 | `/relationships` | POST | Create relationship |
 | `/relationships/discover` | POST | AI relationship discovery |
@@ -294,6 +335,18 @@ The REST API runs at `http://localhost:3099/api/v1/` when the daemon is started.
 | `/chats` | GET | List chat sessions |
 | `/chats/search` | GET | Search conversations |
 | `/chats/:id` | GET | Get session with messages |
+| `/databases` | GET / POST | List or create databases |
+| `/databases/:name` | GET / DELETE | Get info or delete database |
+| `/databases/:name/switch` | POST | Switch active database (hot-reload) |
+| `/databases/:name/archive` | POST | Create timestamped backup |
+| `/databases/:name/export` | POST | Export database to path |
+| `/databases/import` | POST | Import .db file as named database |
+| `/models` | GET | List available Ollama models |
+| `/models/pull` | POST | Download an Ollama model |
+| `/models/test` | POST | Test Ollama connectivity |
+| `/config/ollama` | PUT | Update Ollama configuration |
+| `/config/qdrant` | PUT | Update Qdrant configuration |
+| `/seed` | POST | Seed database with curated project memories |
 
 Start the API:
 ```bash
@@ -368,6 +421,13 @@ Config file: `~/.mycelicmemory/config.yaml`
 database:
   path: ~/.mycelicmemory/memories.db
 
+# Multiple databases (optional)
+active_database: ""          # Empty = use default
+databases:
+  - name: staging
+    path: ~/.mycelicmemory/databases/staging.db
+    description: "Testing and experiments"
+
 rest_api:
   port: 3099
   host: localhost
@@ -381,6 +441,7 @@ ollama:
 qdrant:
   enabled: false
   url: http://localhost:6333
+  api_key: ""               # For Qdrant Cloud
 ```
 
 ---
