@@ -40,6 +40,8 @@ const api = {
       invoke('memory:get', id),
     create: (data: MemoryCreateInput): Promise<Memory> =>
       invoke('memory:create', data),
+    store: (data: MemoryCreateInput): Promise<Memory> =>
+      invoke('memory:create', data),
     update: (id: string, data: MemoryUpdateInput): Promise<Memory> =>
       invoke('memory:update', id, data),
     delete: (id: string): Promise<boolean> =>
