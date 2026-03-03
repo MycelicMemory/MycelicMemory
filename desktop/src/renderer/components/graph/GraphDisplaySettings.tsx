@@ -71,6 +71,9 @@ export default function GraphDisplaySettings({
               {slider('Gravitational Constant', physics.gravitationalConstant, -200, -10, 5, (v) =>
                 onPhysicsChange({ ...physics, gravitationalConstant: v })
               )}
+              {slider('Central Gravity', physics.centralGravity, 0, 0.1, 0.005, (v) =>
+                onPhysicsChange({ ...physics, centralGravity: v })
+              )}
               {slider('Spring Length', physics.springLength, 50, 500, 10, (v) =>
                 onPhysicsChange({ ...physics, springLength: v })
               )}
@@ -82,6 +85,9 @@ export default function GraphDisplaySettings({
               )}
               {slider('Avoid Overlap', physics.avoidOverlap, 0, 1, 0.1, (v) =>
                 onPhysicsChange({ ...physics, avoidOverlap: v })
+              )}
+              {slider('Max Velocity', physics.maxVelocity, 5, 100, 5, (v) =>
+                onPhysicsChange({ ...physics, maxVelocity: v })
               )}
             </div>
           )}

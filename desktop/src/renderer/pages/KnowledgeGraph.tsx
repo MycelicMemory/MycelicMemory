@@ -175,7 +175,7 @@ export default function KnowledgeGraph() {
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
 
   // Hooks
-  const { physics, style, applyPhysics, applyStyle, resetToDefaults } = useGraphSettings(networkRef);
+  const { physics, style, tuning, setTuning, tuningRef, applyPhysics, applyStyle, resetToDefaults } = useGraphSettings(networkRef);
   const { views, activeViewId, saveView, deleteView } = useGraphViews();
 
   // Keep refs in sync so event handlers always see current data
@@ -484,8 +484,9 @@ export default function KnowledgeGraph() {
 
   // Fix 2: Register event handlers ONCE — uses refs for current data, not closures over stale state
   const registerEventHandlers = useCallback((network: any) => {
-    // Stabilize-then-freeze
+    // Stabilize-then-freeze (skip freeze while user is tuning physics sliders)
     network.on('stabilizationIterationsDone', () => {
+      if (tuningRef.current) return;
       network.setOptions({ physics: { enabled: false } });
       network.fit();
     });
@@ -496,7 +497,9 @@ export default function KnowledgeGraph() {
 
     network.on('dragEnd', () => {
       setTimeout(() => {
-        network.setOptions({ physics: { enabled: false } });
+        if (!tuningRef.current) {
+          network.setOptions({ physics: { enabled: false } });
+        }
       }, 1500);
     });
 
@@ -996,7 +999,11 @@ export default function KnowledgeGraph() {
 
           {/* Display Settings Toggle */}
           <button
-            onClick={() => setShowDisplaySettings(!showDisplaySettings)}
+            onClick={() => {
+              const next = !showDisplaySettings;
+              setShowDisplaySettings(next);
+              setTuning(next);
+            }}
             className={`p-2 rounded-lg transition-colors ${
               showDisplaySettings
                 ? 'bg-indigo-500/20 text-indigo-400'
@@ -1050,7 +1057,7 @@ export default function KnowledgeGraph() {
               onPhysicsChange={applyPhysics}
               onStyleChange={applyStyle}
               onReset={resetToDefaults}
-              onClose={() => setShowDisplaySettings(false)}
+              onClose={() => { setShowDisplaySettings(false); setTuning(false); }}
             />
           )}
 
