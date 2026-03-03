@@ -390,8 +390,9 @@ function DatabaseManagement() {
   async function handleSwitch(name: string) {
     try {
       await window.mycelicMemory.databases.switch(name);
+      // Refresh the local list to confirm the switch
+      await fetchDatabases();
       toast.success(`Switched to "${name}"`);
-      fetchDatabases();
       // Notify App.tsx to refresh all routes with the new database
       window.dispatchEvent(new CustomEvent('db-switched', { detail: { name } }));
     } catch (err: any) {

@@ -98,33 +98,61 @@ function App() {
 
   // Listen for db-switched events from Settings page (or anywhere else)
   useEffect(() => {
-    const handler = (e: Event) => {
+    const handler = async (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.name) {
-        setActiveDbName(detail.name);
+        // Refresh DB list to get authoritative is_active state
+        try {
+          const dbs = await window.mycelicMemory.databases.list();
+          if (Array.isArray(dbs)) {
+            setDatabases(dbs);
+            const active = dbs.find((d: DatabaseInfo) => d.is_active);
+            setActiveDbName(active?.name || detail.name);
+          } else {
+            setActiveDbName(detail.name);
+          }
+        } catch {
+          setActiveDbName(detail.name);
+        }
+        // Force re-mount of all route components to fetch from the new database
         setDbSwitchKey((prev) => prev + 1);
-        fetchDatabases();
       }
     };
     window.addEventListener('db-switched', handler);
     return () => window.removeEventListener('db-switched', handler);
-  }, [fetchDatabases]);
+  }, []);
 
   const handleSwitchDatabase = useCallback(async (name: string) => {
     if (name === activeDbName || switching) return;
     setSwitching(true);
     try {
       await window.mycelicMemory.databases.switch(name);
-      setActiveDbName(name);
-      setDbSwitchKey((prev) => prev + 1);
-      fetchDatabases();
-      toast.success(`Switched to "${name}"`);
+
+      // Refresh database list and verify the switch took effect
+      const dbs = await window.mycelicMemory.databases.list();
+      if (Array.isArray(dbs)) {
+        setDatabases(dbs);
+        const active = dbs.find((d: DatabaseInfo) => d.is_active);
+        if (active && active.name !== activeDbName) {
+          setActiveDbName(active.name);
+          setDbSwitchKey((prev) => prev + 1);
+          toast.success(`Switched to "${active.name}"`);
+        } else {
+          // Backend didn't actually change the active database
+          toast.error(`Switch to "${name}" failed — database may not exist`);
+        }
+      } else {
+        // Couldn't verify — apply optimistically
+        setActiveDbName(name);
+        setDbSwitchKey((prev) => prev + 1);
+        toast.success(`Switched to "${name}"`);
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Failed to switch database');
     } finally {
       setSwitching(false);
     }
-  }, [activeDbName, switching, fetchDatabases]);
+  }, [activeDbName, switching]);
 
   const toggleSidebar = () => {
     const next = !sidebarCollapsed;

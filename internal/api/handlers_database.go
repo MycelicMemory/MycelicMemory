@@ -64,6 +64,11 @@ func (s *Server) deleteDatabase(c *gin.Context) {
 func (s *Server) switchDatabase(c *gin.Context) {
 	name := c.Param("name")
 
+	// Checkpoint WAL on the current database before switching away
+	if err := s.db.Checkpoint(); err != nil {
+		s.log.Warn("failed to checkpoint before switch", "error", err)
+	}
+
 	if err := s.dbManager.SwitchDatabase(name); err != nil {
 		BadRequestError(c, err.Error())
 		return
@@ -75,12 +80,47 @@ func (s *Server) switchDatabase(c *gin.Context) {
 		return
 	}
 
-	SuccessResponse(c, "Switched to database: "+name, nil)
+	// Return the new active database info for frontend verification
+	info, err := s.dbManager.GetDatabase(name)
+	if err != nil {
+		// Switch succeeded but couldn't fetch info — still report success
+		SuccessResponse(c, "Switched to database: "+name, map[string]interface{}{
+			"name":      name,
+			"is_active": true,
+		})
+		return
+	}
+
+	SuccessResponse(c, "Switched to database: "+name, info)
 }
 
 // archiveDatabase handles POST /api/v1/databases/:name/archive
 func (s *Server) archiveDatabase(c *gin.Context) {
 	name := c.Param("name")
+
+	// Checkpoint WAL to flush all pending writes into the main .db file.
+	// Without this, the archive copy may be missing recent data (WAL mode
+	// keeps uncommitted changes in a separate -wal file).
+	activePath := s.config.GetActiveDBPath()
+	archivePath := ""
+	if name == "" || name == "default" {
+		archivePath = s.config.Database.Path
+	} else {
+		for _, p := range s.config.Databases {
+			if p.Name == name {
+				archivePath = p.Path
+				break
+			}
+		}
+	}
+
+	// Only checkpoint if we're archiving the currently active database
+	if archivePath == activePath {
+		if err := s.db.Checkpoint(); err != nil {
+			s.log.Warn("failed to checkpoint WAL before archive", "error", err)
+			// Continue anyway — the copy will still work, just might miss WAL data
+		}
+	}
 
 	path, err := s.dbManager.ArchiveDatabase(name)
 	if err != nil {
