@@ -23,6 +23,7 @@ import type {
   DatabaseInfo,
   ClaudeChatStreamStatus,
   ServiceStatus,
+  GraphView,
 } from '../shared/types';
 
 // Type-safe IPC invoke wrapper
@@ -165,6 +166,16 @@ const api = {
       ipcRenderer.on('services:status-update', handler);
       return () => ipcRenderer.removeListener('services:status-update', handler);
     },
+  },
+
+  // Graph views (saved configurations)
+  graphViews: {
+    list: (): Promise<GraphView[]> => invoke('graph-views:list'),
+    get: (id: string): Promise<GraphView | null> => invoke('graph-views:get', { id }),
+    save: (view: GraphView): Promise<GraphView> => invoke('graph-views:save', view),
+    delete: (id: string): Promise<boolean> => invoke('graph-views:delete', { id }),
+    setActive: (id: string | null): Promise<boolean> => invoke('graph-views:set-active', { id }),
+    getActive: (): Promise<GraphView | null> => invoke('graph-views:get-active'),
   },
 
   // Shell operations

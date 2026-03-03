@@ -393,4 +393,61 @@ export type IPCChannels = {
   'services:start-ollama': { params: void; result: boolean };
   'services:start-qdrant': { params: void; result: boolean };
   'services:stop-backend': { params: void; result: boolean };
+
+  // Graph views
+  'graph-views:list': { params: void; result: GraphView[] };
+  'graph-views:get': { params: { id: string }; result: GraphView | null };
+  'graph-views:save': { params: GraphView; result: GraphView };
+  'graph-views:delete': { params: { id: string }; result: boolean };
+  'graph-views:set-active': { params: { id: string | null }; result: boolean };
+  'graph-views:get-active': { params: void; result: GraphView | null };
 };
+
+// =============================================================================
+// GRAPH VIEW TYPES (Knowledge Graph display settings & saved views)
+// =============================================================================
+
+export interface GraphPhysicsSettings {
+  gravitationalConstant: number;
+  centralGravity: number;
+  springLength: number;
+  springConstant: number;
+  damping: number;
+  avoidOverlap: number;
+  maxVelocity: number;
+  timestep: number;
+}
+
+export interface GraphStyleSettings {
+  nodeFontSize: number;
+  nodeBorderWidth: number;
+  edgeFontSize: number;
+  edgeSmoothType: string;
+}
+
+export interface GraphFilterState {
+  domain: string;
+  relationshipType: string;
+  searchQuery: string;
+  showSessions: boolean;
+  showOrphans: boolean;
+  clustered: boolean;
+}
+
+export interface GraphView {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  filter: GraphFilterState;
+  physics: GraphPhysicsSettings;
+  style: GraphStyleSettings;
+  pinnedMemoryIds?: string[];
+  hiddenNodeIds?: string[];
+}
+
+export interface GraphViewStore {
+  views: GraphView[];
+  activeViewId?: string;
+}

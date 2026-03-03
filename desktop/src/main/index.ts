@@ -5,7 +5,21 @@
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import * as path from 'path';
+import log from 'electron-log/main';
 import Store from 'electron-store';
+
+// Initialize electron-log
+log.initialize();
+log.transports.file.level = 'debug';
+log.transports.console.level = 'debug';
+
+// Global error handlers
+process.on('uncaughtException', (err) => {
+  log.error('Uncaught exception in main process', err);
+});
+process.on('unhandledRejection', (reason) => {
+  log.error('Unhandled rejection in main process', reason);
+});
 import { registerMemoryHandlers } from './ipc/memory.ipc';
 import { registerClaudeHandlers } from './ipc/claude.ipc';
 import { registerConfigHandlers } from './ipc/config.ipc';
@@ -13,11 +27,16 @@ import { registerClaudeChatStreamHandlers } from './ipc/claude-stream.ipc';
 import { MycelicMemoryClient } from './services/mycelicmemory-client';
 import { ServiceManager } from './services/service-manager';
 import { registerServicesHandlers } from './ipc/services.ipc';
-import { AppSettings } from '../shared/types';
+import { registerGraphViewsHandlers } from './ipc/graph-views.ipc';
+import { AppSettings, GraphViewStore } from '../shared/types';
 
 // Initialize electron-store for settings persistence
-const store = new Store<{ settings: AppSettings }>({
+const store = new Store<{ settings: AppSettings; graphViews: GraphViewStore }>({
   defaults: {
+    graphViews: {
+      views: [],
+      activeViewId: undefined,
+    },
     settings: {
       api_url: 'http://127.0.0.1',
       api_port: 3099,
@@ -112,6 +131,7 @@ function initializeServicesAndHandlers(): void {
   registerClaudeHandlers(ipcMain, client);
   registerConfigHandlers(ipcMain, store);
   registerServicesHandlers(ipcMain, serviceManager);
+  registerGraphViewsHandlers(ipcMain, store);
 
   if (mainWindow) {
     registerClaudeChatStreamHandlers(ipcMain, mainWindow, path.dirname(path.dirname(claudeDbPath)));
@@ -125,12 +145,12 @@ function initializeServicesAndHandlers(): void {
   // Now start services in the background (don't block the renderer)
   serviceManager.ensureAllServices()
     .then(() => {
-      console.log('[Main] All services initialized');
+      log.info('[Main] All services initialized');
       if (mainWindow) {
         serviceManager!.startStatusPolling(mainWindow);
       }
     })
-    .catch(err => console.error('[Main] Service initialization error:', err));
+    .catch(err => log.error('[Main] Service initialization error:', err));
 
 }
 

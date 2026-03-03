@@ -48,7 +48,25 @@ const browserApi = {
     store: async (data: any) => fetchApi<any>('/memories', { method: 'POST', body: JSON.stringify(data) }),
     update: async (id: string, data: any) => fetchApi<any>(`/memories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: async (id: string) => fetchApi<void>(`/memories/${id}`, { method: 'DELETE' }),
-    search: async (options: any) => fetchApi<any[]>('/memories/search', { method: 'POST', body: JSON.stringify(options) }),
+    search: async (options: any) => {
+      const raw = await fetchApi<any>('/memories/search', { method: 'POST', body: JSON.stringify(options) });
+      if (Array.isArray(raw?.data)) {
+        return raw.data.map((item: any) => ({
+          memory: {
+            id: item.id,
+            content: item.content,
+            domain: item.domain,
+            importance: item.importance,
+            tags: item.tags ?? [],
+            created_at: item.created_at,
+            updated_at: item.updated_at ?? item.created_at,
+          },
+          score: item.relevance_score,
+          similarity: item.relevance_score,
+        }));
+      }
+      return Array.isArray(raw) ? raw : [];
+    },
   },
   stats: {
     dashboard: async () => {
@@ -241,6 +259,54 @@ const browserApi = {
   },
   seed: {
     populate: async () => fetchApi<any>('/seed', { method: 'POST' }),
+  },
+  graphViews: {
+    list: async () => {
+      try {
+        const raw = localStorage.getItem('mycelicmemory-graph-views');
+        const store = raw ? JSON.parse(raw) : { views: [] };
+        return store.views || [];
+      } catch { return []; }
+    },
+    get: async (id: string) => {
+      const views = await browserApi.graphViews.list();
+      return views.find((v: any) => v.id === id) ?? null;
+    },
+    save: async (view: any) => {
+      const views = await browserApi.graphViews.list();
+      const idx = views.findIndex((v: any) => v.id === view.id);
+      view.updated_at = new Date().toISOString();
+      if (idx >= 0) views[idx] = view; else views.push(view);
+      const raw = localStorage.getItem('mycelicmemory-graph-views');
+      const store = raw ? JSON.parse(raw) : {};
+      store.views = views;
+      localStorage.setItem('mycelicmemory-graph-views', JSON.stringify(store));
+      return view;
+    },
+    delete: async (id: string) => {
+      const views = await browserApi.graphViews.list();
+      const filtered = views.filter((v: any) => v.id !== id);
+      const raw = localStorage.getItem('mycelicmemory-graph-views');
+      const store = raw ? JSON.parse(raw) : {};
+      store.views = filtered;
+      if (store.activeViewId === id) store.activeViewId = undefined;
+      localStorage.setItem('mycelicmemory-graph-views', JSON.stringify(store));
+      return filtered.length < views.length;
+    },
+    setActive: async (id: string | null) => {
+      const raw = localStorage.getItem('mycelicmemory-graph-views');
+      const store = raw ? JSON.parse(raw) : { views: [] };
+      store.activeViewId = id ?? undefined;
+      localStorage.setItem('mycelicmemory-graph-views', JSON.stringify(store));
+      return true;
+    },
+    getActive: async () => {
+      const raw = localStorage.getItem('mycelicmemory-graph-views');
+      const store = raw ? JSON.parse(raw) : {};
+      if (!store.activeViewId) return null;
+      const views = store.views || [];
+      return views.find((v: any) => v.id === store.activeViewId) ?? null;
+    },
   },
   services: {
     status: async () => {

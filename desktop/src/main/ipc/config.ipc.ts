@@ -10,7 +10,7 @@ import { app } from 'electron';
 
 export function registerConfigHandlers(
   ipcMain: IpcMain,
-  store: Store<{ settings: AppSettings }>
+  store: Store<any>
 ): void {
   // Get all settings
   ipcMain.handle('settings:get', () => {
