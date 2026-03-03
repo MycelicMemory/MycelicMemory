@@ -123,6 +123,27 @@ code {
   margin-bottom: 0.25rem;
 }
 
+/* Light mode — CSS filter inversion of the dark UI */
+html.light-mode {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+html.light-mode img,
+html.light-mode video,
+html.light-mode canvas,
+html.light-mode svg:not(.invert-safe),
+html.light-mode .vis-network {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+html.light-mode ::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+html.light-mode ::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+}
+
 /* Graph node styling */
 .vis-network {
   outline: none;

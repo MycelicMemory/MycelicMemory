@@ -891,27 +891,7 @@ export default function SettingsPage() {
           />
         </SettingsSection>
 
-        {/* UI */}
-        <SettingsSection title="Interface" icon={Settings}>
-          <div>
-            <label className="text-sm text-slate-400">Theme</label>
-            <select
-              value={settings.theme}
-              onChange={(e) => updateSetting('theme', e.target.value as 'dark' | 'light' | 'system')}
-              className="w-full mt-1 p-2 bg-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-              <option value="system">System</option>
-            </select>
-          </div>
-          <ToggleField
-            label="Collapse Sidebar"
-            value={settings.sidebar_collapsed}
-            onChange={(v) => updateSetting('sidebar_collapsed', v)}
-            description="Start with sidebar collapsed"
-          />
-        </SettingsSection>
+        {/* Claude Chat Stream section is the last config section */}
       </div>
 
       {/* App Info */}
