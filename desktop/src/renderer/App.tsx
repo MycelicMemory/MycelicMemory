@@ -12,6 +12,8 @@ import {
   Database,
   ChevronsUpDown,
   Loader2,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
@@ -58,6 +60,7 @@ function NavItem({ to, icon: Icon, label, collapsed }: NavItemProps) {
 function App() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const location = useLocation();
@@ -69,11 +72,15 @@ function App() {
   const [switching, setSwitching] = useState(false);
   const [dbSwitchKey, setDbSwitchKey] = useState(0);
 
-  // Load sidebar collapsed state from settings
+  // Load sidebar collapsed state and theme from settings
   useEffect(() => {
     window.mycelicMemory.settings?.get?.()
-      .then((s: { sidebar_collapsed?: boolean }) => {
+      .then((s: { sidebar_collapsed?: boolean; theme?: string }) => {
         if (s?.sidebar_collapsed) setSidebarCollapsed(true);
+        if (s?.theme === 'light') {
+          setTheme('light');
+          document.documentElement.classList.add('light-mode');
+        }
       })
       .catch(() => {});
   }, []);
@@ -158,6 +165,17 @@ function App() {
     const next = !sidebarCollapsed;
     setSidebarCollapsed(next);
     window.mycelicMemory.settings?.update?.({ sidebar_collapsed: next }).catch(() => {});
+  };
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    if (next === 'light') {
+      document.documentElement.classList.add('light-mode');
+    } else {
+      document.documentElement.classList.remove('light-mode');
+    }
+    window.mycelicMemory.settings?.update?.({ theme: next }).catch(() => {});
   };
 
   // Global keyboard shortcuts
@@ -341,6 +359,20 @@ function App() {
           >
             <Plus className="w-4 h-4 shrink-0" />
             {!sidebarCollapsed && <span className="text-sm">New Memory</span>}
+          </button>
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors ${
+              sidebarCollapsed ? 'justify-center' : ''
+            }`}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4 shrink-0" />
+            ) : (
+              <Moon className="w-4 h-4 shrink-0" />
+            )}
+            {!sidebarCollapsed && <span className="text-sm">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
           <button
             onClick={toggleSidebar}
