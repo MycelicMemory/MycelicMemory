@@ -15,7 +15,8 @@ import {
   Info,
   ChevronDown,
 } from 'lucide-react';
-import type { AppSettings, HealthStatus, ServiceStatus } from '../../shared/types';
+import toast from 'react-hot-toast';
+import type { AppSettings, HealthStatus, ServiceStatus, DatabaseInfo } from '../../shared/types';
 
 // ── Shared UI Components ─────────────────────────────────────────
 
@@ -343,6 +344,204 @@ function ModelSelector({ label, value, onChange, models, loading, hint, placehol
   );
 }
 
+// ── Database Management Section ──────────────────────────────────
+
+function DatabaseManagement() {
+  const [databases, setDatabases] = useState<DatabaseInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    fetchDatabases();
+  }, []);
+
+  async function fetchDatabases() {
+    try {
+      setLoading(true);
+      const result = await window.mycelicMemory.databases.list();
+      setDatabases(Array.isArray(result) ? result : []);
+    } catch (err) {
+      console.error('Failed to load databases:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) return;
+    try {
+      setCreating(true);
+      await window.mycelicMemory.databases.create({ name: newName.trim(), description: newDesc.trim() });
+      toast.success(`Database "${newName}" created`);
+      setNewName('');
+      setNewDesc('');
+      setShowCreate(false);
+      fetchDatabases();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to create database');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleSwitch(name: string) {
+    try {
+      await window.mycelicMemory.databases.switch(name);
+      toast.success(`Switched to "${name}"`);
+      fetchDatabases();
+      // Notify App.tsx to refresh all routes with the new database
+      window.dispatchEvent(new CustomEvent('db-switched', { detail: { name } }));
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to switch database');
+    }
+  }
+
+  async function handleArchive(name: string) {
+    try {
+      const result = await window.mycelicMemory.databases.archive(name);
+      toast.success(`Archived to ${result?.backup_path || 'backup'}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to archive database');
+    }
+  }
+
+  async function handleDelete(name: string) {
+    if (!confirm(`Delete database "${name}"? This cannot be undone.`)) return;
+    try {
+      await window.mycelicMemory.databases.delete(name);
+      toast.success(`Database "${name}" deleted`);
+      fetchDatabases();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete database');
+    }
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return (
+    <SettingsSection title="Database Management" icon={Database}>
+      {loading ? (
+        <div className="flex items-center gap-2 text-slate-400 text-sm">
+          <RefreshCw className="w-4 h-4 animate-spin" /> Loading databases...
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-400 text-xs border-b border-slate-700">
+                  <th className="pb-2 pr-4">Name</th>
+                  <th className="pb-2 pr-4">Size</th>
+                  <th className="pb-2 pr-4">Description</th>
+                  <th className="pb-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {databases.map((db) => (
+                  <tr key={db.name} className="border-b border-slate-700/50">
+                    <td className="py-2 pr-4 flex items-center gap-2">
+                      {db.name}
+                      {db.is_active && (
+                        <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">
+                          active
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 text-slate-400">{formatSize(db.size_bytes)}</td>
+                    <td className="py-2 pr-4 text-slate-400 truncate max-w-[200px]">{db.description || '—'}</td>
+                    <td className="py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {!db.is_active && (
+                          <button
+                            onClick={() => handleSwitch(db.name)}
+                            className="px-2 py-1 text-xs bg-primary-500/20 text-primary-400 rounded hover:bg-primary-500/30 transition-colors"
+                          >
+                            Switch
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleArchive(db.name)}
+                          className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors"
+                        >
+                          Archive
+                        </button>
+                        {db.name !== 'default' && !db.is_active && (
+                          <button
+                            onClick={() => handleDelete(db.name)}
+                            className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {showCreate ? (
+            <div className="space-y-3 p-3 bg-slate-900 rounded-lg border border-slate-700">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400">Name</label>
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="my-project"
+                    className="w-full mt-1 p-2 bg-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400">Description</label>
+                  <input
+                    type="text"
+                    value={newDesc}
+                    onChange={(e) => setNewDesc(e.target.value)}
+                    placeholder="Optional description"
+                    className="w-full mt-1 p-2 bg-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreate}
+                  disabled={creating || !newName.trim()}
+                  className="px-3 py-1.5 text-sm bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {creating ? 'Creating...' : 'Create'}
+                </button>
+                <button
+                  onClick={() => setShowCreate(false)}
+                  className="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="px-3 py-1.5 text-sm bg-primary-500/20 text-primary-400 rounded-lg hover:bg-primary-500/30 transition-colors"
+            >
+              + Create New Database
+            </button>
+          )}
+        </>
+      )}
+    </SettingsSection>
+  );
+}
+
 // ── Main Settings Page ───────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -499,6 +698,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Database Management */}
+        <DatabaseManagement />
+
         {/* MCP Setup Guide */}
         <MCPSetupGuide />
 

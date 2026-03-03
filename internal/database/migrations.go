@@ -176,6 +176,13 @@ func (d *Database) RunMigrations() error {
 		}
 	}
 
+	// Add last_accessed_at to memory_relationships for strength decay
+	if version < 6 {
+		if err := MigrationV5ToV6(d.db); err != nil {
+			return fmt.Errorf("migration v5 to v6 failed: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -425,5 +432,57 @@ func MigrationV3ToV4(db *sql.DB) error {
 	}
 
 	log.Info("migration v3 to v4 completed successfully")
+	return nil
+}
+
+// MigrationV5ToV6 adds relationship strength decay and graph enhancement columns
+func MigrationV5ToV6(db *sql.DB) error {
+	log.Info("running migration v5 to v6: adding relationship decay support")
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	// 1. Add last_accessed_at and access_count to memory_relationships
+	alterStatements := []string{
+		"ALTER TABLE memory_relationships ADD COLUMN last_accessed_at DATETIME;",
+		"ALTER TABLE memory_relationships ADD COLUMN access_count INTEGER DEFAULT 0;",
+	}
+
+	for _, stmt := range alterStatements {
+		if _, err := tx.Exec(stmt); err != nil {
+			log.Debug("alter statement skipped (may already exist)", "stmt", stmt, "error", err)
+		}
+	}
+
+	// 2. Initialize last_accessed_at from created_at for existing relationships
+	if _, err := tx.Exec(`
+		UPDATE memory_relationships
+		SET last_accessed_at = created_at
+		WHERE last_accessed_at IS NULL
+	`); err != nil {
+		log.Warn("failed to initialize last_accessed_at", "error", err)
+	}
+
+	// 3. Create index for decay queries
+	if _, err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_relationships_last_accessed ON memory_relationships(last_accessed_at);"); err != nil {
+		log.Warn("failed to create index", "error", err)
+	}
+
+	// 4. Update schema version
+	if _, err := tx.Exec(`
+		INSERT OR REPLACE INTO schema_version (version, applied_at)
+		VALUES (6, CURRENT_TIMESTAMP)
+	`); err != nil {
+		return fmt.Errorf("failed to update schema version: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit migration: %w", err)
+	}
+
+	log.Info("migration v5 to v6 completed successfully")
 	return nil
 }

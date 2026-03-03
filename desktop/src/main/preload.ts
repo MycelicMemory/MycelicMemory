@@ -20,6 +20,7 @@ import type {
   Domain,
   AppSettings,
   MemoryRelationship,
+  DatabaseInfo,
   ClaudeChatStreamStatus,
   ServiceStatus,
 } from '../shared/types';
@@ -83,8 +84,26 @@ const api = {
   relationships: {
     get: (memoryId: string): Promise<MemoryRelationship[]> =>
       invoke('relationships:get', memoryId),
-    discover: (): Promise<MemoryRelationship[]> =>
-      invoke('relationships:discover'),
+    getAll: (params?: { limit?: number; min_strength?: number }): Promise<MemoryRelationship[]> =>
+      invoke('relationships:getAll', params),
+    discover: (opts?: { method?: string }): Promise<MemoryRelationship[]> =>
+      invoke('relationships:discover', opts),
+  },
+
+  // Database management
+  databases: {
+    list: (): Promise<DatabaseInfo[]> =>
+      invoke('databases:list'),
+    create: (data: { name: string; description?: string }): Promise<DatabaseInfo> =>
+      invoke('databases:create', data),
+    get: (name: string): Promise<DatabaseInfo> =>
+      invoke('databases:get', name),
+    delete: (name: string): Promise<boolean> =>
+      invoke('databases:delete', name),
+    switch: (name: string): Promise<boolean> =>
+      invoke('databases:switch', name),
+    archive: (name: string): Promise<{ backup_path: string }> =>
+      invoke('databases:archive', name),
   },
 
   // Settings

@@ -11,15 +11,25 @@ import (
 
 // Config represents the complete application configuration
 type Config struct {
-	Profile   string           `mapstructure:"profile"`
-	Database  DatabaseConfig   `mapstructure:"database"`
-	Setup     SetupConfig      `mapstructure:"setup"`
-	RestAPI   RestAPIConfig    `mapstructure:"rest_api"`
-	Session   SessionConfig    `mapstructure:"session"`
-	Logging   LoggingConfig    `mapstructure:"logging"`
-	Ollama    OllamaConfig     `mapstructure:"ollama"`
-	Qdrant    QdrantConfig     `mapstructure:"qdrant"`
-	RateLimit RateLimitConfig  `mapstructure:"rate_limit"`
+	Profile        string             `mapstructure:"profile"`
+	Database       DatabaseConfig     `mapstructure:"database"`
+	Setup          SetupConfig        `mapstructure:"setup"`
+	RestAPI        RestAPIConfig      `mapstructure:"rest_api"`
+	Session        SessionConfig      `mapstructure:"session"`
+	Logging        LoggingConfig      `mapstructure:"logging"`
+	Ollama         OllamaConfig       `mapstructure:"ollama"`
+	Qdrant         QdrantConfig       `mapstructure:"qdrant"`
+	RateLimit      RateLimitConfig    `mapstructure:"rate_limit"`
+	ActiveDatabase string             `mapstructure:"active_database" yaml:"active_database,omitempty"`
+	Databases      []DatabaseProfile  `mapstructure:"databases" yaml:"databases,omitempty"`
+}
+
+// DatabaseProfile represents a named database configuration
+type DatabaseProfile struct {
+	Name        string `mapstructure:"name" yaml:"name" json:"name"`
+	Path        string `mapstructure:"path" yaml:"path" json:"path"`
+	Description string `mapstructure:"description" yaml:"description,omitempty" json:"description,omitempty"`
+	CreatedAt   string `mapstructure:"created_at" yaml:"created_at,omitempty" json:"created_at,omitempty"`
 }
 
 // DatabaseConfig holds database configuration
@@ -295,6 +305,55 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// GetActiveDBPath returns the database path for the active database profile.
+// Falls back to Database.Path if no profiles are configured.
+func (c *Config) GetActiveDBPath() string {
+	if c.ActiveDatabase != "" {
+		for _, db := range c.Databases {
+			if db.Name == c.ActiveDatabase {
+				return db.Path
+			}
+		}
+	}
+	return c.Database.Path
+}
+
+// Save persists the current config to the YAML file
+func (c *Config) Save() error {
+	configPath := filepath.Join(ConfigPath(), "config.yaml")
+
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	v.SetConfigType("yaml")
+
+	// Read existing config first to preserve comments/structure
+	_ = v.ReadInConfig()
+
+	// Update the values we manage
+	v.Set("active_database", c.ActiveDatabase)
+
+	// Serialize database profiles
+	profiles := make([]map[string]interface{}, len(c.Databases))
+	for i, p := range c.Databases {
+		profiles[i] = map[string]interface{}{
+			"name":        p.Name,
+			"path":        p.Path,
+			"description": p.Description,
+			"created_at":  p.CreatedAt,
+		}
+	}
+	v.Set("databases", profiles)
+
+	// Update core config sections
+	v.Set("ollama.base_url", c.Ollama.BaseURL)
+	v.Set("ollama.embedding_model", c.Ollama.EmbeddingModel)
+	v.Set("ollama.chat_model", c.Ollama.ChatModel)
+	v.Set("qdrant.url", c.Qdrant.URL)
+	v.Set("qdrant.api_key", c.Qdrant.APIKey)
+
+	return v.WriteConfigAs(configPath)
 }
 
 // EnsureConfigDir creates the configuration directory if it doesn't exist

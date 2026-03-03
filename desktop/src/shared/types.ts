@@ -125,11 +125,23 @@ export interface ChatIngestResult {
 // Relationship types (for knowledge graph)
 export interface MemoryRelationship {
   id: string;
-  source_id: string;
-  target_id: string;
+  source_memory_id: string;
+  target_memory_id: string;
   relationship_type: 'references' | 'contradicts' | 'expands' | 'similar' | 'sequential' | 'causes' | 'enables';
   strength: number;
+  context?: string;
+  auto_generated?: boolean;
   created_at: string;
+}
+
+// Database management types
+export interface DatabaseInfo {
+  name: string;
+  path: string;
+  description?: string;
+  created_at?: string;
+  size_bytes: number;
+  is_active: boolean;
 }
 
 // Settings types
@@ -351,7 +363,16 @@ export type IPCChannels = {
 
   // Relationships (for graph)
   'relationships:get': { params: { memory_id: string }; result: MemoryRelationship[] };
-  'relationships:discover': { params: void; result: MemoryRelationship[] };
+  'relationships:getAll': { params: { limit?: number; min_strength?: number }; result: MemoryRelationship[] };
+  'relationships:discover': { params: { method?: string }; result: MemoryRelationship[] };
+
+  // Database management
+  'databases:list': { params: void; result: DatabaseInfo[] };
+  'databases:create': { params: { name: string; description?: string }; result: DatabaseInfo };
+  'databases:get': { params: { name: string }; result: DatabaseInfo };
+  'databases:delete': { params: { name: string }; result: boolean };
+  'databases:switch': { params: { name: string }; result: boolean };
+  'databases:archive': { params: { name: string }; result: { backup_path: string } };
 
   // Claude Chat Stream daemon control
   'claude-stream:status': { params: void; result: ClaudeChatStreamStatus };

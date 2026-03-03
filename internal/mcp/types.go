@@ -303,6 +303,11 @@ type ReindexParams struct {
 	Domain    string `json:"domain,omitempty"`
 }
 
+// LinkSessionMemoriesParams for link_session_memories tool
+type LinkSessionMemoriesParams struct {
+	ConversationID string `json:"conversation_id"`
+}
+
 // PromptMessage represents a message in a prompt
 type PromptMessage struct {
 	Role    string       `json:"role"`

@@ -9,7 +9,7 @@ package database
 // - Metadata: performance_metrics, migration_log, schema_version, sqlite_sequence
 
 // SchemaVersion is the current schema version
-const SchemaVersion = 5
+const SchemaVersion = 6
 
 // CoreSchema contains the main table definitions
 // VERIFIED: Exact schema from ~/.local-memory/unified-memories.db

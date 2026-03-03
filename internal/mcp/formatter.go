@@ -60,6 +60,8 @@ func (f *Formatter) FormatToolResponse(toolName string, result interface{}, dura
 		sb.WriteString(f.formatContextRecall(result))
 	case "reindex_memories":
 		sb.WriteString(f.formatReindex(result))
+	case "link_session_memories":
+		sb.WriteString(f.formatLinkSessionMemories(result))
 	default:
 		// Fallback to JSON
 		jsonBytes, _ := json.MarshalIndent(result, "", "  ")
@@ -104,7 +106,8 @@ func (f *Formatter) getToolIcon(toolName string) string {
 		"categories":       "📂",
 		"stats":            "📈",
 		"context_recall":   "🧭",
-		"reindex_memories": "🔄",
+		"reindex_memories":       "🔄",
+		"link_session_memories":  "🔗",
 	}
 	if icon, ok := icons[toolName]; ok {
 		return icon
@@ -135,7 +138,8 @@ func (f *Formatter) getToolTagline(toolName string) string {
 		"categories":       "Hierarchical memory organization",
 		"stats":            "System metrics and analytics",
 		"context_recall":   "Surfacing relevant memories for your current context",
-		"reindex_memories": "Re-indexing memories into the vector database",
+		"reindex_memories":      "Re-indexing memories into the vector database",
+		"link_session_memories": "Connecting session memories to their conversation summary",
 	}
 	if tagline, ok := taglines[toolName]; ok {
 		return fmt.Sprintf("*%s*", tagline)
@@ -838,6 +842,23 @@ func (f *Formatter) formatReindex(result interface{}) string {
 		}
 	}
 	sb.WriteString("```")
+
+	return sb.String()
+}
+
+func (f *Formatter) formatLinkSessionMemories(result interface{}) string {
+	var sb strings.Builder
+
+	data, ok := result.(map[string]interface{})
+	if !ok {
+		return f.fallbackJSON(result)
+	}
+
+	linked, _ := data["linked"].(float64)
+	convID, _ := data["conversation_id"].(string)
+
+	sb.WriteString("🔗 **Session Memories Linked**\n\n")
+	sb.WriteString(fmt.Sprintf("Created **%d** relationships for conversation `%s`\n", int(linked), f.truncateID(convID)))
 
 	return sb.String()
 }

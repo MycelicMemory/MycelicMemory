@@ -509,6 +509,8 @@ func (s *Server) callTool(ctx context.Context, name string, args map[string]inte
 		return s.handleContextRecall(ctx, argsJSON)
 	case "reindex_memories":
 		return s.handleReindexMemories(ctx, argsJSON)
+	case "link_session_memories":
+		return s.handleLinkSessionMemories(ctx, argsJSON)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1028,6 +1030,20 @@ func (s *Server) getToolDefinitions() []Tool {
 						Description: "Optional: only reindex memories in this domain",
 					},
 				},
+			},
+		},
+		{
+			Name:        "link_session_memories",
+			Description: "Create relationships between a conversation's summary memory and all memories created during that conversation. Use to enrich the knowledge graph with session-to-memory connections.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]Property{
+					"conversation_id": {
+						Type:        "string",
+						Description: "The conversation/session ID to link memories for",
+					},
+				},
+				Required: []string{"conversation_id"},
 			},
 		},
 	}

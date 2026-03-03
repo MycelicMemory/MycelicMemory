@@ -115,10 +115,81 @@ export function registerMemoryHandlers(ipcMain: IpcMain, apiBaseUrl: string): vo
     }
   });
 
-  // Discover relationships
-  ipcMain.handle('relationships:discover', async () => {
+  // Get all relationships
+  ipcMain.handle('relationships:getAll', async (_event, params?: { limit?: number; min_strength?: number }) => {
     try {
-      return await client.discoverRelationships();
+      return await client.getAllRelationships(params);
+    } catch (error) {
+      console.error('Failed to get all relationships:', error);
+      throw error;
+    }
+  });
+
+  // Database management
+  ipcMain.handle('databases:list', async () => {
+    try {
+      const response = await client.get<any>('/databases');
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to list databases:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:create', async (_event, data: { name: string; description?: string }) => {
+    try {
+      const response = await client.post<any>('/databases', data);
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to create database:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:get', async (_event, name: string) => {
+    try {
+      const response = await client.get<any>(`/databases/${encodeURIComponent(name)}`);
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to get database:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:delete', async (_event, name: string) => {
+    try {
+      await client.delete(`/databases/${encodeURIComponent(name)}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to delete database:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:switch', async (_event, name: string) => {
+    try {
+      await client.post<any>(`/databases/${encodeURIComponent(name)}/switch`, {});
+      return true;
+    } catch (error) {
+      console.error('Failed to switch database:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('databases:archive', async (_event, name: string) => {
+    try {
+      const response = await client.post<any>(`/databases/${encodeURIComponent(name)}/archive`, {});
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to archive database:', error);
+      throw error;
+    }
+  });
+
+  // Discover relationships
+  ipcMain.handle('relationships:discover', async (_event, opts?: { method?: string }) => {
+    try {
+      return await client.discoverRelationships(opts);
     } catch (error) {
       console.error('Failed to discover relationships:', error);
       throw error;

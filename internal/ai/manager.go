@@ -118,6 +118,21 @@ func (m *Manager) GetStatus() *Status {
 	return status
 }
 
+// GetModels returns available Ollama models
+func (m *Manager) GetModels(ctx context.Context) ([]string, error) {
+	return m.ollama.GetModels(ctx)
+}
+
+// PullModel pulls a model from the Ollama registry
+func (m *Manager) PullModel(ctx context.Context, modelName string) error {
+	return m.ollama.PullModel(ctx, modelName)
+}
+
+// TestConnectivity tests Ollama connectivity
+func (m *Manager) TestConnectivity(ctx context.Context) (bool, string, error) {
+	return m.ollama.TestConnectivity(ctx)
+}
+
 // SemanticSearchOptions contains options for semantic search
 type SemanticSearchOptions struct {
 	Query        string

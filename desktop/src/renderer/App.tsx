@@ -10,8 +10,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Database,
+  ChevronsUpDown,
+  Loader2,
 } from 'lucide-react';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import Dashboard from './pages/Dashboard';
 import MemoryBrowser from './pages/MemoryBrowser';
 import ClaudeSessions from './pages/ClaudeSessions';
@@ -22,7 +25,7 @@ import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette } from './components/CommandPalette';
 import { CreateMemoryModal } from './components/CreateMemoryModal';
-import type { HealthStatus } from '../shared/types';
+import type { HealthStatus, DatabaseInfo } from '../shared/types';
 
 interface NavItemProps {
   to: string;
@@ -60,6 +63,12 @@ function App() {
   const location = useLocation();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Database state
+  const [databases, setDatabases] = useState<DatabaseInfo[]>([]);
+  const [activeDbName, setActiveDbName] = useState<string>('default');
+  const [switching, setSwitching] = useState(false);
+  const [dbSwitchKey, setDbSwitchKey] = useState(0);
+
   // Load sidebar collapsed state from settings
   useEffect(() => {
     window.mycelicMemory.settings?.get?.()
@@ -68,6 +77,54 @@ function App() {
       })
       .catch(() => {});
   }, []);
+
+  // Fetch database list on mount and when API becomes available
+  const fetchDatabases = useCallback(async () => {
+    try {
+      const dbs = await window.mycelicMemory.databases.list();
+      if (Array.isArray(dbs)) {
+        setDatabases(dbs);
+        const active = dbs.find((d) => d.is_active);
+        if (active) setActiveDbName(active.name);
+      }
+    } catch {
+      // API not available yet — will retry on next health check
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDatabases();
+  }, [fetchDatabases]);
+
+  // Listen for db-switched events from Settings page (or anywhere else)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.name) {
+        setActiveDbName(detail.name);
+        setDbSwitchKey((prev) => prev + 1);
+        fetchDatabases();
+      }
+    };
+    window.addEventListener('db-switched', handler);
+    return () => window.removeEventListener('db-switched', handler);
+  }, [fetchDatabases]);
+
+  const handleSwitchDatabase = useCallback(async (name: string) => {
+    if (name === activeDbName || switching) return;
+    setSwitching(true);
+    try {
+      await window.mycelicMemory.databases.switch(name);
+      setActiveDbName(name);
+      setDbSwitchKey((prev) => prev + 1);
+      fetchDatabases();
+      toast.success(`Switched to "${name}"`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to switch database');
+    } finally {
+      setSwitching(false);
+    }
+  }, [activeDbName, switching, fetchDatabases]);
 
   const toggleSidebar = () => {
     const next = !sidebarCollapsed;
@@ -115,6 +172,9 @@ function App() {
 
       if (cancelled) return;
 
+      // Refresh DB list when we first connect
+      if (connected) fetchDatabases();
+
       if (intervalRef.current) clearInterval(intervalRef.current);
 
       if (connected) {
@@ -144,6 +204,7 @@ function App() {
         if (status.backend.running) {
           checkHealth().then((connected) => {
             if (connected && !cancelled) {
+              fetchDatabases();
               if (intervalRef.current) clearInterval(intervalRef.current);
               startPolling();
             }
@@ -157,7 +218,7 @@ function App() {
       if (intervalRef.current) clearInterval(intervalRef.current);
       cleanupServiceListener?.();
     };
-  }, [checkHealth]);
+  }, [checkHealth, fetchDatabases]);
 
   const isConnected = health?.api;
 
@@ -182,6 +243,50 @@ function App() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Database Selector */}
+        <div className={`border-b border-slate-700 ${sidebarCollapsed ? 'p-2' : 'px-3 py-2'}`}>
+          {sidebarCollapsed ? (
+            <button
+              onClick={toggleSidebar}
+              title={`Database: ${activeDbName}`}
+              className="w-full flex justify-center p-2 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
+            >
+              <Database className="w-4 h-4" />
+            </button>
+          ) : (
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wider font-medium px-1">
+                Database
+              </label>
+              <div className="relative mt-1">
+                <select
+                  value={activeDbName}
+                  onChange={(e) => handleSwitchDatabase(e.target.value)}
+                  disabled={switching || databases.length === 0}
+                  className="w-full appearance-none px-3 py-2 pr-8 bg-slate-900 border border-slate-600 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 cursor-pointer hover:border-slate-500 transition-colors"
+                >
+                  {databases.length === 0 ? (
+                    <option value="default">default</option>
+                  ) : (
+                    databases.map((db) => (
+                      <option key={db.name} value={db.name}>
+                        {db.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  {switching ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ChevronsUpDown className="w-3.5 h-3.5" />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -260,9 +365,9 @@ function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main Content — key forces re-mount of all routes on DB switch */}
       <main className="flex-1 overflow-auto">
-        <ErrorBoundary>
+        <ErrorBoundary key={dbSwitchKey}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/memories" element={<MemoryBrowser />} />

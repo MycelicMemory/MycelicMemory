@@ -92,10 +92,19 @@ const browserApi = {
       fetchApi<any>(`/memories/${memoryId}/categorize`, { method: 'POST', body: JSON.stringify(data) }),
   },
   relationships: {
+    getAll: async (params?: { limit?: number; min_strength?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.limit) searchParams.set('limit', params.limit.toString());
+      if (params?.min_strength) searchParams.set('min_strength', params.min_strength.toString());
+      const query = searchParams.toString();
+      return fetchApi<any[]>(`/relationships${query ? `?${query}` : ''}`);
+    },
     get: async (memoryId: string) => fetchApi<any[]>(`/relationships?memory_id=${memoryId}`),
     create: async (data: { source_memory_id: string; target_memory_id: string; relationship_type_enum: string; strength?: number; context?: string }) =>
       fetchApi<any>('/relationships', { method: 'POST', body: JSON.stringify(data) }),
-    discover: async () => fetchApi<any[]>('/relationships/discover', { method: 'POST' }),
+    discover: async (opts?: { method?: string }) => fetchApi<any[]>('/relationships/discover', { method: 'POST', body: JSON.stringify(opts ?? {}) }),
+    batchDiscover: async (data?: { limit?: number; min_score?: number; domain?: string }) =>
+      fetchApi<any>('/relationships/batch-discover', { method: 'POST', body: JSON.stringify(data ?? {}) }),
     related: async (memoryId: string, limit?: number) => {
       const params = new URLSearchParams();
       if (limit) params.set('limit', limit.toString());
@@ -106,6 +115,9 @@ const browserApi = {
       if (depth) params.set('depth', depth.toString());
       return fetchApi<any>(`/memories/${memoryId}/graph?${params.toString()}`);
     },
+  },
+  graph: {
+    stats: async () => fetchApi<any>('/graph/stats'),
   },
   analysis: {
     analyze: async (data: { analysis_type: string; question?: string; query?: string; timeframe?: string; limit?: number; domain?: string }) =>
@@ -196,10 +208,35 @@ const browserApi = {
       return Array.isArray(result) ? result : [];
     },
   },
+  databases: {
+    list: async () => fetchApi<any[]>('/databases'),
+    create: async (data: { name: string; description?: string }) =>
+      fetchApi<any>('/databases', { method: 'POST', body: JSON.stringify(data) }),
+    get: async (name: string) => fetchApi<any>(`/databases/${encodeURIComponent(name)}`),
+    delete: async (name: string) => fetchApi<void>(`/databases/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+    switch: async (name: string) => fetchApi<any>(`/databases/${encodeURIComponent(name)}/switch`, { method: 'POST' }),
+    archive: async (name: string) => fetchApi<any>(`/databases/${encodeURIComponent(name)}/archive`, { method: 'POST' }),
+  },
+  models: {
+    list: async () => fetchApi<any>('/models'),
+    pull: async (name: string) => fetchApi<any>('/models/pull', { method: 'POST', body: JSON.stringify({ name }) }),
+    test: async () => fetchApi<any>('/models/test', { method: 'POST' }),
+    status: async () => fetchApi<any>('/models/status'),
+  },
   config: {
     get: async () => ({}),
     set: async () => {},
     getAll: async () => ({}),
+    updateOllama: async (data: { base_url?: string; embedding_model?: string; chat_model?: string }) =>
+      fetchApi<any>('/config/ollama', { method: 'PUT', body: JSON.stringify(data) }),
+    updateQdrant: async (data: { url?: string; api_key?: string }) =>
+      fetchApi<any>('/config/qdrant', { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  reindex: {
+    start: async () => fetchApi<any>('/memories/reindex', { method: 'POST' }),
+  },
+  seed: {
+    populate: async () => fetchApi<any>('/seed', { method: 'POST' }),
   },
   services: {
     status: async () => {

@@ -20,6 +20,7 @@ var (
 	startPort       int
 	startHost       string
 	startBackground bool
+	startDB         string
 )
 
 // startCmd represents the start command
@@ -83,6 +84,7 @@ func init() {
 	startCmd.Flags().IntVarP(&startPort, "port", "p", 0, "Port to listen on (overrides config)")
 	startCmd.Flags().StringVar(&startHost, "host", "", "Host to bind to (overrides config)")
 	startCmd.Flags().BoolVarP(&startBackground, "background", "b", false, "Run in background (daemonize)")
+	startCmd.Flags().StringVar(&startDB, "db", "", "Database name to use (overrides active_database in config)")
 }
 
 func getDaemon() *daemon.Daemon {
@@ -114,6 +116,9 @@ func runStart() {
 		}
 		if startHost != "" {
 			args = append(args, "--host", startHost)
+		}
+		if startDB != "" {
+			args = append(args, "--db", startDB)
 		}
 		// Don't pass -b again to avoid infinite loop
 
@@ -153,6 +158,9 @@ func runStart() {
 	if startHost != "" {
 		cfg.RestAPI.Host = startHost
 	}
+	if startDB != "" {
+		cfg.ActiveDatabase = startDB
+	}
 
 	// Ensure config directory exists
 	if err := cfg.EnsureConfigDir(); err != nil {
@@ -160,8 +168,11 @@ func runStart() {
 		os.Exit(1)
 	}
 
+	// Resolve active database path
+	dbPath := cfg.GetActiveDBPath()
+
 	// Initialize database
-	db, err := database.Open(cfg.Database.Path)
+	db, err := database.Open(dbPath)
 	if err != nil {
 		fmt.Printf("Error initializing database: %v\n", err)
 		os.Exit(1)
@@ -180,7 +191,7 @@ func runStart() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Database: %s\n", cfg.Database.Path)
+	fmt.Printf("Database: %s\n", dbPath)
 
 	// Register daemon state
 	if err := d.Start(cfg.RestAPI.Enabled, cfg.RestAPI.Host, cfg.RestAPI.Port, false); err != nil {

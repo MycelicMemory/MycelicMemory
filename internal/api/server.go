@@ -14,6 +14,7 @@ import (
 	"github.com/MycelicMemory/mycelicmemory/internal/ai"
 	"github.com/MycelicMemory/mycelicmemory/internal/claude"
 	"github.com/MycelicMemory/mycelicmemory/internal/database"
+	"github.com/MycelicMemory/mycelicmemory/internal/dbmanager"
 	"github.com/MycelicMemory/mycelicmemory/internal/logging"
 	"github.com/MycelicMemory/mycelicmemory/internal/memory"
 	"github.com/MycelicMemory/mycelicmemory/internal/pipeline"
@@ -35,6 +36,7 @@ type Server struct {
 	aiManager     *ai.Manager
 	recallEngine  *recall.Engine
 	pipelineQueue *pipeline.Queue
+	dbManager     *dbmanager.Manager
 	httpServer    *http.Server
 	sessionID     string
 	log           *logging.Logger
@@ -154,6 +156,7 @@ func NewServer(db *database.Database, cfg *config.Config) *Server {
 		aiManager:     aiManager,
 		recallEngine:  recallEngine,
 		pipelineQueue: pipelineQueue,
+		dbManager:     dbmanager.New(cfg),
 		sessionID:     sessionID,
 		log:           log,
 	}
@@ -189,8 +192,13 @@ func (s *Server) setupRoutes() {
 		api.POST("/recall", s.handleRecall)
 
 		// Relationships
+		api.GET("/relationships", s.getAllRelationships)
 		api.POST("/relationships", s.createRelationship)
 		api.POST("/relationships/discover", s.discoverRelationships)
+		api.POST("/relationships/batch-discover", s.batchDiscoverRelationships)
+
+		// Graph
+		api.GET("/graph/stats", s.getGraphStats)
 
 		// Categories
 		api.POST("/categories", s.createCategory)
@@ -245,6 +253,32 @@ func (s *Server) setupRoutes() {
 
 		// Memory tracing
 		api.GET("/memories/:id/trace", s.traceMemorySource)
+
+		// Models
+		api.GET("/models", s.listModels)
+		api.POST("/models/pull", s.pullModel)
+		api.POST("/models/test", s.testModel)
+		api.GET("/models/status", s.modelStatus)
+
+		// Config
+		api.PUT("/config/ollama", s.updateOllamaConfig)
+		api.PUT("/config/qdrant", s.updateQdrantConfig)
+
+		// Re-index
+		api.POST("/memories/reindex", s.reindexMemories)
+
+		// Seed
+		api.POST("/seed", s.seedMemories)
+
+		// Database management
+		api.GET("/databases", s.listDatabases)
+		api.POST("/databases", s.createDatabase)
+		api.GET("/databases/:name", s.getDatabaseInfo)
+		api.DELETE("/databases/:name", s.deleteDatabase)
+		api.POST("/databases/:name/switch", s.switchDatabase)
+		api.POST("/databases/:name/archive", s.archiveDatabase)
+		api.POST("/databases/import", s.importDatabase)
+		api.POST("/databases/:name/export", s.exportDatabase)
 	}
 }
 
@@ -343,6 +377,70 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 		s.log.Info("REST API server stopped")
 	}
+	return nil
+}
+
+// ReloadDatabase hot-swaps the database connection to the currently active database.
+// Called after SwitchDatabase to apply the change without process restart.
+func (s *Server) ReloadDatabase() error {
+	newPath := s.config.GetActiveDBPath()
+	s.log.Info("reloading database", "path", newPath)
+
+	// Open new database
+	newDB, err := database.Open(newPath)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+
+	if err := newDB.InitSchema(); err != nil {
+		newDB.Close()
+		return fmt.Errorf("failed to init schema: %w", err)
+	}
+	if err := newDB.RunMigrations(); err != nil {
+		newDB.Close()
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	// Create new service instances pointing to the new DB
+	memoryService := memory.NewService(newDB, s.config)
+	searchEngine := search.NewEngine(newDB, s.config)
+	relService := relationships.NewService(newDB, s.config)
+	aiManager := ai.NewManager(newDB, s.config)
+	searchEngine.SetAIManager(aiManager)
+	recallEngine := recall.NewEngine(newDB, s.config, aiManager, searchEngine, relService)
+
+	pipelineQueue := pipeline.NewQueue(newDB, relService, pipeline.DefaultQueueConfig())
+	claudeReader := claude.NewReader("")
+	claudeAdapter := claude.NewAdapter(claudeReader)
+	pipelineQueue.RegisterAdapter(claudeAdapter)
+	slackAdapter := slackadapter.NewAdapter()
+	pipelineQueue.RegisterAdapter(slackAdapter)
+
+	// Hold reference to old DB before swapping
+	oldDB := s.db
+
+	// Swap all service references
+	s.db = newDB
+	s.memoryService = memoryService
+	s.searchEngine = searchEngine
+	s.relService = relService
+	s.aiManager = aiManager
+	s.recallEngine = recallEngine
+	s.pipelineQueue = pipelineQueue
+
+	// Initialize new AI manager (non-fatal)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.aiManager.Initialize(ctx); err != nil {
+		s.log.Warn("AI initialization failed after reload", "error", err)
+	}
+
+	// Close old database
+	if oldDB != nil {
+		oldDB.Close()
+	}
+
+	s.log.Info("database reloaded successfully", "path", newPath)
 	return nil
 }
 

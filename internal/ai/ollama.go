@@ -596,6 +596,73 @@ func (c *OllamaClient) ChatModel() string {
 	return c.chatModel
 }
 
+// PullModel pulls a model from the Ollama registry
+func (c *OllamaClient) PullModel(ctx context.Context, modelName string) error {
+	if !c.enabled {
+		return fmt.Errorf("ollama is not enabled")
+	}
+
+	body, err := json.Marshal(map[string]interface{}{
+		"name":   modelName,
+		"stream": false,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/pull", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("pull request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("pull failed (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// TestConnectivity tests if the Ollama server is reachable and returns model info
+func (c *OllamaClient) TestConnectivity(ctx context.Context) (bool, string, error) {
+	if !c.enabled {
+		return false, "Ollama is disabled", nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/api/tags", nil)
+	if err != nil {
+		return false, "Failed to create request", err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false, "Connection failed: " + err.Error(), nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Sprintf("Unexpected status: %d", resp.StatusCode), nil
+	}
+
+	var result struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, "Failed to decode response", err
+	}
+
+	return true, fmt.Sprintf("Connected, %d models available", len(result.Models)), nil
+}
+
 // IsEnabled returns whether Ollama is enabled
 func (c *OllamaClient) IsEnabled() bool {
 	return c.enabled

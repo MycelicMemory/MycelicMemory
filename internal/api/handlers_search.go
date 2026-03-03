@@ -13,10 +13,12 @@ import (
 // SearchResultItem matches local-memory's search result format
 type SearchResultItem struct {
 	ID             string   `json:"id"`
+	Content        string   `json:"content"`
 	Summary        string   `json:"summary"`
 	RelevanceScore float64  `json:"relevance_score"`
 	Tags           []string `json:"tags,omitempty"`
 	Importance     int      `json:"importance"`
+	Domain         string   `json:"domain,omitempty"`
 	CreatedAt      string   `json:"created_at"`
 }
 
@@ -200,11 +202,13 @@ func (s *Server) searchMemoriesPOST(c *gin.Context) {
 	for i, r := range results {
 		items[i] = SearchResultItem{
 			ID:             r.Memory.ID,
+			Content:        r.Memory.Content,
 			Summary:        r.Memory.Content,
 			RelevanceScore: r.Relevance,
 			Tags:           r.Memory.Tags,
 			Importance:     r.Memory.Importance,
-			CreatedAt:      "", // local-memory returns empty string
+			Domain:         r.Memory.Domain,
+			CreatedAt:      r.Memory.CreatedAt.Format(time.RFC3339),
 		}
 	}
 
@@ -237,7 +241,7 @@ func (s *Server) searchMemoriesPOST(c *gin.Context) {
 		},
 	}
 
-	c.JSON(200, response)
+	SuccessResponse(c, "Search completed successfully", response)
 }
 
 // intelligentSearch handles POST /api/v1/memories/search/intelligent
