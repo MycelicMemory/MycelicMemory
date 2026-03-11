@@ -13,7 +13,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.0",
     "recharts": "^2.10.3",
-    "lucide-react": "^0.303.0"
+    "lucide-react": "^0.563.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.45",
